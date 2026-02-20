@@ -1,32 +1,21 @@
 from fastapi import Depends, FastAPI, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import desc
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
-from app.config import get_settings
-from app.database import get_db
-from app.models import YieldRecord
-from app.schemas import HealthResponse, YieldResponse
-
-settings = get_settings()
+from api.database import get_db
+from api.models import YieldRecord
+from api.schemas import HealthResponse, YieldResponse
 
 app = FastAPI(title="SmartCD Backend API")
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=settings.resolved_cors_origins,
-    allow_credentials=True,
-    allow_methods=["GET"],
-    allow_headers=["Authorization", "Content-Type"],
-)
-
-
+@app.get("/api/health", response_model=HealthResponse)
 @app.get("/health", response_model=HealthResponse)
 def health() -> HealthResponse:
     return HealthResponse(status="OK")
 
 
+@app.get("/api/yield", response_model=YieldResponse)
 @app.get("/yield", response_model=YieldResponse)
 def get_current_yield(db: Session = Depends(get_db)) -> YieldResponse:
     try:
