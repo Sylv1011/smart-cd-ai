@@ -4,7 +4,6 @@ Minimal React (Vite) single page that fetches current yield from backend.
 
 ## Environment variables
 
-- `VITE_API_URL`: backend base URL (required)
 - `VITE_ENV_NAME`: visible environment label (`staging`, `production`, etc.)
 
 Create `.env` from `.env.example` and set values per environment.
@@ -36,9 +35,8 @@ npm run build -- --mode production
 ## Vercel deployment variables
 
 Set these in Vercel project settings:
-- `VITE_API_URL`
 - `VITE_ENV_NAME`
 
 Recommended:
-- Production branch (`main`): `VITE_ENV_NAME=production`, production backend URL
-- Staging branch (`staging`): `VITE_ENV_NAME=staging`, staging backend URL
+- Production branch (`main`): `VITE_ENV_NAME=production`
+- Staging branch (`staging`): `VITE_ENV_NAME=staging`

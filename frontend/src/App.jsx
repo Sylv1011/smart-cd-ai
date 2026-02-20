@@ -1,6 +1,5 @@
 import { useState } from "react";
 
-const apiUrl = import.meta.env.VITE_API_URL;
 const envName = import.meta.env.VITE_ENV_NAME || "local";
 
 export default function App() {
@@ -9,16 +8,11 @@ export default function App() {
   const [error, setError] = useState("");
 
   const handleFetchYield = async () => {
-    if (!apiUrl) {
-      setError("VITE_API_URL is not configured.");
-      return;
-    }
-
     setLoading(true);
     setError("");
 
     try {
-      const response = await fetch(`${apiUrl}/yield`, {
+      const response = await fetch("/api/yield", {
         method: "GET",
         headers: { "Content-Type": "application/json" },
       });

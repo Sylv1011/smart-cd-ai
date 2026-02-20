@@ -20,3 +20,7 @@ dist/
 # OS / editor
 .DS_Store
 Thumbs.db
+
+# Legacy pre-monorepo folders
+smartcd-backend/
+smartcd-frontend/
