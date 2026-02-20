@@ -1,0 +1,6 @@
+fastapi==0.115.8
+uvicorn[standard]==0.34.0
+SQLAlchemy==2.0.38
+psycopg2-binary==2.9.10
+pydantic==2.10.6
+pydantic-settings==2.7.1
