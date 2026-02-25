@@ -263,9 +263,14 @@ SUPABASE_URL=...
 SUPABASE_SERVICE_ROLE_KEY=...
 SUPABASE_TABLE=offers     
 ```                                   
-2.	Run:  python scripts/ingest.py
-    Data will be upserted using record_hash as primary key.    
-    Deduplication Strategy
+
+2.	Run:  
+```
+python scripts/ingest.py
+```
+
+Data will be upserted using record_hash as primary key.    
+# Deduplication Strategy
 
 Each record generates a SHA256 hash using:
 - product_type
@@ -283,7 +288,7 @@ Each record generates a SHA256 hash using:
 Upserts use record_hash for deterministic conflict resolution.
 
 
-__Validation Rules__
+# Validation Rules
 - Strict product_type enforcement
 - Term months restricted to approved set
 - APY numeric and within allowed range
@@ -294,7 +299,7 @@ __Validation Rules__
 - Bank CD requires canonical destination mapping
 
 
-__Current Capabilities__
+# Current Capabilities
 - 100+ validated offers per run
 - Deterministic upserts
 - URL canonicalization
@@ -303,7 +308,7 @@ __Current Capabilities__
 - Clean separation between ingestion and ranking layers
 - Ready for ZIP-based tax module integration
 
-__Operational Workflow (Daily)__
+# Operational Workflow (Daily)
 1. Download Bankrate HTML
 2. Update Treasury CSV
 3. Update brokered_cd.json with information retrieved with Gemini 
