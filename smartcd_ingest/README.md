@@ -221,10 +221,11 @@ smartcd_ingest/
 ```
 
 # Fetching Data
-## Setup
-1. Create Virtual Environment: python -m venv .venv
-                            source .venv/bin/activate
-2. Install Dependencies : python -m pip install -r requirements.txt
+## 1. Setup
+1. Create Virtual Environment: ```python -m venv .venv
+                            source .venv/bin/activate```
+2. Install Dependencies : 
+```python -m pip install -r requirements.txt```
 
 __Important: First Run in Validation Mode__
 
