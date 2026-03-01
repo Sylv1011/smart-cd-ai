@@ -196,12 +196,22 @@ df_for_brackets = df_for_brackets.rename(columns=rename_map)
 brackets_df = clean_brackets(df_for_brackets) 
 
 
-# concert to dict for states_tax_config and tax_brackets tables in db
+# convert to dict for states_tax_config and tax_brackets tables in db
 config_data = config_df.replace({np.nan: None}).to_dict(orient='records')
 brackets_data = brackets_df.replace({np.nan: None}).to_dict(orient='records')
 
-print('Successfully processed data, start uploading to DB...\n')
 
+print("Some sample data:")
+print("Local taxes data:")
+print(df_local.head())
+print("\nState tax config data:")
+print(config_df.head())
+print("\nState tax brackets data:")
+print(brackets_df.head())
+
+print('\nSuccessfully processed data, start uploading to DB...\n')
+"""
+# -----------------Insert Data into Database-----------------
 # rebuild db to avoid excel change causing duplicate entries in db
 supabase.table("tax_brackets").delete().neq("state_id", "NONE").execute()
 supabase.table("local_taxes").delete().neq("state", "NONE").execute()
@@ -212,4 +222,5 @@ print('Finished rebuilding tables, start upserting data...\n')
 supabase.table("local_taxes").insert(local_tax_data).execute()
 supabase.table("states_tax_config").insert(config_data).execute()
 supabase.table("tax_brackets").insert(brackets_data).execute()
-print('Finished upserting data to DB!')
+print('Finished upserting data to Database.')
+"""
