@@ -210,7 +210,7 @@ print("\nState tax brackets data:")
 print(brackets_df.head())
 
 print('\nSuccessfully processed data, start uploading to DB...\n')
-"""
+
 # -----------------Insert Data into Database-----------------
 # rebuild db to avoid excel change causing duplicate entries in db
 supabase.table("tax_brackets").delete().neq("state_id", "NONE").execute()
@@ -223,4 +223,3 @@ supabase.table("local_taxes").insert(local_tax_data).execute()
 supabase.table("states_tax_config").insert(config_data).execute()
 supabase.table("tax_brackets").insert(brackets_data).execute()
 print('Finished upserting data to Database.')
-"""

@@ -99,7 +99,7 @@ print('\nSuccessfully processed data, start uploading to DB...')
 supabase.table("federal_taxes").delete().neq("id", -1).execute()
 print("Existing data in federal_taxes table cleared.")
 
-# inser new data into db
+# insert new data into db
 federal_data = df_final.replace({np.nan: None}).to_dict(orient='records')
 supabase.table("federal_taxes").insert(federal_data).execute()
 print("New data inserted into federal_taxes table successfully.")
