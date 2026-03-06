@@ -1,7 +1,7 @@
 from functools import lru_cache
 import os
 from pathlib import Path
-from typing import Literal, Optional
+from typing import List, Literal, Optional
 
 from pydantic import Field
 from pydantic import ValidationError
@@ -17,6 +17,9 @@ class Settings(BaseSettings):
     database_url: Optional[str] = Field(default=None, alias="DATABASE_URL")
     prod_database_url: Optional[str] = Field(default=None, alias="PROD_DATABASE_URL")
     staging_database_url: Optional[str] = Field(default=None, alias="STAGING_DATABASE_URL")
+    cors_allowed_origins: str = Field(default="", alias="CORS_ALLOWED_ORIGINS")
+    prod_cors_allowed_origins: str = Field(default="", alias="PROD_CORS_ALLOWED_ORIGINS")
+    staging_cors_allowed_origins: str = Field(default="", alias="STAGING_CORS_ALLOWED_ORIGINS")
 
     # Vercel compatibility:
     # - production/staging rely on os.environ only
@@ -52,6 +55,37 @@ class Settings(BaseSettings):
 
         # Defensive fallback in case enum validation is changed in the future.
         raise ValueError(f"Unknown ENVIRONMENT value: {env}")
+
+    @property
+    def resolved_cors_origins(self) -> List[str]:
+        env = self.environment
+
+        if env == "production":
+            if self.prod_cors_allowed_origins.strip():
+                return [origin.strip() for origin in self.prod_cors_allowed_origins.split(",") if origin.strip()]
+            if self.cors_allowed_origins.strip():
+                return [origin.strip() for origin in self.cors_allowed_origins.split(",") if origin.strip()]
+            raise ValueError(
+                "ENVIRONMENT=production requires PROD_CORS_ALLOWED_ORIGINS "
+                "(or CORS_ALLOWED_ORIGINS)."
+            )
+
+        if env == "staging":
+            if self.staging_cors_allowed_origins.strip():
+                return [origin.strip() for origin in self.staging_cors_allowed_origins.split(",") if origin.strip()]
+            if self.cors_allowed_origins.strip():
+                return [origin.strip() for origin in self.cors_allowed_origins.split(",") if origin.strip()]
+            raise ValueError(
+                "ENVIRONMENT=staging requires STAGING_CORS_ALLOWED_ORIGINS "
+                "(or CORS_ALLOWED_ORIGINS)."
+            )
+
+        # Development defaults for local frontend on Vite.
+        if self.staging_cors_allowed_origins.strip():
+            return [origin.strip() for origin in self.staging_cors_allowed_origins.split(",") if origin.strip()]
+        if self.cors_allowed_origins.strip():
+            return [origin.strip() for origin in self.cors_allowed_origins.split(",") if origin.strip()]
+        return ["http://localhost:5173", "http://127.0.0.1:5173"]
 
 
 @lru_cache

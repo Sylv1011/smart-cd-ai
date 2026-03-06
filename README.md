@@ -1,8 +1,8 @@
 # SmartCD.ai
 
-Single-project Vercel monorepo:
+Frontend on Vercel + Backend on Render:
 
 ```text
-api/       # FastAPI serverless backend
-frontend/  # Vite React frontend
+api/       # FastAPI backend (Render Web Service)
+frontend/  # Vite React frontend (Vercel)
 ```
