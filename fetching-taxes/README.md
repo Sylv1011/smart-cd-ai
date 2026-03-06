@@ -103,4 +103,6 @@ Once your environment variables and Excel files are ready, run the following Pyt
 ## Auto-fetcher
 ### Overview
 The `auto-fetcher` folder contains scripts designed to automatically get the excel files by web crawling and store the extracted data into your Supabase database.
-> __still working__
+### Setup
+Once your environment variables and Excel files are ready, run the following Python script:
+* `main.py`: call all needed functions from other Python scripts to complete scraping websites, processing data, and storing to the database.
