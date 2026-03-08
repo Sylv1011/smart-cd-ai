@@ -1,0 +1,66 @@
+:root {
+  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+  color: #1a1a1a;
+  background: linear-gradient(180deg, #f6f8fb 0%, #edf2f7 100%);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+}
+
+.page {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+
+.card {
+  width: 100%;
+  max-width: 460px;
+  background: #ffffff;
+  border: 1px solid #d9e0e8;
+  border-radius: 14px;
+  padding: 24px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.06);
+}
+
+.env-label {
+  margin: 0 0 8px;
+  font-size: 0.9rem;
+  color: #3d4a5d;
+}
+
+h1 {
+  margin: 0 0 16px;
+}
+
+button {
+  border: 0;
+  background: #0b5fff;
+  color: #ffffff;
+  font-size: 1rem;
+  padding: 10px 14px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+button:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.result {
+  margin: 16px 0 0;
+  color: #1f3a19;
+}
+
+.error {
+  margin: 16px 0 0;
+  color: #b42318;
+}

@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Python bytecode
 __pycache__/
 *.py[cod]
@@ -53,3 +54,94 @@ node_modules/
 
 # Misc
 *.sqlite3
+=======
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+
+# Local secrets
+.env
+.env.local
+.env.*.local
+.env*
+!.env.example
+!.env.*.example
+
+# Node
+node_modules/
+dist/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+
+# Legacy pre-monorepo folders
+smartcd-backend/
+smartcd-frontend/
+>>>>>>> 88342c7fa13258b8162fc68d2de5ed424010dfbb
+
+# Python bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+.env*
+!.env.example
+!.env.*.example
+
+# macOS / Windows system files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Python build artifacts
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# VS Code / IDE
+.vscode/
+.idea/
+
+# Testing
+.pytest_cache/
+coverage/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Supabase local configs
+.supabase/
+
+# Temporary files
+*.tmp
+*.temp
+
+# Render / deployment artifacts
+.render/
+
+# Node
+node_modules/
+
+# Misc
+*.sqlite3
+
+# Legacy pre-monorepo folders
+smartcd-backend/
+smartcd-frontend/
