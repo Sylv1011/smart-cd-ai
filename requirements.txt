@@ -1,0 +1,8 @@
+fastapi
+uvicorn[standard]
+supabase
+python-dotenv
+pydantic
+httpx
+requests
+urllib3==1.26.20
