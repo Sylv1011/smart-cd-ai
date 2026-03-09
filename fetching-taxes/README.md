@@ -34,7 +34,7 @@ Stores the high-level tax rules and standard deductions for each state. This tab
 
 ### 3. `tax_brackets`
 Contains specific tax rates per bracket. It connects to `states_tax_config` via a **Foreign Key** on `state_id`.
-* **Columns**: `state_id`, `filing_status`, `tax_rate`, `bracket_thrld` (The income threshold for the rate).
+* **Columns**: `id`, `state_id`, `filing_status`, `tax_rate`, `bracket_thrld` (The income threshold for the rate).
 
 ### 4. `local_taxes`
 Stores tax data for specific U.S. cities or counties.
