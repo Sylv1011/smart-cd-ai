@@ -130,7 +130,8 @@ class DataClient:
         self.federal_brackets_table = federal_brackets_table
         self.local_tax_table = local_tax_table
 
-        # simple in‑memory caches (avoid repeated DB hits for tax tables)
+        # simple in-memory caches (avoid repeated DB hits for offers + tax tables)
+        self._offers_cache = {}
         self._federal_cache = {}
         self._state_cache = {}
         self._local_cache = {}
@@ -138,6 +139,13 @@ class DataClient:
     # ---------------- Offers ----------------
 
     def fetch_offers(self, term_months: int) -> List[Offer]:
+        cache_key = int(term_months)
+        if cache_key in self._offers_cache:
+            logger.info("Offers cache hit for term_months=%s", term_months)
+            return self._offers_cache[cache_key]
+
+        logger.info("Offers cache miss for term_months=%s. Fetching from Supabase.", term_months)
+
         resp = (
             self.sb.table(self.offers_table)
             .select(
@@ -170,6 +178,8 @@ class DataClient:
                     retrieved_at=r.get("retrieved_at"),
                 )
             )
+
+        self._offers_cache[cache_key] = out
         return out
 
     # ---------------- Tax: Federal ----------------
