@@ -36,6 +36,10 @@ class ChatResponse(BaseModel):
 def health() -> Dict[str, str]:
     return {"status": "ok"}
 
+@app.get("/")
+def root():
+    return {"message": "SmartCD AI Layer is running"}
+
 
 @app.post("/explain-top-3", response_model=Top3ProductsResponse)
 def explain_top3(req: ExplainTop3Request) -> Top3ProductsResponse:
