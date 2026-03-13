@@ -49,7 +49,7 @@ class RankRequest(BaseModel):
     top_n_bank_cds: int = Field(default=10, ge=1, le=50)
     top_n_brokered_cds: int = Field(default=10, ge=1, le=50)
     top_n_treasuries: int = Field(default=1, ge=1, le=10)
-    top_n_overall: int = Field(default=5, ge=1, le=50)
+    top_n_overall: int = Field(default=3, ge=1, le=50)
 
 
 class RankedOfferResponse(BaseModel):
