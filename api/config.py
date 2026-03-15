@@ -1,4 +1,4 @@
-from functools import lru_cache
+﻿from functools import lru_cache
 import os
 from pathlib import Path
 from typing import List, Literal, Optional
@@ -20,6 +20,8 @@ class Settings(BaseSettings):
     database_url: Optional[str] = Field(default=None, alias="DATABASE_URL")
     prod_database_url: Optional[str] = Field(default=None, alias="PROD_DATABASE_URL")
     staging_database_url: Optional[str] = Field(default=None, alias="STAGING_DATABASE_URL")
+
+    cors_allowed_origins_raw: Optional[str] = Field(default=None, alias="CORS_ALLOWED_ORIGINS")
     prod_cors_allowed_origins: Optional[str] = Field(default=None, alias="PROD_CORS_ALLOWED_ORIGINS")
     staging_cors_allowed_origins: Optional[str] = Field(default=None, alias="STAGING_CORS_ALLOWED_ORIGINS")
     dev_cors_allowed_origins: Optional[str] = Field(default=None, alias="DEV_CORS_ALLOWED_ORIGINS")
@@ -65,11 +67,15 @@ class Settings(BaseSettings):
         raw = None
 
         if env == "production":
-            raw = self.prod_cors_allowed_origins
+            raw = self.prod_cors_allowed_origins or self.cors_allowed_origins_raw
         elif env == "staging":
-            raw = self.staging_cors_allowed_origins
+            raw = self.staging_cors_allowed_origins or self.cors_allowed_origins_raw
         elif env == "development":
-            raw = self.dev_cors_allowed_origins or self.staging_cors_allowed_origins
+            raw = (
+                self.dev_cors_allowed_origins
+                or self.staging_cors_allowed_origins
+                or self.cors_allowed_origins_raw
+            )
 
         defaults = [
             "http://localhost:5173",
