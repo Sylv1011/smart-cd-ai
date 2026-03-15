@@ -394,3 +394,137 @@ class DataClient:
         if DEBUG:
             logger.debug("[LOCAL] no local match for state=%s area=%s -> 0.0", st, area)
         return 0.0
+
+
+class StaticDataClient:
+    """
+    Deterministic, in-memory fallback for local development.
+
+    Implements the subset of the DataClient interface required by the ranking engine:
+      - fetch_offers
+      - fetch_federal_marginal_rate
+      - fetch_state_marginal_rate
+      - fetch_local_interest_rate
+
+    This keeps `ranking-engine/main.py` usable without Supabase credentials.
+    """
+
+    def __init__(self) -> None:
+        # Use a stable timestamp to avoid confusing "freshness" differences in local dev.
+        self._retrieved_at = "2026-01-01T00:00:00Z"
+
+    def fetch_offers(self, term_months: int) -> List[Offer]:
+        t = int(term_months)
+
+        def _mk(
+            *,
+            product_type: str,
+            institution_name: Optional[str] = None,
+            brokerage_firm: Optional[str] = None,
+            issuing_bank: Optional[str] = None,
+            apy: float,
+            minimum_deposit: Optional[float],
+            fdic_insured: Optional[bool],
+            source_name: str,
+            source_url: str,
+            destination_url: str,
+        ) -> Offer:
+            return Offer(
+                product_type=product_type,
+                institution_name=institution_name,
+                brokerage_firm=brokerage_firm,
+                issuing_bank=issuing_bank,
+                term_months=t,
+                apy=float(apy),
+                minimum_deposit=float(minimum_deposit) if minimum_deposit is not None else None,
+                fdic_insured=fdic_insured,
+                source_name=source_name,
+                source_url=source_url,
+                destination_url=destination_url,
+                retrieved_at=self._retrieved_at,
+            )
+
+        # Very simple "curve" for demo: slightly higher APY for longer term up to 60m.
+        term_factor = min(max(t, 3), 60) / 60.0
+
+        bank_base = 4.0 + (0.6 * term_factor)       # ~4.03% .. 4.60%
+        brokered_base = 4.05 + (0.55 * term_factor) # ~4.08% .. 4.60%
+        treasury_base = 3.9 + (0.5 * term_factor)   # ~3.93% .. 4.40%
+
+        return [
+            _mk(
+                product_type="bank_cd",
+                institution_name="Citibank",
+                apy=round(bank_base + 0.05, 2),
+                minimum_deposit=1000,
+                fdic_insured=True,
+                source_name="static",
+                source_url="https://example.com/sources/bankrate",
+                destination_url="https://example.com/apply/citibank",
+            ),
+            _mk(
+                product_type="bank_cd",
+                institution_name="Capital One",
+                apy=round(bank_base, 2),
+                minimum_deposit=0,
+                fdic_insured=True,
+                source_name="static",
+                source_url="https://example.com/sources/bankrate",
+                destination_url="https://example.com/apply/capital-one",
+            ),
+            _mk(
+                product_type="brokered_cd",
+                issuing_bank="Barclays",
+                brokerage_firm="Fidelity",
+                apy=round(brokered_base + 0.03, 2),
+                minimum_deposit=1000,
+                fdic_insured=True,
+                source_name="static",
+                source_url="https://example.com/sources/fidelity",
+                destination_url="https://example.com/apply/fidelity/brokered-cd",
+            ),
+            _mk(
+                product_type="brokered_cd",
+                issuing_bank="Goldman Sachs",
+                brokerage_firm="Schwab",
+                apy=round(brokered_base, 2),
+                minimum_deposit=1000,
+                fdic_insured=True,
+                source_name="static",
+                source_url="https://example.com/sources/schwab",
+                destination_url="https://example.com/apply/schwab/brokered-cd",
+            ),
+            _mk(
+                product_type="treasury",
+                institution_name="US Treasury",
+                apy=round(treasury_base, 2),
+                minimum_deposit=100,
+                fdic_insured=None,
+                source_name="static",
+                source_url="https://example.com/sources/treasury",
+                destination_url="https://treasurydirect.gov",
+            ),
+        ]
+
+    def fetch_federal_marginal_rate(self, filing_status: str, estimated_income: float) -> float:
+        # Return a reasonable default marginal rate (decimal).
+        return 0.22
+
+    def fetch_state_marginal_rate(self, state: str, filing_status: str, income: float) -> float:
+        st = (state or "").strip().upper()
+        # Very rough defaults for local dev only (decimals).
+        defaults = {
+            "CA": 0.09,
+            "NY": 0.064,
+            "IL": 0.05,
+            "TX": 0.0,
+            "FL": 0.0,
+        }
+        return float(defaults.get(st, 0.0))
+
+    def fetch_local_interest_rate(self, state: str, local_area: Optional[str]) -> float:
+        st = (state or "").strip().upper()
+        area = _norm_text(local_area)
+        if st == "NY" and area and any(k in area for k in ("new york", "manhattan", "nyc")):
+            return 0.03
+        return 0.0

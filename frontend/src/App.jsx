@@ -75,10 +75,136 @@ const ExternalLinkIcon = ({ className }) => (
   </svg>
 );
 
+const STATE_TO_CODE = {
+  California: 'CA',
+  Texas: 'TX',
+  Florida: 'FL',
+  'New York': 'NY',
+  Illinois: 'IL',
+};
+
+const normalizeIncomeRangeForRanker = (value) => {
+  const v = (value || '').trim();
+  const map = {
+    'less than $25,000': '<$25,000',
+    '$25,000 - $35,000': '$25,000 - $50,000',
+    '$35,000 - $50,000': '$25,000 - $50,000',
+    '$50,000 - $75,000': '$50,000 - $75,000',
+    '$75,000 - $100,000': '$75,000 - $100,000',
+    '$100,000 - $150,000': '$100,000 - $150,000',
+    '$150,000 - $200,000': '$150,000 - $200,000',
+    '$200,000 - $250,000': '$200,000+',
+    '$250,000 above': '$200,000+',
+  };
+  return map[v] || v;
+};
+
+const normalizeFilingStatusForRanker = (value) => {
+  const v = (value || '').trim().toLowerCase();
+  if (!v) return 'single';
+  if (v.startsWith('single')) return 'single';
+  if (v.startsWith('head')) return 'hoh';
+  if (v.startsWith('married filing jointly') || v.includes('jointly') || v.includes('surviving')) return 'joint';
+  // Ranking engine treats unsupported statuses best-effort; use single for MFS to avoid surprises.
+  return 'single';
+};
+
+const parseTermToMonths = (label) => {
+  const v = (label || '').trim();
+  const m = v.match(/^(\d+)\s*(Month|Year)/i);
+  if (m) {
+    const n = parseInt(m[1], 10);
+    const unit = (m[2] || '').toLowerCase();
+    return unit.startsWith('year') ? n * 12 : n;
+  }
+  if (/^5\s*Year/i.test(v)) return 60;
+  // Safe fallback: 12 months
+  return 12;
+};
+
+const formatMoney = (n) => {
+  const x = Number(n);
+  if (!isFinite(x)) return '$0.00';
+  return `$${x.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+};
+
+const adaptRankResponseToUiResults = (rankPayload) => {
+  const bank = Array.isArray(rankPayload?.bank_cds) ? rankPayload.bank_cds : [];
+  const brokered = Array.isArray(rankPayload?.brokered_cds) ? rankPayload.brokered_cds : [];
+  const treasuries = Array.isArray(rankPayload?.treasuries) ? rankPayload.treasuries : [];
+  const overallTop = Array.isArray(rankPayload?.overall_top) ? rankPayload.overall_top : [];
+
+  const topPickKey = overallTop[0]?.destination_url || overallTop[0]?.source_url || null;
+
+  const toProductType = (pt) => {
+    if (pt === 'treasury') return 'Treasuries';
+    if (pt === 'brokered_cd') return 'Brokerage CDs';
+    return 'Bank CDs';
+  };
+
+  const toInstitutionType = (pt, o) => {
+    if (pt === 'Treasuries') return 'Backed by U.S. Government';
+    if (pt === 'Brokerage CDs') {
+      const broker = o?.brokerage_firm ? `Issued through ${o.brokerage_firm}` : 'Brokered';
+      return `Member of FDIC, ${broker}`;
+    }
+    return 'Member of FDIC';
+  };
+
+  const toWhyThisFits = (pt) => {
+    if (pt === 'Treasuries') return 'Treasury interest is exempt from state and local taxes.';
+    if (pt === 'Brokerage CDs') return 'Often competitive rates with brokerage access and FDIC insurance.';
+    return 'FDIC-insured CDs with strong after-tax returns for your term.';
+  };
+
+  const mapOffer = (o) => {
+    const productType = toProductType(o?.product_type);
+    const provider =
+      o?.institution_name ||
+      o?.issuing_bank ||
+      o?.brokerage_firm ||
+      'Unknown';
+
+    const grossInterest = Number(o?.nominal_interest_usd ?? 0);
+    const fedRate = Number(o?.fed_rate ?? 0);
+    const stateRate = productType === 'Treasuries' ? 0 : Number(o?.state_rate ?? 0);
+    const localRate = productType === 'Treasuries' ? 0 : Number(o?.local_rate ?? 0);
+
+    const fedTax = grossInterest * fedRate;
+    const stateTax = grossInterest * stateRate;
+    const localTax = grossInterest * localRate;
+
+    const linkKey = o?.destination_url || o?.source_url || '';
+    const idBase = `${productType}-${provider}-${o?.term_months ?? ''}-${o?.apy_nominal ?? ''}-${linkKey}`;
+
+    return {
+      id: idBase,
+      provider,
+      institutionType: toInstitutionType(productType, o),
+      productType,
+      nominalRate: Number(o?.apy_nominal ?? 0),
+      afterTaxYield: Number(o?.after_tax_apy ?? 0),
+      minDeposit: Number(o?.minimum_deposit ?? 0),
+      isTopPick: topPickKey && (o?.destination_url === topPickKey || o?.source_url === topPickKey),
+      taxBreakdown: {
+        federalBracket: fedTax > 0 ? `-${formatMoney(fedTax)}` : '$0.00',
+        stateTax: stateTax > 0 ? `-${formatMoney(stateTax)}` : '$0.00',
+        localOswego: localTax > 0 ? `-${formatMoney(localTax)}` : '$0.00',
+      },
+      netReturn: formatMoney(Number(o?.after_tax_interest_usd ?? 0)),
+      whyThisFits: toWhyThisFits(productType),
+      matchPercentage: 0,
+    };
+  };
+
+  return [...bank, ...brokered, ...treasuries].map(mapOffer);
+};
+
 export default function App() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [results, setResults] = useState([]);
+  const [rankResponse, setRankResponse] = useState(null);
   const [showPrivacy, setShowPrivacy] = useState(false);
   const [showResults, setShowResults] = useState(window.location.pathname === '/results');
   const [viewMode, setViewMode] = useState('combined');
@@ -161,11 +287,28 @@ export default function App() {
     setError(null);
 
     try {
-      const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:8000';
-      const response = await fetch(`${apiBase}/api/v1/fetch-yields`, {
+      const rankBase =
+        import.meta.env.VITE_RANKING_API_URL ||
+        import.meta.env.VITE_API_URL ||
+        'http://localhost:8001';
+
+      const rankRequest = {
+        investment_amount: amt,
+        term_months: parseTermToMonths(formData.term_length_months),
+        state: STATE_TO_CODE[formData.state_selection] || formData.state_selection,
+        income_range: normalizeIncomeRangeForRanker(formData.income_range),
+        filing_status: normalizeFilingStatusForRanker(formData.tax_filing_status),
+        local_area: formData.city_county || null,
+        top_n_bank_cds: 10,
+        top_n_brokered_cds: 10,
+        top_n_treasuries: 3,
+        top_n_overall: 10,
+      };
+
+      const response = await fetch(`${rankBase}/rank`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(rankRequest),
       });
 
       if (!response.ok) {
@@ -174,7 +317,8 @@ export default function App() {
       }
 
       const payload = await response.json();
-      setResults(payload.results || []);
+      setRankResponse(payload);
+      setResults(adaptRankResponseToUiResults(payload));
 
       window.history.pushState({ page: 'results' }, '', '/results');
       setShowResults(true);
@@ -665,7 +809,7 @@ export default function App() {
                 })()}
               </div>
             </div>
-            <AIAssistant />
+            <AIAssistant rankResponse={rankResponse} />
           </div>
         )}
       </main>

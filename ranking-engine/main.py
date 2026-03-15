@@ -1,14 +1,19 @@
+from pathlib import Path
 from dotenv import load_dotenv
-load_dotenv()
+
+# Load env vars from `ranking-engine/.env` regardless of where the process is started from.
+# In Render/production this file typically doesn't exist, so this is a no-op.
+load_dotenv(dotenv_path=Path(__file__).resolve().parent / ".env", override=False)
 import os
 import logging
 from typing import Optional, Any, Dict
+from functools import lru_cache
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
-from data import DataClient, RankingInput
+from data import DataClient, RankingInput, StaticDataClient
 from engine import rank_offers
 
 # ---------------- Logging ----------------
@@ -28,14 +33,46 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ---------------- Supabase client (created once) ----------------
-SUPABASE_URL = os.getenv("SUPABASE_URL")
-SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY") or os.getenv("SUPABASE_ANON_KEY")
+def _env(key: str) -> Optional[str]:
+    v = os.getenv(key)
+    return v.strip() if v and v.strip() else None
 
-if not SUPABASE_URL or not SUPABASE_KEY:
-    raise RuntimeError("Missing Supabase configuration")
 
-sb = DataClient(SUPABASE_URL, SUPABASE_KEY)
+@lru_cache(maxsize=1)
+def get_data_client() -> DataClient:
+    """
+    Chooses the data backend for ranking:
+      - default: Supabase if configured
+      - fallback: a deterministic in-memory dataset for local dev
+
+    Override with SMARTCD_DATA_MODE=supabase|static.
+    """
+    mode = (_env("SMARTCD_DATA_MODE") or "").lower()
+    environment = (_env("ENVIRONMENT") or "").lower()
+
+    supabase_url = _env("SUPABASE_URL")
+    supabase_key = _env("SUPABASE_SERVICE_ROLE_KEY") or _env("SUPABASE_ANON_KEY")
+
+    if mode == "static":
+        logger.warning("SMARTCD_DATA_MODE=static -> using StaticDataClient (no Supabase)")
+        return StaticDataClient()
+
+    if not mode and environment == "production":
+        mode = "supabase"
+
+    if mode == "supabase" and (not supabase_url or not supabase_key):
+        raise RuntimeError("SMARTCD_DATA_MODE=supabase requires SUPABASE_URL and SUPABASE_*_KEY")
+
+    if supabase_url and supabase_key:
+        try:
+            return DataClient(supabase_url, supabase_key)
+        except Exception as e:
+            # Fallback for local environments missing supabase-py; keep service usable.
+            logger.exception("Supabase client init failed; falling back to StaticDataClient. error=%s", e)
+            return StaticDataClient()
+
+    logger.warning("Supabase not configured -> using StaticDataClient (set SUPABASE_URL + SUPABASE_*_KEY to enable)")
+    return StaticDataClient()
 
 # ---------------- Request model ----------------
 class RankRequest(BaseModel):
@@ -107,6 +144,7 @@ def root():
         "health": "/health",
         "docs": "/docs",
         "rank": "/rank",
+        "data_mode": (_env("SMARTCD_DATA_MODE") or ("supabase" if _env("SUPABASE_URL") else "static")),
     }
 
 
@@ -135,9 +173,11 @@ def rank(req: RankRequest) -> Dict[str, Any]:
             local_area=req.local_area.lower() if req.local_area else None,
         )
 
+        data_client = get_data_client()
+
         result = rank_offers(
             inp,
-            data_client=sb,
+            data_client=data_client,
             top_n_bank_cds=req.top_n_bank_cds,
             top_n_brokered_cds=req.top_n_brokered_cds,
             top_n_treasuries=req.top_n_treasuries,
@@ -154,7 +194,7 @@ def rank(req: RankRequest) -> Dict[str, Any]:
 
     except RuntimeError as e:
         logger.exception("Server configuration error")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=503, detail=str(e))
     except Exception:
         logger.exception("Ranking failed")
         raise HTTPException(status_code=500, detail="Ranking engine failed")

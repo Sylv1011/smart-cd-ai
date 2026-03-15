@@ -21,31 +21,115 @@ const CloseIcon = ({ className, onClick }) => (
   </svg>
 );
 
-export default function AIAssistant() {
+export default function AIAssistant({ rankResponse }) {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState([
     { role: 'ai', content: 'Hi! I can help you find the best CD rates and calculate your after-tax yield based on your location. What would you like to know?' }
   ]);
   const [inputValue, setInputValue] = useState('');
+  const [isSending, setIsSending] = useState(false);
 
   const toggleChat = () => setIsOpen(!isOpen);
 
-  const handleSend = (e) => {
+  const aiBase = import.meta.env.VITE_AI_LAYER_URL;
+
+  const appendMessage = (msg) => setMessages(prev => [...prev, msg]);
+
+  const explainTop3 = async () => {
+    if (!aiBase) {
+      appendMessage({ role: 'ai', content: 'AI is not configured. Set VITE_AI_LAYER_URL to enable the real chatbot.' });
+      return;
+    }
+    if (!rankResponse) {
+      appendMessage({ role: 'ai', content: 'Run a search first so I can explain the ranked results.' });
+      return;
+    }
+
+    setIsSending(true);
+    try {
+      const res = await fetch(`${aiBase}/explain-top-3`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ranking_response: rankResponse }),
+      });
+
+      if (!res.ok) {
+        const payload = await res.json().catch(() => ({}));
+        throw new Error(payload.detail || 'AI explanation request failed.');
+      }
+
+      const payload = await res.json();
+      const products = Array.isArray(payload?.products) ? payload.products : [];
+
+      if (!products.length) {
+        appendMessage({ role: 'ai', content: 'I could not generate explanations for the top results right now.' });
+        return;
+      }
+
+      const lines = products.slice(0, 3).map((p) => {
+        const title = p?.title || `Rank #${p?.rank_overall ?? ''}`;
+        const why = p?.why_this_fits || '';
+        const highlights = Array.isArray(p?.highlights) && p.highlights.length
+          ? `\n• ${p.highlights.slice(0, 3).join('\n• ')}`
+          : '';
+        return `${title}\n${why}${highlights}`.trim();
+      });
+
+      appendMessage({ role: 'ai', content: lines.join('\n\n') });
+    } catch (err) {
+      appendMessage({ role: 'ai', content: err.message || 'Unable to reach the AI service right now.' });
+    } finally {
+      setIsSending(false);
+    }
+  };
+
+  const handleSend = async (e) => {
     e.preventDefault();
     if (!inputValue.trim()) return;
     
-    setMessages(prev => [...prev, { role: 'user', content: inputValue }]);
+    const question = inputValue.trim();
+    appendMessage({ role: 'user', content: question });
     setInputValue('');
-    
-    // Simulate AI response
-    setTimeout(() => {
-      setMessages(prev => [...prev, { role: 'ai', content: "That's a great question! However, right now I'm just a demo. In the full version, I can give you personalized CD strategy advice." }]);
-    }, 1000);
+
+    if (!aiBase) {
+      appendMessage({ role: 'ai', content: 'AI is not configured. Set VITE_AI_LAYER_URL to enable the real chatbot.' });
+      return;
+    }
+
+    if (!rankResponse) {
+      appendMessage({ role: 'ai', content: 'Run a search first so I can answer questions about your ranked products.' });
+      return;
+    }
+
+    setIsSending(true);
+    try {
+      const res = await fetch(`${aiBase}/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ question, ranking_response: rankResponse }),
+      });
+
+      if (!res.ok) {
+        const payload = await res.json().catch(() => ({}));
+        throw new Error(payload.detail || 'AI chat request failed.');
+      }
+
+      const payload = await res.json();
+      appendMessage({ role: 'ai', content: payload?.response || 'No response returned from AI service.' });
+    } catch (err) {
+      appendMessage({ role: 'ai', content: err.message || 'Unable to reach the AI service right now.' });
+    } finally {
+      setIsSending(false);
+    }
   };
 
-  const quickActions = ['Best rates', 'Compare options', 'Tax info'];
+  const quickActions = ['Explain top 3', 'Best rates', 'Compare options', 'Tax info'];
 
   const handleQuickAction = (action) => {
+    if (action === 'Explain top 3') {
+      explainTop3();
+      return;
+    }
     setInputValue(action);
   };
 
@@ -109,8 +193,9 @@ export default function AIAssistant() {
               placeholder="Ask about CD rates..."
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
+              disabled={isSending}
             />
-            <button type="submit" className="ai-chat-send-btn">
+            <button type="submit" className="ai-chat-send-btn" disabled={isSending}>
               <SendIcon className="ai-send-icon" />
             </button>
           </form>
