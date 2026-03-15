@@ -1,11 +1,29 @@
+import os
 from typing import Any, Dict, List
 
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 from ai_service import explain_top_3, chat_about_results
 
 app = FastAPI(title="SmartCD AI Layer", version="1.0.0")
+
+# CORS: required for browser calls from Vercel/SmartCD domains (preflight OPTIONS).
+_cors_origins = [o.strip() for o in os.getenv("CORS_ALLOW_ORIGINS", "").split(",") if o.strip()]
+if not _cors_origins:
+    _cors_origins = [
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+    ]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=_cors_origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 class ExplainTop3Request(BaseModel):
