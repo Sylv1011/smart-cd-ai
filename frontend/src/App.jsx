@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import './styles.css';
 import { locationData } from './utils/locationData';
-import { mockResults } from './utils/mockData';
 import { usStates } from './utils/statesData';
 import AIAssistant from './AIAssistant';
 import SearchableSelect from './components/SearchableSelect';
@@ -79,7 +78,7 @@ const ExternalLinkIcon = ({ className }) => (
 export default function App() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [results, setResults] = useState(null);
+  const [results, setResults] = useState([]);
   const [showPrivacy, setShowPrivacy] = useState(false);
   const [showResults, setShowResults] = useState(window.location.pathname === '/results');
   const [viewMode, setViewMode] = useState('combined');
@@ -161,16 +160,30 @@ export default function App() {
     setLoading(true);
     setError(null);
 
-    // Log the data silently for the demo
-    console.log("Form Data Submitted:", formData);
+    try {
+      const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+      const response = await fetch(`${apiBase}/api/v1/fetch-yields`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData),
+      });
 
-    // Simulate a brief processing time before reverting to default state
-    setTimeout(() => {
-      setLoading(false);
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        throw new Error(payload.detail || 'Failed to fetch results.');
+      }
+
+      const payload = await response.json();
+      setResults(payload.results || []);
+
       window.history.pushState({ page: 'results' }, '', '/results');
       setShowResults(true);
       window.scrollTo(0, 0);
-    }, 1000);
+    } catch (err) {
+      setError(err.message || 'Unable to fetch results. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const renderResultCard = (result, showProductType = false) => {
@@ -267,6 +280,8 @@ export default function App() {
     formData.city_county &&
     formData.tax_filing_status &&
     termsAgreed;
+
+  const safeResults = Array.isArray(results) ? results : [];
 
   return (
     <div className="layout">
@@ -581,7 +596,7 @@ export default function App() {
                     value={productTypeFilter}
                     onChange={(e) => setProductTypeFilter(e.target.value)}
                   >
-                    <option value="All products">All products ({mockResults.length})</option>
+                    <option value="All products">All products ({safeResults.length})</option>
                     <option value="Bank CDs">Bank CDs</option>
                     <option value="Brokerage CDs">Brokerage CDs</option>
                     <option value="Treasuries">US Treasuries</option>
@@ -627,7 +642,7 @@ export default function App() {
               </div>
               <div className="table-body">
                 {(() => {
-                  const filtered = mockResults.filter(r => 
+                  const filtered = safeResults.filter(r => 
                     productTypeFilter === 'All products' || r.productType === productTypeFilter
                   );
 

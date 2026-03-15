@@ -1,5 +1,5 @@
 from typing import List, Optional
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, AliasChoices, field_validator
 
 
 class HealthResponse(BaseModel):
@@ -18,6 +18,8 @@ class AnalysisRequest(BaseModel):
     term_length_months: int = Field(...)
     income_range: str = Field(...)
     zip_code: str = Field(..., min_length=5, max_length=5)
+    user_state: Optional[str] = None
+    user_locality: Optional[str] = None
 
 
 class CDResult(BaseModel):
@@ -62,20 +64,64 @@ class AnalysisResponse(BaseModel):
 # --- New Schemas for Fetch Yields Feature ---
 
 class FetchYieldsRequest(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
     investment_amount: float = Field(..., ge=5000.0)
-    term_length_months: int = Field(..., json_schema_extra={'options': [3, 6, 9, 12, 18, 24, 36, 48, 60]})
+    term_length_months: int = Field(
+        ...,
+        json_schema_extra={'options': [3, 6, 9, 12, 15, 18, 24, 30, 36, 48, 60]},
+    )
     income_range: str
-    user_state: str
-    user_locality: str
-    filing_status: str
+    user_state: str = Field(validation_alias=AliasChoices("user_state", "state_selection"))
+    user_locality: str = Field(validation_alias=AliasChoices("user_locality", "city_county"))
+    filing_status: str = Field(validation_alias=AliasChoices("filing_status", "tax_filing_status"))
+    zip_code: Optional[str] = Field(default=None, validation_alias=AliasChoices("zip_code", "zipcode"))
+
+    @field_validator("investment_amount", mode="before")
+    @classmethod
+    def parse_investment_amount(cls, value):
+        if isinstance(value, str):
+            return float(value.replace(",", "").strip())
+        return value
+
+    @field_validator("term_length_months", mode="before")
+    @classmethod
+    def parse_term_length_months(cls, value):
+        if isinstance(value, str):
+            normalized = value.lower().strip()
+            if "year" in normalized:
+                digits = "".join(ch for ch in normalized if ch.isdigit())
+                if digits:
+                    return int(digits) * 12
+                if "above" in normalized:
+                    return 60
+            digits = "".join(ch for ch in normalized if ch.isdigit())
+            if digits:
+                return int(digits)
+        return value
+
+
+class TaxBreakdown(BaseModel):
+    federalBracket: str
+    stateTax: str
+    localOswego: str
+
 
 class CDProduct(BaseModel):
-    product_name: str
-    gross_yield: float
-    after_tax_yield: float
-    term_length_months: int
-    minimum_deposit: float
+    model_config = ConfigDict(validate_assignment=True)
+    id: str
+    provider: str
+    institutionType: str
+    productType: str
+    nominalRate: float
+    afterTaxYield: float
+    minDeposit: float
+    isTopPick: bool
+    taxBreakdown: TaxBreakdown
+    netReturn: str
+    whyThisFits: str
+    matchPercentage: int
+
 
 class FetchYieldsResponse(BaseModel):
-    cds: List[CDProduct]
-
+    results: List[CDProduct]
