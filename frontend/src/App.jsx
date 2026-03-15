@@ -193,7 +193,7 @@ const adaptRankResponseToUiResults = (rankPayload) => {
       },
       netReturn: formatMoney(Number(o?.after_tax_interest_usd ?? 0)),
       whyThisFits: toWhyThisFits(productType),
-      matchPercentage: 0,
+      matchPercentage: Number(o?.match_percentage ?? 0),
     };
   };
 

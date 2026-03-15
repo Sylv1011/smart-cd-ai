@@ -111,6 +111,7 @@ class RankedOfferResponse(BaseModel):
     fed_rate: float
     state_rate: float
     local_rate: float
+    match_percentage: int = 0
     rank_overall: Optional[int] = None
 
 

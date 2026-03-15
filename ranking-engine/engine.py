@@ -138,6 +138,15 @@ class RankedOffer:
     fed_rate: float
     state_rate: float
     local_rate: float
+    match_percentage: int = 0
+
+
+def _clamp_0_100(x: float) -> int:
+    try:
+        v = int(round(float(x)))
+    except Exception:
+        v = 0
+    return max(0, min(100, v))
 
 
 def _interest_simple(principal: float, apy: float, term_months: int) -> Tuple[float, float]:
@@ -350,6 +359,37 @@ def rank_offers(
     ranked_bank_all = _rank_group(bank, inp, tax_ctx)
     ranked_brokered_all = _rank_group(brokered, inp, tax_ctx)
     ranked_treas_all = _rank_group(treas, inp, tax_ctx)
+
+    # Match % (0-100): weighted "fit" score for the user's inputs.
+    # match = round(0.5*return_score + 0.3*term_score + 0.2*deposit_score)
+    all_ranked = [*ranked_bank_all, *ranked_brokered_all, *ranked_treas_all]
+    max_after_tax_interest = max((r.after_tax_interest_usd for r in all_ranked), default=0.0)
+
+    for r in all_ranked:
+        # 1) Return score (0-100): normalized to best in returned set.
+        if max_after_tax_interest > 0:
+            return_score = 100.0 * (float(r.after_tax_interest_usd) / float(max_after_tax_interest))
+        else:
+            return_score = 0.0
+
+        # 2) Term score (0-100): exact match is best; penalize by 5 points per month deviation.
+        try:
+            diff = abs(int(r.term_months) - int(inp.term_months))
+        except Exception:
+            diff = 0
+        term_score = max(0.0, 100.0 - (5.0 * float(diff)))
+
+        # 3) Deposit score (0-100): penalize if min deposit exceeds user's amount.
+        md = r.minimum_deposit
+        if md is None or float(md) <= 0:
+            deposit_score = 100.0
+        else:
+            md_f = float(md)
+            principal_f = float(r.investment_amount)
+            deposit_score = 100.0 if md_f <= principal_f else max(0.0, 100.0 * (principal_f / md_f))
+
+        match = (0.5 * return_score) + (0.3 * term_score) + (0.2 * deposit_score)
+        r.match_percentage = _clamp_0_100(match)
 
     ranked_bank = ranked_bank_all[:top_n_bank_cds]
     ranked_brokered = ranked_brokered_all[:top_n_brokered_cds]
