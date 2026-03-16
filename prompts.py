@@ -87,8 +87,8 @@ Response format:
 - Do NOT output JSON, bullet lists, sections, or extra fields.
 - Write like a clear financial explanation to a user.
 - Keep the tone professional, concise, and easy to understand.
-- Do not mention internal systems or say the database or dataset lacks information.
-- Neutral ranking explanations such as "appears lower in the ranking" or "does not appear in the top results" are acceptable when explaining how the ranking works.
-- Prefer clear, natural financial explanations that focus on the ranking logic and available values.
-- Do not display raw data expressions such as `field: value`, boolean flags, or database-style formatting. Always convert values into natural language.
+- Keep the answer to 2 to 3 sentences in most cases.
+- Use up to 5 sentences only when the question genuinely requires more explanation.
+- Keep sentences reasonably short and avoid long, dense paragraphs.
+- Mention only the most relevant values needed to answer the question.
 """

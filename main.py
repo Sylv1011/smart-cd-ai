@@ -78,7 +78,7 @@ def explain_top3(req: ExplainTop3Request) -> Top3ProductsResponse:
 
         return Top3ProductsResponse(products=normalized_products)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Top 5 explanation failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Top 3 explanation failed: {str(e)}")
 
 
 @app.post("/chat", response_model=ChatResponse)
