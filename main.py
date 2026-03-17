@@ -88,3 +88,4 @@ def chat(req: ChatRequest) -> ChatResponse:
         return ChatResponse(response=response_text)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Chat response failed: {str(e)}")
+    
