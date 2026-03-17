@@ -61,11 +61,12 @@ export default function SearchableSelect({
   };
 
   return (
-    <div className={`searchable-select-wrapper ${disabled ? 'disabled' : ''}`} ref={wrapperRef}>
-      <div className="searchable-input-container">
+    <div className={`relative w-full ${disabled ? 'opacity-70' : ''}`} ref={wrapperRef}>
+      <div className="relative flex items-center">
         <input
           type="text"
-          className={`custom-input dark-theme-input ${hasError ? 'error-border' : ''}`}
+          id={name}
+          className={`w-full pr-9 py-4 px-4 text-base font-normal rounded-[8px] border outline-none bg-white text-[#111827] box-border transition-all placeholder:text-[#9CA3AF] focus:border-[#22C55E] ${hasError ? 'border-[#FF5252] shadow-[0_0_0_2px_rgba(255,82,82,0.2)]' : 'border-[#E5E7EB] focus:shadow-[0_0_0_2px_rgba(29,141,238,0.3)]'}`}
           value={inputValue}
           onChange={handleInputChange}
           onFocus={(e) => {
@@ -78,9 +79,8 @@ export default function SearchableSelect({
           placeholder={placeholder}
           disabled={disabled}
           required={!inputValue && !disabled}
-          style={{ fontWeight: '400' }}
         />
-        <div className="searchable-icon" onClick={() => {
+        <div className="absolute right-3 top-1/2 -translate-y-1/2 text-[#9CA3AF] cursor-pointer flex items-center justify-center h-full w-6" onClick={() => {
           if (!disabled) {
             if (!showDropdown) setFilteredOptions(options);
             setShowDropdown(!showDropdown);
@@ -90,31 +90,12 @@ export default function SearchableSelect({
         </div>
       </div>
       {showDropdown && !disabled && filteredOptions.length > 0 && (
-        <ul className="searchable-dropdown-list" style={{ backgroundColor: '#FFFFFF' }}>
+        <ul className="absolute top-full left-0 w-full max-h-[250px] overflow-y-auto bg-white border border-[#E2E8F0] rounded-[8px] mt-1 p-0 list-none z-50 shadow-[0_4px_6px_-1px_rgba(0,0,0,0.5),0_2px_4px_-1px_rgba(0,0,0,0.3)]">
           {filteredOptions.map((option, index) => (
             <li 
               key={index} 
-              className={`searchable-option ${option === value ? 'selected' : ''}`}
+              className={`px-4 py-[10px] text-[#1E293B] cursor-pointer text-[0.95rem] transition-colors font-normal max-[768px]:min-h-[44px] max-[768px]:py-3 ${option === value ? 'bg-[#F1F5F9]' : 'bg-white hover:bg-[#F1F5F9]'}`}
               onClick={() => handleOptionClick(option)}
-              style={{ 
-                fontWeight: '400', 
-                backgroundColor: option === value ? '#F1F5F9' : '#FFFFFF', 
-                color: '#1E293B',
-                cursor: 'pointer',
-                padding: '10px 16px'
-              }}
-              onMouseEnter={(e) => {
-                e.target.style.backgroundColor = '#F1F5F9';
-                e.target.style.color = '#1E293B';
-              }}
-              onMouseLeave={(e) => {
-                if (option !== value) {
-                  e.target.style.backgroundColor = '#FFFFFF';
-                  e.target.style.color = '#1E293B';
-                } else {
-                  e.target.style.backgroundColor = '#F1F5F9';
-                }
-              }}
             >
               {option}
             </li>

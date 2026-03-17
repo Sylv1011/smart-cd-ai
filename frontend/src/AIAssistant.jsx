@@ -15,7 +15,7 @@ const SendIcon = ({ className }) => (
 );
 
 const CloseIcon = ({ className, onClick }) => (
-  <svg className={className} onClick={onClick} style={{ cursor: 'pointer' }} width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+  <svg className={`${className || ''} cursor-pointer`} onClick={onClick} width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <line x1="18" y1="6" x2="6" y2="18"></line>
     <line x1="6" y1="6" x2="18" y2="18"></line>
   </svg>
@@ -35,6 +35,46 @@ export default function AIAssistant({ rankResponse }) {
 
   const appendMessage = (msg) => setMessages(prev => [...prev, msg]);
 
+  const buildSlimRankingResponse = (full) => {
+    if (!full || typeof full !== 'object') return null;
+
+    const pickOffer = (o, { keepRank } = { keepRank: false }) => {
+      if (!o || typeof o !== 'object') return null;
+
+      const productType = o.product_type;
+      const institutionName = o.institution_name || o.issuing_bank || null;
+      const brokerageFirm = o.brokerage_firm || null;
+
+      const slim = {
+        ...(keepRank && o.rank_overall != null ? { rank_overall: o.rank_overall } : {}),
+        product_type: productType,
+        institution_name: institutionName,
+        brokerage_firm: brokerageFirm,
+        term_months: o.term_months,
+        apy_nominal: o.apy_nominal,
+        after_tax_apy: o.after_tax_apy,
+        after_tax_interest_usd: o.after_tax_interest_usd,
+        minimum_deposit: o.minimum_deposit,
+      };
+
+      // FDIC insured is only useful for non-treasury products; omit nulls.
+      if (productType !== 'treasury' && o.fdic_insured != null) {
+        slim.fdic_insured = o.fdic_insured;
+      }
+
+      return slim;
+    };
+
+    const mapList = (arr, opts) => (Array.isArray(arr) ? arr.map(o => pickOffer(o, opts)).filter(Boolean) : []);
+
+    return {
+      overall_top: mapList(full.overall_top, { keepRank: true }),
+      bank_cds: mapList(full.bank_cds),
+      brokered_cds: mapList(full.brokered_cds),
+      treasuries: mapList(full.treasuries),
+    };
+  };
+
   const explainTop3 = async () => {
     if (!aiBase) {
       appendMessage({ role: 'ai', content: 'AI is not configured. Set VITE_AI_LAYER_URL to enable the real chatbot.' });
@@ -45,12 +85,14 @@ export default function AIAssistant({ rankResponse }) {
       return;
     }
 
+    const slim = buildSlimRankingResponse(rankResponse);
+
     setIsSending(true);
     try {
       const res = await fetch(`${aiBase}/explain-top-3`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ranking_response: rankResponse }),
+        body: JSON.stringify({ ranking_response: slim || rankResponse }),
       });
 
       if (!res.ok) {
@@ -101,12 +143,14 @@ export default function AIAssistant({ rankResponse }) {
       return;
     }
 
+    const slim = buildSlimRankingResponse(rankResponse);
+
     setIsSending(true);
     try {
       const res = await fetch(`${aiBase}/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ question, ranking_response: rankResponse }),
+        body: JSON.stringify({ question, ranking_response: slim || rankResponse }),
       });
 
       if (!res.ok) {
@@ -137,13 +181,13 @@ export default function AIAssistant({ rankResponse }) {
     <>
       {/* Floating Action Button */}
       {!isOpen && (
-        <button className="ai-fab" onClick={toggleChat}>
-          <div className="ai-fab-icon-wrapper">
+        <button type="button" className="ai-fab" aria-label="Open AI assistant chat" onClick={toggleChat}>
+          <div className="ai-fab-icon-wrapper flex items-center justify-center">
              <SparkleIcon className="ai-fab-icon" />
           </div>
-          <div className="ai-fab-text">
-            <span className="ai-fab-title">AI Assistant</span>
-            <span className="ai-fab-subtitle">Ask me anything</span>
+          <div className="ai-fab-text flex flex-col items-start">
+            <span className="ai-fab-title font-bold text-[0.95rem] leading-[1.2]">AI Assistant</span>
+            <span className="ai-fab-subtitle font-medium text-xs opacity-90">Ask me anything</span>
           </div>
         </button>
       )}
@@ -153,10 +197,12 @@ export default function AIAssistant({ rankResponse }) {
         <div className="ai-chat-window">
           <div className="ai-chat-header">
             <div className="ai-chat-header-info">
-              <h3>SmartCD.ai Assistant</h3>
-              <p>Always here to help</p>
+              <h3 className="m-0 text-[1.1rem] font-bold">SmartCD.ai Assistant</h3>
+              <p className="m-0 mt-1 text-[0.85rem] opacity-90">Always here to help</p>
             </div>
-            <CloseIcon className="ai-chat-close" onClick={toggleChat} />
+            <button type="button" className="ai-chat-close-btn" aria-label="Close AI assistant chat" onClick={toggleChat}>
+              <CloseIcon className="ai-chat-close" />
+            </button>
           </div>
           
           <div className="ai-chat-messages">
@@ -164,7 +210,7 @@ export default function AIAssistant({ rankResponse }) {
               <div key={index} className={`ai-message-row ${msg.role}`}>
                 {msg.role === 'ai' && (
                   <div className="ai-avatar">
-                   <SparkleIcon className="ai-avatar-icon" />
+                   <SparkleIcon className="ai-avatar-icon w-4 h-4 text-white" />
                   </div>
                 )}
                 <div className={`ai-message-bubble ${msg.role}`}>
@@ -177,6 +223,7 @@ export default function AIAssistant({ rankResponse }) {
           <div className="ai-chat-quick-actions">
             {quickActions.map(action => (
               <button 
+                type="button"
                 key={action} 
                 className="ai-quick-action-btn"
                 onClick={() => handleQuickAction(action)}
@@ -189,13 +236,13 @@ export default function AIAssistant({ rankResponse }) {
           <form className="ai-chat-input-area" onSubmit={handleSend}>
             <input 
               type="text" 
-              className="ai-chat-input" 
+              className="ai-chat-input placeholder:text-[#6B7280]" 
               placeholder="Ask about CD rates..."
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
               disabled={isSending}
             />
-            <button type="submit" className="ai-chat-send-btn" disabled={isSending}>
+            <button type="submit" className="ai-chat-send-btn" aria-label="Send message" disabled={isSending}>
               <SendIcon className="ai-send-icon" />
             </button>
           </form>

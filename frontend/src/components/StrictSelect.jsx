@@ -36,55 +36,33 @@ export default function StrictSelect({
   };
 
   return (
-    <div className={`searchable-select-wrapper strict-select-wrapper theme-${theme} ${disabled ? 'disabled' : ''}`} ref={wrapperRef}>
+    <div className={`relative w-full ${disabled ? 'opacity-70' : ''}`} ref={wrapperRef}>
       <div 
-        className={`searchable-input-container strict-input-container theme-${theme} ${hasError ? 'error-border' : ''}`} 
+        className={`relative flex items-center rounded-[8px] h-12 ${theme === 'dark' ? 'bg-[#0D1B2D] border border-[#1A3050]' : 'bg-white border border-[#E5E7EB]'} ${hasError ? 'border-[#EF4444] shadow-[0_0_0_2px_rgba(255,82,82,0.2)]' : ''}`} 
         onClick={() => !disabled && setShowDropdown(!showDropdown)}
         style={{ cursor: disabled ? 'not-allowed' : 'pointer' }}
       >
         <input
           type="text"
-          className={`custom-input dark-theme-input`}
+          id={name}
+          className={`w-full pr-9 px-4 text-base font-normal rounded-[8px] border-0 ${theme === 'dark' ? 'bg-transparent text-white' : 'bg-transparent text-[#111827]'} outline-none`}
           value={value || ''}
           placeholder={placeholder}
           disabled={disabled}
           readOnly
-          style={{ 
-            cursor: disabled ? 'not-allowed' : 'pointer', 
-            backgroundColor: 'transparent', 
-            outline: 'none',
-            fontWeight: '400',
-            fontSize: '16px'
-          }}
+          style={{ cursor: disabled ? 'not-allowed' : 'pointer' }}
         />
-        <div className="searchable-icon">
-          <ChevronDownIcon className="dropdown-chevron" />
+        <div className="absolute right-3 top-1/2 -translate-y-1/2 text-[#9CA3AF] flex items-center justify-center h-full w-6">
+          <ChevronDownIcon className={`${theme === 'dark' ? 'text-white' : ''}`} />
         </div>
       </div>
       {showDropdown && !disabled && options.length > 0 && (
-        <ul className={`searchable-dropdown-list strict-dropdown-list ${hasSeparators ? 'with-separators' : ''}`}>
+        <ul className={`absolute top-full left-0 ${theme === 'dark' ? 'bg-[#0D1B2D]' : 'bg-white'} w-full min-w-full ${theme === 'dark' ? 'whitespace-nowrap' : ''} max-h-[250px] overflow-y-auto border border-[#E2E8F0] rounded-[8px] mt-1 p-0 list-none z-50 shadow-[0_4px_6px_-1px_rgba(0,0,0,0.5),0_2px_4px_-1px_rgba(0,0,0,0.3)]`}>
           {options.map((option, index) => (
             <li 
               key={index} 
-              className={`searchable-option ${option === value ? 'selected' : ''}`}
+              className={`px-4 py-[10px] text-[16px] font-normal cursor-pointer transition-colors max-[768px]:min-h-[44px] max-[768px]:py-3 ${hasSeparators && index !== options.length - 1 ? 'border-b border-dotted border-[#E2E8F0]' : ''} ${option === value ? 'bg-[#F1F5F9] text-[#1E293B]' : theme === 'dark' ? 'bg-[#0D1B2D] text-white hover:bg-[#F1F5F9] hover:text-[#1E293B]' : 'bg-white text-[#1E293B] hover:bg-[#F1F5F9]'}`}
               onClick={() => handleOptionClick(option)}
-              style={{ 
-                fontWeight: '400', 
-                backgroundColor: option === value ? '#F1F5F9' : (theme === 'dark' ? '#0D1B2D' : '#FFFFFF'), 
-                color: option === value ? '#1E293B' : (theme === 'dark' ? '#FFFFFF' : '#1E293B'),
-                cursor: 'pointer'
-              }}
-              onMouseEnter={(e) => {
-                e.target.style.backgroundColor = '#F1F5F9';
-                e.target.style.color = '#1E293B';
-                e.target.style.fontWeight = '400';
-              }}
-              onMouseLeave={(e) => {
-                if (option !== value) {
-                  e.target.style.backgroundColor = theme === 'dark' ? '#0D1B2D' : '#FFFFFF';
-                  e.target.style.color = theme === 'dark' ? '#FFFFFF' : '#1E293B';
-                }
-              }}
             >
               {option}
             </li>
