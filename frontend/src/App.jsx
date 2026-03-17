@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import './styles.css';
 import { locationData } from './utils/locationData';
 import { usStates } from './utils/statesData';
@@ -30,7 +30,7 @@ const DocumentIcon = ({ className }) => (
 );
 
 const CloseIcon = ({ className, onClick }) => (
-  <svg className={className} onClick={onClick} style={{ cursor: 'pointer' }} width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+  <svg className={`${className || ''} cursor-pointer`} onClick={onClick} width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <line x1="18" y1="6" x2="6" y2="18"></line>
     <line x1="6" y1="6" x2="18" y2="18"></line>
   </svg>
@@ -74,6 +74,8 @@ const ExternalLinkIcon = ({ className }) => (
     <line x1="10" y1="14" x2="21" y2="3"></line>
   </svg>
 );
+
+const STATES_WITH_LOCAL_TAX = ['New York', 'Maryland', 'Indiana', 'Michigan'];
 
 const STATE_TO_CODE = {
   California: 'CA',
@@ -197,7 +199,24 @@ const adaptRankResponseToUiResults = (rankPayload) => {
     };
   };
 
-  return [...bank, ...brokered, ...treasuries].map(mapOffer);
+  const sourceOffers = overallTop.length > 0 ? overallTop : [...bank, ...brokered, ...treasuries];
+  const mappedOffers = sourceOffers.map(mapOffer);
+  const uniqueTopTen = [];
+  const seenIds = new Set();
+
+  for (const offer of mappedOffers) {
+    if (seenIds.has(offer.id)) {
+      continue;
+    }
+    seenIds.add(offer.id);
+    uniqueTopTen.push(offer);
+
+    if (uniqueTopTen.length === 10) {
+      break;
+    }
+  }
+
+  return uniqueTopTen;
 };
 
 export default function App() {
@@ -211,6 +230,7 @@ export default function App() {
   const [expandedCardId, setExpandedCardId] = useState(null);
   const [productTypeFilter, setProductTypeFilter] = useState('All products');
   const [expandedSections, setExpandedSections] = useState({});
+  const latestRequestIdRef = useRef(0);
 
   const toggleSection = (cardId, section) => {
     setExpandedSections(prev => {
@@ -223,6 +243,13 @@ export default function App() {
         }
       };
     });
+  };
+
+  const handleSectionKeyDown = (e, cardId, section) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      toggleSection(cardId, section);
+    }
   };
 
   useEffect(() => {
@@ -249,40 +276,11 @@ export default function App() {
   const [termsAgreed, setTermsAgreed] = useState(false);
   const [showErrors, setShowErrors] = useState(false);
 
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    if (name === 'state_selection') {
-      const availableCities = locationData[value] || [];
-      setFormData({
-        ...formData,
-        [name]: value,
-        city_county: ''
-      });
-    } else {
-      setFormData({ ...formData, [name]: value });
-    }
-  };
+  const fetchRankResults = async (nextFormData, options = {}) => {
+    const { navigateToResults = false, scrollToTop = false } = options;
+    const amt = parseFloat(nextFormData.investment_amount);
+    const requestId = ++latestRequestIdRef.current;
 
-  const handleSearch = async (e) => {
-    e.preventDefault();
-
-    const amt = parseFloat(formData.investment_amount);
-    const isAmtInvalid = !formData.investment_amount || isNaN(amt) || amt < 5000;
-    const isFilingInvalid = !formData.tax_filing_status;
-
-    if (isAmtInvalid ||
-      !formData.term_length_months ||
-      !formData.income_range ||
-      !formData.state_selection ||
-      !formData.city_county ||
-      isFilingInvalid ||
-      !termsAgreed) {
-      setShowErrors(true);
-      setError("Please enter at least $5,000 and complete all selections.");
-      return;
-    }
-
-    setShowErrors(false);
     setLoading(true);
     setError(null);
 
@@ -294,11 +292,11 @@ export default function App() {
 
       const rankRequest = {
         investment_amount: amt,
-        term_months: parseTermToMonths(formData.term_length_months),
-        state: STATE_TO_CODE[formData.state_selection] || formData.state_selection,
-        income_range: normalizeIncomeRangeForRanker(formData.income_range),
-        filing_status: normalizeFilingStatusForRanker(formData.tax_filing_status),
-        local_area: formData.city_county || null,
+        term_months: parseTermToMonths(nextFormData.term_length_months),
+        state: STATE_TO_CODE[nextFormData.state_selection] || nextFormData.state_selection,
+        income_range: normalizeIncomeRangeForRanker(nextFormData.income_range),
+        filing_status: normalizeFilingStatusForRanker(nextFormData.tax_filing_status),
+        local_area: nextFormData.city_county || null,
         top_n_bank_cds: 10,
         top_n_brokered_cds: 10,
         top_n_treasuries: 3,
@@ -317,17 +315,93 @@ export default function App() {
       }
 
       const payload = await response.json();
+
+      // Ignore stale responses when users change duration quickly.
+      if (requestId !== latestRequestIdRef.current) {
+        return;
+      }
+
       setRankResponse(payload);
       setResults(adaptRankResponseToUiResults(payload));
 
-      window.history.pushState({ page: 'results' }, '', '/results');
-      setShowResults(true);
-      window.scrollTo(0, 0);
+      if (navigateToResults) {
+        window.history.pushState({ page: 'results' }, '', '/results');
+        setShowResults(true);
+      }
+      if (scrollToTop) {
+        window.scrollTo(0, 0);
+      }
     } catch (err) {
+      if (requestId !== latestRequestIdRef.current) {
+        return;
+      }
       setError(err.message || 'Unable to fetch results. Please try again.');
     } finally {
-      setLoading(false);
+      if (requestId === latestRequestIdRef.current) {
+        setLoading(false);
+      }
     }
+  };
+
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+
+    if (name === 'state_selection') {
+      const isCityCountyEnabled = STATES_WITH_LOCAL_TAX.includes(value);
+      setFormData({
+        ...formData,
+        [name]: value,
+        city_county: isCityCountyEnabled ? formData.city_county : ''
+      });
+      return;
+    }
+
+    const nextFormData = { ...formData, [name]: value };
+    setFormData(nextFormData);
+
+    if (name === 'term_length_months' && showResults) {
+      const amt = parseFloat(nextFormData.investment_amount);
+      const isCityCountyRequiredForRefresh = STATES_WITH_LOCAL_TAX.includes(nextFormData.state_selection);
+      const isCityCountyValidForRefresh = isCityCountyRequiredForRefresh ? nextFormData.city_county : true;
+      const canRefresh =
+        nextFormData.investment_amount &&
+        !isNaN(amt) &&
+        amt >= 5000 &&
+        nextFormData.term_length_months &&
+        nextFormData.income_range &&
+        nextFormData.state_selection &&
+        isCityCountyValidForRefresh &&
+        nextFormData.tax_filing_status;
+
+      if (canRefresh) {
+        fetchRankResults(nextFormData);
+      }
+    }
+  };
+
+  const handleSearch = async (e) => {
+    e.preventDefault();
+
+    const amt = parseFloat(formData.investment_amount);
+    const isAmtInvalid = !formData.investment_amount || isNaN(amt) || amt < 5000;
+    const isFilingInvalid = !formData.tax_filing_status;
+    const isCityCountyRequired = STATES_WITH_LOCAL_TAX.includes(formData.state_selection);
+    const isCityCountyInvalid = isCityCountyRequired && !formData.city_county;
+
+    if (isAmtInvalid ||
+      !formData.term_length_months ||
+      !formData.income_range ||
+      !formData.state_selection ||
+      isCityCountyInvalid ||
+      isFilingInvalid ||
+      !termsAgreed) {
+      setShowErrors(true);
+      setError("Please enter at least $5,000 and complete all selections.");
+      return;
+    }
+
+    setShowErrors(false);
+    await fetchRankResults(formData, { navigateToResults: true, scrollToTop: true });
   };
 
   const renderResultCard = (result, showProductType = false) => {
@@ -335,76 +409,103 @@ export default function App() {
     const toggleExpand = () => setExpandedCardId(isExpanded ? null : result.id);
 
     return (
-      <div key={result.id} className="result-card">
-        <div className={`result-row ${isExpanded ? 'expanded' : ''} ${result.isTopPick ? 'top-pick-row' : ''}`}>
-          <div className="col-provider">
-            {result.isTopPick && <div className="top-pick-badge">★ TOP PICK</div>}
-            <div className="provider-info">
-              <div className="provider-logo">{result.provider.substring(0, 2).toUpperCase()}</div>
-              <div>
-                <div className="provider-name">{result.provider}</div>
-                <div className="institution-type">{result.institutionType}</div>
+      <div key={result.id}>
+        <div
+          className={`relative transition-colors max-[768px]:flex max-[768px]:flex-col max-[768px]:items-stretch max-[768px]:gap-3 max-[768px]:px-4 max-[768px]:py-3 md:grid md:gap-4 md:items-center md:p-6 md:hover:bg-[rgba(29,141,238,0.05)] ${showProductType ? 'md:grid-cols-[2fr_1fr_1fr_1fr_1fr_1fr]' : 'md:grid-cols-[2fr_1fr_1fr_1fr_1fr]'} ${isExpanded ? 'bg-[#0A1E14] border-b-0' : result.isTopPick ? 'bg-[#062314] border-b border-[#1E293B]' : 'bg-[#081329] border-b border-[#1E293B]'}`}
+        >
+          <div className="flex items-center max-[768px]:order-1 max-[768px]:border-b max-[768px]:border-[#1E293B] max-[768px]:pb-3">
+            <div className="flex w-full min-w-0 items-center gap-3">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[6px] bg-white text-[0.8rem] font-bold text-[#1D4ED8] max-[480px]:h-7 max-[480px]:w-7 max-[480px]:text-[0.72rem]">{result.provider.substring(0, 2).toUpperCase()}</div>
+              <div className="min-w-0">
+                <div className="mb-0.5 flex flex-wrap items-center gap-2">
+                  <span className="break-words text-[0.95rem] font-bold text-[#E2E8F0] max-[480px]:text-[0.9rem]">{result.provider}</span>
+                  {result.isTopPick && <span className="shrink-0 rounded-full bg-[linear-gradient(180deg,#22C55E_0%,#16A34A_100%)] px-2 py-1 text-[0.68rem] font-extrabold uppercase tracking-[0.04em] text-white md:absolute md:top-[-10px] md:left-6 md:text-[0.6rem]">★ TOP PICK</span>}
+                </div>
+                <div className="break-words text-[0.7rem] text-[#6B7280]">{result.institutionType}</div>
               </div>
             </div>
           </div>
-          {showProductType && <div className="col-type">{result.productType}</div>}
-          <div className="col-rate">{result.nominalRate.toFixed(2)} <span className="percent-sign">%</span></div>
-          <div className="col-yield text-green">{result.afterTaxYield.toFixed(2)} <span className="percent-sign text-green">%</span></div>
-          <div className="col-deposit">${result.minDeposit.toLocaleString()}</div>
-          <div className="col-action">
-            <button className={`details-btn ${result.isTopPick ? 'btn-green' : 'btn-white'}`} onClick={toggleExpand}>
-              Details <ExternalLinkIcon className="btn-icon-right" />
+
+          {showProductType && (
+            <div className="flex w-full justify-between text-left text-[0.9rem] font-medium text-[#E2E8F0] md:items-center md:justify-center md:text-center md:before:hidden max-[768px]:order-2">
+              <span className="text-[0.74rem] font-bold uppercase tracking-[0.04em] text-[#94A3B8] md:hidden">Product Type</span>
+              <span>{result.productType}</span>
+            </div>
+          )}
+
+          <div className="flex w-full justify-between text-left text-[1.1rem] font-bold text-white md:items-center md:justify-center md:text-center max-[768px]:order-4">
+            <span className="text-[0.74rem] font-bold uppercase tracking-[0.04em] text-[#94A3B8] md:hidden">Nominal Rate</span>
+            <span className="flex items-center justify-center">{result.nominalRate.toFixed(2)} <span className="ml-0.5 text-[0.75rem] text-[#6B7280]">%</span></span>
+          </div>
+
+          <div className="flex w-full justify-between text-left text-[1.1rem] font-bold text-[#22C55E] md:items-center md:justify-center md:text-center max-[768px]:order-3">
+            <span className="text-[0.74rem] font-bold uppercase tracking-[0.04em] text-[#94A3B8] md:hidden">After-Tax Yield</span>
+            <span className="flex items-center justify-center max-[768px]:text-[1.25rem]">{result.afterTaxYield.toFixed(2)} <span className="ml-0.5 text-[0.75rem] text-[#10B981]">%</span></span>
+          </div>
+
+          <div className="flex w-full justify-between text-left text-[0.9rem] font-medium text-[#E2E8F0] md:items-center md:justify-center md:text-center max-[768px]:order-5">
+            <span className="text-[0.74rem] font-bold uppercase tracking-[0.04em] text-[#94A3B8] md:hidden">Min Deposit</span>
+            <span>${result.minDeposit.toLocaleString()}</span>
+          </div>
+
+          <div className="flex w-full flex-col gap-2 md:flex-row md:items-center md:justify-end max-[768px]:order-6 max-[768px]:pt-1">
+            <span className="text-[0.74rem] font-bold uppercase tracking-[0.04em] text-[#94A3B8] md:hidden">Action</span>
+            <button
+              className={`mt-1 flex h-10 w-full max-w-full items-center justify-center gap-1.5 rounded-md border-none px-4 text-[0.82rem] font-semibold transition-all md:mt-0 md:w-auto ${result.isTopPick ? 'bg-[linear-gradient(180deg,#22C55E_0%,#16A34A_100%)] text-white hover:bg-[linear-gradient(180deg,#16A34A_0%,#15803D_100%)]' : 'bg-white text-[#111827] hover:bg-[#E5E7EB]'}`}
+              onClick={toggleExpand}
+            >
+              Details <ExternalLinkIcon className="ml-0.5" />
             </button>
           </div>
         </div>
 
         {isExpanded && (
-          <div className="expanded-details-container">
-            <div className="details-grid">
+          <div className="flex flex-col border-b border-[#1E293B] bg-[#0A1E14] px-10 pb-6 max-[768px]:px-[14px] max-[768px]:pb-[14px]">
+            <div className="mt-4 grid grid-cols-2 gap-[60px] max-[768px]:grid-cols-1 max-[768px]:gap-[18px]">
               <div className="tax-breakdown-section">
-                <div className="details-header" onClick={() => toggleSection(result.id, 'tax')}>
-                  <h4>Road Tax Breakdown</h4>
+                <div role="button" tabIndex={0} aria-expanded={expandedSections[result.id]?.tax !== false} className="mb-4 flex min-h-[44px] cursor-pointer items-center justify-between border-b border-[rgba(255,255,255,0.1)] pb-2" onClick={() => toggleSection(result.id, 'tax')} onKeyDown={(e) => handleSectionKeyDown(e, result.id, 'tax')}>
+                  <h4 className="m-0 text-[0.85rem] font-bold text-[#E2E8F0]">Road Tax Breakdown</h4>
                   {expandedSections[result.id]?.tax !== false ? (
-                    <ChevronUpIcon className="details-chevron" />
+                    <ChevronUpIcon className="h-[14px] w-[14px] text-[#9CA3AF]" />
                   ) : (
-                    <ChevronDownIcon className="details-chevron" />
+                    <ChevronDownIcon className="h-[14px] w-[14px] text-[#9CA3AF]" />
                   )}
                 </div>
                 {(expandedSections[result.id]?.tax !== false) && (
                   <div className="tax-breakdown-content">
-                    <div className="tax-row">
-                      <span className="tax-label">Federal Bracket :</span>
-                      <span className="tax-value text-blue">{result.taxBreakdown.federalBracket}</span>
+                    <div className="mb-3 flex justify-between text-[0.8rem]">
+                      <span className="text-[#9CA3AF]">Federal Bracket :</span>
+                      <span className="font-semibold text-blue">{result.taxBreakdown.federalBracket}</span>
                     </div>
-                    <div className="tax-row">
-                      <span className="tax-label">State Tax :</span>
-                      <span className="tax-value text-green-value">{result.taxBreakdown.stateTax}</span>
+                    <div className="mb-3 flex justify-between text-[0.8rem]">
+                      <span className="text-[#9CA3AF]">State Tax :</span>
+                      <span className="font-semibold text-[#10B981]">{result.taxBreakdown.stateTax}</span>
                     </div>
-                    <div className="tax-row">
-                      <span className="tax-label">Local Oswego :</span>
-                      <span className="tax-value text-blue">{result.taxBreakdown.localOswego}</span>
+                    <div className="mb-3 flex justify-between text-[0.8rem]">
+                      <span className="text-[#9CA3AF]">Local Oswego :</span>
+                      <span className="font-semibold text-blue">{result.taxBreakdown.localOswego}</span>
                     </div>
-                    <div className="tax-divider"></div>
-                    <div className="tax-row net-return-row">
-                      <span className="tax-label">Net Return :</span>
-                      <span className="tax-value text-green-value">{result.netReturn}</span>
+                    <div className="my-4 border-t border-[rgba(255,255,255,0.1)]"></div>
+                    <div className="mb-3 flex justify-between text-[0.9rem] font-bold">
+                      <span className="text-[#E2E8F0]">Net Return :</span>
+                      <span className="font-semibold text-[#10B981]">{result.netReturn}</span>
                     </div>
                   </div>
                 )}
               </div>
 
               <div className="fit-description-section">
-                <div className="details-header" onClick={() => toggleSection(result.id, 'fit')}>
-                  <h4>Why this fits</h4>
-                  <div className="match-score text-green">{result.matchPercentage} % Match</div>
+                <div role="button" tabIndex={0} aria-expanded={expandedSections[result.id]?.fit !== false} className="mb-4 flex min-h-[44px] cursor-pointer items-center justify-between border-b border-[rgba(255,255,255,0.1)] pb-2" onClick={() => toggleSection(result.id, 'fit')} onKeyDown={(e) => handleSectionKeyDown(e, result.id, 'fit')}>
+                  <h4 className="m-0 text-[0.85rem] font-bold text-[#E2E8F0]">Why this fits</h4>
+                  <div className="ml-auto mr-3 text-[0.9rem] font-extrabold text-green max-[768px]:mr-2 max-[768px]:text-[0.82rem]">{result.matchPercentage} % Match</div>
                   {expandedSections[result.id]?.fit !== false ? (
-                    <ChevronUpIcon className="details-chevron" />
+                    <ChevronUpIcon className="h-[14px] w-[14px] text-[#9CA3AF]" />
                   ) : (
-                    <ChevronDownIcon className="details-chevron" />
+                    <ChevronDownIcon className="h-[14px] w-[14px] text-[#9CA3AF]" />
                   )}
                 </div>
                 {(expandedSections[result.id]?.fit !== false) && (
-                  <p className="fit-text">
+                  <p className="text-[0.8rem] leading-[1.6] text-[#D1D5DB]">
                     {result.whyThisFits}
                   </p>
                 )}
@@ -417,11 +518,13 @@ export default function App() {
   };
 
   const isAmtValid = formData.investment_amount && !isNaN(parseFloat(formData.investment_amount)) && parseFloat(formData.investment_amount) >= 5000;
+  const isCityCountyRequired = STATES_WITH_LOCAL_TAX.includes(formData.state_selection);
+  const isCityCountyValid = isCityCountyRequired ? formData.city_county : true;
   const isFormValid = isAmtValid &&
     formData.term_length_months &&
     formData.income_range &&
     formData.state_selection &&
-    formData.city_county &&
+    isCityCountyValid &&
     formData.tax_filing_status &&
     termsAgreed;
 
@@ -430,91 +533,91 @@ export default function App() {
   return (
     <div className="layout">
       {showPrivacy && (
-        <div className="privacy-modal-overlay">
-          <div className="privacy-modal-content">
+        <div className="fixed inset-0 z-[1000] flex flex-col overflow-hidden bg-white text-[#374151]">
+          <div className="relative flex h-full flex-col bg-white">
 
-            <div className="modal-scroll-area">
-              <div className="modal-inner">
+            <div className="flex flex-1 flex-col overflow-y-auto max-[768px]:w-full max-[768px]:overflow-x-hidden">
+              <div className="mx-auto max-w-[900px] flex-1 bg-white px-6 py-10 max-[768px]:px-4 max-[768px]:py-6">
                 {/* Logo Section */}
-                <div className="modal-top-logo-container">
-                  <img src="/logo.png" alt="SmartCD.AI Logo" className="modal-top-logo" />
-                  <div className="modal-back-link" onClick={() => setShowPrivacy(false)}>
+                <div className="mb-8 flex flex-col items-start">
+                  <img src="/logo.png" alt="SmartCD.AI Logo" className="h-14 w-auto max-w-full object-contain" />
+                  <button type="button" className="mt-4 border-none bg-transparent p-0 py-2 cursor-pointer font-sans text-[0.85rem] font-semibold tracking-[0.05em] text-[#374151] transition-opacity hover:opacity-70" onClick={() => setShowPrivacy(false)}>
                     BACK
-                  </div>
+                  </button>
                 </div>
 
                 {/* Privacy Notice Section */}
-                <div className="modal-header-container">
-                  <div className="modal-icon-wrapper text-blue">
-                    <LockIcon className="modal-section-icon" />
+                <div className="mb-6 flex items-center gap-4">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-[8px] bg-[#EBF5FF] text-blue">
+                    <LockIcon className="h-5 w-5 text-[#1D8DEE]" />
                   </div>
-                  <h2 className="modal-section-title text-blue">Privacy Notice</h2>
+                  <h2 className="m-0 text-[1.75rem] font-bold text-[#1557F5] max-[768px]:text-[1.35rem]">Privacy Notice</h2>
                 </div>
 
-                <p className="modal-text-bold" style={{ fontWeight: 400 }}>SmartCD.AI respects your privacy.</p>
-                <p className="modal-text">We may collect basic information you provide (such as income range, filing status, and residential state and city) to generate personalized CD and Treasury comparisons. We also collect limited usage data (like browser type and page visits) to improve our product.</p>
+                <p className="mb-4 text-base font-normal leading-[1.5] text-[#111827]">SmartCD.AI respects your privacy.</p>
+                <p className="mb-4 text-[0.95rem] leading-[1.6] text-[#4B5563]">We may collect basic information you provide (such as income range, filing status, and residential state and city) to generate personalized CD and Treasury comparisons. We also collect limited usage data (like browser type and page visits) to improve our product.</p>
 
-                <div className="modal-info-box">
-                  <ShieldCheckIcon className="modal-info-icon" />
-                  <span><strong>We do not collect Social Security numbers or bank account credentials. We do not sell your personal information.</strong></span>
+                <div className="my-6 flex items-start gap-3 rounded-xl border border-[#D1E5F9] bg-[#F0F7FF] px-5 py-4 max-[768px]:px-[14px] max-[768px]:py-3">
+                  <ShieldCheckIcon className="mt-0.5 h-5 w-5 shrink-0 text-[#1D8DEE]" />
+                  <span className="text-[0.95rem] font-medium leading-[1.5] text-[#1D8DEE]"><strong>We do not collect Social Security numbers or bank account credentials. We do not sell your personal information.</strong></span>
                 </div>
 
-                <p className="modal-text">Your data is used only to provide recommendations and improve our AI models.</p>
-                <p className="modal-text">By continuing to use SmartCD.AI, you agree to this Privacy Notice.</p>
+                <p className="mb-4 text-[0.95rem] leading-[1.6] text-[#4B5563]">Your data is used only to provide recommendations and improve our AI models.</p>
+                <p className="mb-4 text-[0.95rem] leading-[1.6] text-[#4B5563]">By continuing to use SmartCD.AI, you agree to this Privacy Notice.</p>
 
-                <hr className="modal-divider" />
+                <hr className="my-10 border-0 border-t border-[#E5E7EB]" />
 
                 {/* Terms of Service Section */}
-                <div className="modal-header-container">
-                  <div className="modal-icon-wrapper text-blue">
-                    <DocumentIcon className="modal-section-icon" />
+                <div className="mb-6 flex items-center gap-4">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-[8px] bg-[#EBF5FF] text-blue">
+                    <DocumentIcon className="h-5 w-5 text-[#1D8DEE]" />
                   </div>
-                  <h2 className="modal-section-title text-blue">Terms of Service</h2>
+                  <h2 className="m-0 text-[1.75rem] font-bold text-[#1557F5] max-[768px]:text-[1.35rem]">Terms of Service</h2>
                 </div>
 
-                <p className="modal-text-bold mb-4">By using SmartCD.AI, you agree to the following terms:</p>
+                <p className="mb-4 text-base font-bold leading-[1.5] text-[#111827]">By using SmartCD.AI, you agree to the following terms:</p>
 
-                <div className="terms-grid">
-                  <div className="term-item">
-                    <div className="term-pill"><span className="dot dot-blue"></span> Informational Use Only</div>
-                    <p className="modal-text-sm">SmartCD.AI provides CD, brokerage CD, and Treasury comparisons for informational purposes only. We do not provide financial, investment, tax, or legal advice.</p>
+                <div className="mb-10 grid grid-cols-2 gap-y-8 gap-x-16 max-[640px]:grid-cols-1 max-[640px]:gap-6">
+                  <div>
+                    <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-[#DBEAFE] bg-[#EFF6FF] px-3 py-1.5 text-[0.85rem] font-semibold text-[#1D8DEE]"><span className="inline-block h-2 w-2 rounded-full bg-[#2563EB]"></span> Informational Use Only</div>
+                    <p className="text-[0.85rem] leading-[1.5] text-[#6B7280]">SmartCD.AI provides CD, brokerage CD, and Treasury comparisons for informational purposes only. We do not provide financial, investment, tax, or legal advice.</p>
                   </div>
 
-                  <div className="term-item">
-                    <div className="term-pill"><span className="dot dot-blue"></span> No Guarantees</div>
-                    <p className="modal-text-sm">Rates, yields, and tax estimates are based on available data and assumptions. We do not guarantee accuracy, completeness, or future performance.</p>
+                  <div>
+                    <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-[#DBEAFE] bg-[#EFF6FF] px-3 py-1.5 text-[0.85rem] font-semibold text-[#1D8DEE]"><span className="inline-block h-2 w-2 rounded-full bg-[#2563EB]"></span> No Guarantees</div>
+                    <p className="text-[0.85rem] leading-[1.5] text-[#6B7280]">Rates, yields, and tax estimates are based on available data and assumptions. We do not guarantee accuracy, completeness, or future performance.</p>
                   </div>
 
-                  <div className="term-item">
-                    <div className="term-pill"><span className="dot dot-blue"></span> User Responsibility</div>
-                    <p className="modal-text-sm">You are responsible for verifying product terms directly with financial institutions before making investment decisions.</p>
+                  <div>
+                    <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-[#DBEAFE] bg-[#EFF6FF] px-3 py-1.5 text-[0.85rem] font-semibold text-[#1D8DEE]"><span className="inline-block h-2 w-2 rounded-full bg-[#2563EB]"></span> User Responsibility</div>
+                    <p className="text-[0.85rem] leading-[1.5] text-[#6B7280]">You are responsible for verifying product terms directly with financial institutions before making investment decisions.</p>
                   </div>
 
-                  <div className="term-item">
-                    <div className="term-pill"><span className="dot dot-blue"></span> Acceptable Use</div>
-                    <p className="modal-text-sm">You agree not to misuse, copy, scrape, reverse engineer, or disrupt the platform in any way.</p>
+                  <div>
+                    <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-[#DBEAFE] bg-[#EFF6FF] px-3 py-1.5 text-[0.85rem] font-semibold text-[#1D8DEE]"><span className="inline-block h-2 w-2 rounded-full bg-[#2563EB]"></span> Acceptable Use</div>
+                    <p className="text-[0.85rem] leading-[1.5] text-[#6B7280]">You agree not to misuse, copy, scrape, reverse engineer, or disrupt the platform in any way.</p>
                   </div>
 
-                  <div className="term-item">
-                    <div className="term-pill"><span className="dot dot-yellow"></span> Limitation of Liability</div>
-                    <p className="modal-text-sm">SmartCD.AI is not liable for investment decisions, financial losses, or damages arising from use of this service.</p>
+                  <div>
+                    <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-[#FEF3C7] bg-[#FFFBEB] px-3 py-1.5 text-[0.85rem] font-semibold text-[#D97706]"><span className="inline-block h-2 w-2 rounded-full bg-[#F59E0B]"></span> Limitation of Liability</div>
+                    <p className="text-[0.85rem] leading-[1.5] text-[#6B7280]">SmartCD.AI is not liable for investment decisions, financial losses, or damages arising from use of this service.</p>
                   </div>
 
-                  <div className="term-item">
-                    <div className="term-pill"><span className="dot dot-blue"></span> Updates</div>
-                    <p className="modal-text-sm">We may update these terms at any time. Continued use of SmartCD.AI means you accept the updated terms.</p>
+                  <div>
+                    <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-[#DBEAFE] bg-[#EFF6FF] px-3 py-1.5 text-[0.85rem] font-semibold text-[#1D8DEE]"><span className="inline-block h-2 w-2 rounded-full bg-[#2563EB]"></span> Updates</div>
+                    <p className="text-[0.85rem] leading-[1.5] text-[#6B7280]">We may update these terms at any time. Continued use of SmartCD.AI means you accept the updated terms.</p>
                   </div>
                 </div>
               </div>
               
-              <footer className="footer-dark">
-                <div className="footer-dark-disclaimer">
+              <footer className="mt-auto flex w-full flex-col items-center justify-center bg-[radial-gradient(circle,#243C6B_0%,#1E2941_100%)] px-16 pt-8 pb-6 max-[768px]:px-[14px] max-[768px]:pt-[22px] max-[768px]:pb-[22px]">
+                <div className="mb-8 max-w-[1200px] text-center text-[0.75rem] font-medium leading-[1.5] text-[rgba(255,255,255,0.8)]">
                   SmartCD.AI is an AI-powered aggregator of publicly available information. Annual Percentage Yields (APY) are subject to change without notice. Minimum deposit requirements and regional availability may apply. This tool provides information for educational purposes only and does not constitute investment, financial, tax, or legal advice. Always verify rates directly with the financial institution before making investment decisions.
                 </div>
-                <div className="footer-dark-bottom-bar">
-                  <div className="footer-dark-last-updated">Last updated: January 2026</div>
-                  <div className="footer-dark-copyright">© 2026 SmartCD.ai - All Rights Reserved</div>
-                  <div className="footer-dark-links">
+                <div className="flex w-full max-w-[1200px] items-center justify-between border-t border-[rgba(255,255,255,0.1)] pt-6 max-[768px]:flex-col max-[768px]:items-start max-[768px]:gap-[10px] max-[768px]:pt-[14px]">
+                  <div className="text-[0.8rem] font-medium text-white">Last updated: January 2026</div>
+                  <div className="text-[0.8rem] font-medium text-white">© 2026 SmartCD.ai - All Rights Reserved</div>
+                  <div className="text-[0.8rem] font-medium text-white transition-opacity hover:opacity-80">
                     Privacy Policy · Terms of Service
                   </div>
                 </div>
@@ -525,14 +628,14 @@ export default function App() {
       )}
 
       {/* Header - Light Background */}
-      <header className="header">
-        <div className="logo-container" style={{ cursor: 'pointer' }} onClick={() => {
+      <header className="bg-white px-10 py-4 flex items-center max-[768px]:px-4 max-[768px]:py-3">
+        <div className="flex items-center gap-3 cursor-pointer" onClick={() => {
           if (showResults) {
             window.history.pushState({ page: 'home' }, '', '/');
             setShowResults(false);
           }
         }}>
-          <img src="/logo.png" alt="SmartCD.ai Logo" className="logo-image" />
+          <img src="/logo.png" alt="SmartCD.ai Logo" className="h-12 w-auto max-[768px]:h-10" />
         </div>
       </header>
 
@@ -540,28 +643,28 @@ export default function App() {
       <main className="main-content">
         {!showResults ? (
           <>
-            <div className="hero-section">
-              <div className="badge-primary">
-                <SparkleIcon className="badge-icon-blue" />
+            <div className="text-center max-w-[900px] mb-[60px] flex flex-col items-center max-[768px]:mb-7">
+              <div className="inline-flex items-center gap-2 bg-[rgba(29,141,238,0.1)] border border-[rgba(29,141,238,0.3)] text-[#92C5F9] px-4 py-1.5 rounded-full text-xs font-semibold tracking-[0.05em] mb-8 normal-case max-[768px]:mb-[18px]">
+                <SparkleIcon className="w-3 h-3 text-[#1D8DEE]" />
                 AI Powered Fixed Income Analysis
               </div>
 
-              <div className="title-box">
-                <h1 className="hero-title">
-                  The Only AI That Calculates Your<br />
+              <div className="border-0 outline-none shadow-none px-10 py-[10px] mb-6 relative max-[768px]:px-0 max-[768px]:py-2 max-[768px]:mb-4">
+                <h1 className="text-[3.5rem] font-extrabold leading-[1.15] tracking-[-0.02em] max-[768px]:text-[clamp(1.8rem,8.5vw,2.4rem)] max-[768px]:leading-[1.2] max-[480px]:text-[clamp(1.6rem,9vw,2rem)]">
+                  The Only AI That Calculates Your<br className="max-[768px]:hidden" />
                   True <span className="text-green">After-Tax Winner.</span>
                 </h1>
               </div>
 
-              <p className="hero-subtitle">
-                Our AI scans thousands of CDs and Treasuries to find your optimal investment —<br />
+              <p className="text-[1.125rem] text-[#8B9BB4] leading-[1.6] max-w-[760px] mx-auto mb-8 max-[768px]:text-[0.96rem] max-[768px]:leading-[1.5] max-[768px]:mb-5 max-[768px]:px-1">
+                Our AI scans thousands of CDs and Treasuries to find your optimal investment —<br className="max-[768px]:hidden" />
                 automatically factoring in state tax exemptions to reveal the true after-tax winner.
               </p>
 
-              <div className="feature-pills">
-                <div className="pill"><LockIcon className="pill-icon text-yellow" /> Secure</div>
-                <div className="pill"><SparkleIcon className="pill-icon text-white" /> AI Powered</div>
-                <div className="pill"><ShieldCheckIcon className="pill-icon text-cyan" /> Tax Aware</div>
+              <div className="flex gap-4 justify-center max-[768px]:flex-wrap max-[768px]:gap-[10px]">
+                <div className="inline-flex items-center gap-1.5 bg-[rgba(255,255,255,0.05)] border border-[rgba(255,255,255,0.1)] text-[#E2E8F0] px-[14px] py-1.5 rounded-full text-xs font-semibold tracking-[0.05em] normal-case max-[480px]:px-3 max-[480px]:py-[5px] max-[480px]:text-[0.7rem]"><LockIcon className="w-3 h-3 text-[#FFD54F]" /> Secure</div>
+                <div className="inline-flex items-center gap-1.5 bg-[rgba(255,255,255,0.05)] border border-[rgba(255,255,255,0.1)] text-[#E2E8F0] px-[14px] py-1.5 rounded-full text-xs font-semibold tracking-[0.05em] normal-case max-[480px]:px-3 max-[480px]:py-[5px] max-[480px]:text-[0.7rem]"><SparkleIcon className="w-3 h-3 text-white" /> AI Powered</div>
+                <div className="inline-flex items-center gap-1.5 bg-[rgba(255,255,255,0.05)] border border-[rgba(255,255,255,0.1)] text-[#E2E8F0] px-[14px] py-1.5 rounded-full text-xs font-semibold tracking-[0.05em] normal-case max-[480px]:px-3 max-[480px]:py-[5px] max-[480px]:text-[0.7rem]"><ShieldCheckIcon className="w-3 h-3 text-[#4DD0E1]" /> Tax Aware</div>
               </div>
             </div>
 
@@ -575,29 +678,29 @@ export default function App() {
                   Your Investment Preferences
                 </h2>
 
-                {error && <div style={{ color: '#FF5252', marginBottom: '16px', fontSize: '0.9rem', textAlign: 'center' }}>{error}</div>}
+                {error && <div role="alert" className="text-[#FF5252] mb-4 text-[0.9rem] text-center">{error}</div>}
 
-                <form className="preferences-form" onSubmit={handleSearch}>
-                  <div className="form-row">
-                    <div className="form-group">
-                      <label htmlFor="investment_amount">Cash Amount</label>
-                      <div className="input-wrapper">
-                        <span className="input-prefix text-dark">$</span>
+                <form className="flex flex-col gap-6 max-[768px]:gap-4" onSubmit={handleSearch}>
+                  <div className="grid grid-cols-2 gap-6 max-[640px]:grid-cols-1 max-[640px]:gap-4">
+                    <div className="flex flex-col gap-2.5 relative">
+                      <label htmlFor="investment_amount" className="text-xs font-semibold text-[#6B7280] capitalize">Cash Amount</label>
+                      <div className="relative flex items-center">
+                        <span className="absolute left-4 text-[#111827] font-semibold pointer-events-none flex items-center">$</span>
                         <input
                           type="number"
                           id="investment_amount"
                           name="investment_amount"
                           value={formData.investment_amount}
                           onChange={handleChange}
-                          className={`custom-input dark-theme-input ${showErrors && (!formData.investment_amount || parseFloat(formData.investment_amount) < 5000) ? 'error-border' : ''}`}
+                          className={`w-full pl-8 pr-4 py-4 text-base font-medium rounded-[8px] border outline-none bg-white text-[#111827] transition-all placeholder:text-[#9CA3AF] placeholder:font-normal appearance-none focus:shadow-[0_0_0_2px_rgba(29,141,238,0.3)] ${showErrors && (!formData.investment_amount || parseFloat(formData.investment_amount) < 5000) ? 'border-[#FF5252] shadow-[0_0_0_2px_rgba(255,82,82,0.2)]' : 'border-[#E5E7EB]'}`}
                           placeholder="Enter amount ($5,000 minimum)"
                           min="5000"
                           required
                         />
                       </div>
                     </div>
-                    <div className="form-group">
-                      <label htmlFor="term_length_months">Duration</label>
+                    <div className="flex flex-col gap-2.5 relative">
+                      <label htmlFor="term_length_months" className="text-xs font-semibold text-[#6B7280] capitalize">Duration</label>
                       <StrictSelect
                         name="term_length_months"
                         value={formData.term_length_months}
@@ -622,9 +725,9 @@ export default function App() {
                     </div>
                   </div>
 
-                  <div className="form-row">
-                    <div className="form-group">
-                      <label htmlFor="state_selection">State</label>
+                  <div className="grid grid-cols-2 gap-6 max-[640px]:grid-cols-1 max-[640px]:gap-4">
+                    <div className="flex flex-col gap-2.5 relative">
+                      <label htmlFor="state_selection" className="text-xs font-semibold text-[#6B7280] capitalize">State</label>
                       <SearchableSelect
                         name="state_selection"
                         value={formData.state_selection}
@@ -634,8 +737,8 @@ export default function App() {
                         hasError={showErrors && !formData.state_selection}
                       />
                     </div>
-                    <div className="form-group">
-                      <label htmlFor="city_county">City / County</label>
+                    <div className="flex flex-col gap-2.5 relative">
+                      <label htmlFor="city_county" className="text-xs font-semibold text-[#6B7280] capitalize">City / County</label>
                       <SearchableSelect
                         name="city_county"
                         value={formData.city_county}
@@ -647,14 +750,14 @@ export default function App() {
                         }
                         placeholder="Select or type City/County"
                         hasError={showErrors && !formData.city_county}
-                        disabled={false}
+                        disabled={!STATES_WITH_LOCAL_TAX.includes(formData.state_selection)}
                       />
                     </div>
                   </div>
 
-                  <div className="form-row">
-                    <div className="form-group">
-                      <label htmlFor="income_range">Annual Income Range</label>
+                  <div className="grid grid-cols-2 gap-6 max-[640px]:grid-cols-1 max-[640px]:gap-4">
+                    <div className="flex flex-col gap-2.5 relative">
+                      <label htmlFor="income_range" className="text-xs font-semibold text-[#6B7280] capitalize">Annual Income Range</label>
                       <StrictSelect
                         name="income_range"
                         value={formData.income_range}
@@ -674,8 +777,8 @@ export default function App() {
                         hasError={showErrors && !formData.income_range}
                       />
                     </div>
-                    <div className="form-group">
-                      <label htmlFor="tax_filing_status">Tax Filing Status</label>
+                    <div className="flex flex-col gap-2.5 relative">
+                      <label htmlFor="tax_filing_status" className="text-xs font-semibold text-[#6B7280] capitalize">Tax Filing Status</label>
                       <StrictSelect
                         name="tax_filing_status"
                         value={formData.tax_filing_status}
@@ -692,24 +795,24 @@ export default function App() {
                     </div>
                   </div>
 
-                  <div className="terms-checkbox-container">
-                    <label className="terms-label">
+                  <div className="flex justify-center items-center mt-3 mb-6 max-[768px]:mt-1.5 max-[768px]:mb-3.5">
+                    <label className="flex items-center gap-2 text-[0.8rem] text-[#9CA3AF] normal-case font-medium cursor-pointer max-[768px]:items-start max-[768px]:leading-[1.4]">
                       <input
                         type="checkbox"
                         checked={termsAgreed}
                         onChange={(e) => setTermsAgreed(e.target.checked)}
-                        className="terms-checkbox"
+                        className="w-4 h-4 accent-[#1D8DEE] cursor-pointer"
                       />
-                      <span className="terms-text">
+                      <span>
                         By continuing to use SmartCD.AI, you agree to our{' '}
-                        <u onClick={() => setShowPrivacy(true)}>Privacy Policy and Terms of Service</u>.
+                        <u className="text-[#E2E8F0] cursor-pointer underline" onClick={() => setShowPrivacy(true)}>Privacy Policy and Terms of Service</u>.
                       </span>
                     </label>
                   </div>
 
-                  <div className="button-container">
-                    <button type="submit" className="submit-button" disabled={loading || !isFormValid}>
-                      <SparkleIcon className="button-icon-small" />
+                  <div className="flex justify-center mt-6 max-[768px]:mt-2">
+                    <button type="submit" className="flex items-center justify-center gap-3 w-full max-w-[500px] px-4 py-4 text-base font-bold tracking-[0.02em] text-white bg-[linear-gradient(90deg,#1C74E9_0%,#15B0F8_100%)] border-0 rounded-full cursor-pointer transition-all shadow-[0_10px_20px_-5px_rgba(29,141,238,0.4)] [&:not(:disabled):hover]:-translate-y-0.5 [&:not(:disabled):hover]:shadow-[0_14px_24px_-5px_rgba(29,141,238,0.5)] [&:not(:disabled):active]:translate-y-0 disabled:opacity-70 disabled:cursor-not-allowed max-[768px]:max-w-full" disabled={loading || !isFormValid}>
+                      <SparkleIcon className="w-4 h-4" />
                       {loading ? "Submitting..." : "FIND BEST YIELDS"}
                     </button>
                   </div>
@@ -718,25 +821,24 @@ export default function App() {
             </div>
           </>
         ) : (
-          <div className="results-page">
-            <div className="results-header-container">
+          <div className="mx-auto w-full max-w-[1100px]">
+            <div className="mb-6 flex items-start justify-between max-[768px]:mb-4 max-[768px]:flex-col max-[768px]:items-stretch max-[768px]:gap-3">
               <div>
-                <h1 className="results-main-title">All Products - Ranked by After-Tax Yield</h1>
-                <h2 className="results-page-title">Compare all CDs with the best after-tax yields for your situation</h2>
+                <h1 className="mb-1.5 text-2xl font-bold text-white max-[768px]:text-[1.2rem] max-[768px]:leading-[1.3]">All Products - Ranked by After-Tax Yield</h1>
+                <h2 className="m-0 text-base font-medium text-[#6B7280] max-[768px]:text-[0.9rem] max-[768px]:leading-[1.4]">Compare all CDs with the best after-tax yields for your situation</h2>
               </div>
-              <div className="toggle-group">
-                <button className={`toggle-btn ${viewMode === 'combined' ? 'active' : ''}`} onClick={() => setViewMode('combined')}>Combined View</button>
-                <button className={`toggle-btn ${viewMode === 'grouped' ? 'active' : ''}`} onClick={() => setViewMode('grouped')}>Group By Type</button>
+              <div className="grid overflow-hidden rounded-[8px] bg-[#0F172A] max-[768px]:w-full max-[768px]:grid-cols-2 md:flex">
+                <button className={`cursor-pointer border-none px-4 py-2 text-[0.85rem] font-semibold transition-all max-[768px]:min-h-11 max-[768px]:py-3 ${viewMode === 'combined' ? 'bg-[#22C55E] text-white' : 'bg-transparent text-[#9CA3AF]'}`} onClick={() => setViewMode('combined')}>Combined View</button>
+                <button className={`cursor-pointer border-none px-4 py-2 text-[0.85rem] font-semibold transition-all max-[768px]:min-h-11 max-[768px]:py-3 ${viewMode === 'grouped' ? 'bg-[#22C55E] text-white' : 'bg-transparent text-[#9CA3AF]'}`} onClick={() => setViewMode('grouped')}>Group By Type</button>
               </div>
             </div>
 
-            <div className="filters-bar">
-              <div className="filter-item">
-                <label className="filter-label" style={{ fontWeight: '600', textTransform: 'none' }}><FilterIcon className="filter-icon" /> Filter by type</label>
-                <div className="select-wrapper">
+            <div className="flex gap-6 mb-6 max-[768px]:flex-col max-[768px]:gap-3 max-[768px]:mb-[14px]">
+              <div className="flex flex-col gap-2 w-auto max-[768px]:w-full">
+                <label className="flex items-center gap-1.5 text-[14px] font-semibold text-[#6B7280] normal-case"><FilterIcon className="w-[14px] h-[14px]" /> Filter by type</label>
+                <div className="relative w-[200px] max-[768px]:w-full">
                   <select 
-                    className="filter-select dark-theme-input" 
-                    style={{ backgroundColor: '#0D1B2D', border: '1px solid #1A3050', color: '#FFFFFF', fontWeight: '400', fontSize: '16px' }}
+                    className="w-full min-w-[200px] max-[768px]:min-w-0 h-12 rounded-[8px] px-4 pr-10 py-[10px] bg-[#0D1B2D] border border-[#1A3050] text-white text-[16px] font-normal appearance-none"
                     value={productTypeFilter}
                     onChange={(e) => setProductTypeFilter(e.target.value)}
                   >
@@ -745,46 +847,45 @@ export default function App() {
                     <option value="Brokerage CDs">Brokerage CDs</option>
                     <option value="Treasuries">US Treasuries</option>
                   </select>
+                  <ChevronDownIcon className="absolute right-4 top-1/2 -translate-y-1/2 text-[#9CA3AF] pointer-events-none" />
                 </div>
               </div>
-              <div className="filter-item">
-                <label className="filter-label" style={{ fontWeight: '600', textTransform: 'none' }}><ClockIcon className="filter-icon" /> Duration</label>
-                <div className="strict-select-filter-border">
-                  <StrictSelect
+              <div className="flex flex-col gap-2 w-auto max-[768px]:w-full">
+                <label className="flex items-center gap-1.5 text-[14px] font-semibold text-[#6B7280] normal-case"><ClockIcon className="w-[14px] h-[14px]" /> Duration</label>
+                <div className="relative w-[200px] max-[768px]:w-full">
+                  <select
                     name="term_length_months"
+                    className="w-full min-w-[200px] max-[768px]:min-w-0 h-12 rounded-[8px] px-4 pr-10 py-[10px] bg-[#0D1B2D] border border-[#1A3050] text-white text-[16px] font-normal appearance-none"
                     value={formData.term_length_months}
                     onChange={handleChange}
-                    options={[
-                      "3 Month",
-                      "6 Month",
-                      "9 Month",
-                      "12 Month",
-                      "15 Month",
-                      "18 Month",
-                      "24 Month",
-                      "30 Month",
-                      "3 Year",
-                      "4 Year",
-                      "5 Year and Above"
-                    ]}
-                    placeholder="Select Duration"
-                    hasSeparators={true}
-                    theme="dark"
-                  />
+                  >
+                    <option value="3 Month">3 Month</option>
+                    <option value="6 Month">6 Month</option>
+                    <option value="9 Month">9 Month</option>
+                    <option value="12 Month">12 Month</option>
+                    <option value="15 Month">15 Month</option>
+                    <option value="18 Month">18 Month</option>
+                    <option value="24 Month">24 Month</option>
+                    <option value="30 Month">30 Month</option>
+                    <option value="3 Year">3 Year</option>
+                    <option value="4 Year">4 Year</option>
+                    <option value="5 Year and Above">5 Year and Above</option>
+                  </select>
+                  <ChevronDownIcon className="absolute right-4 top-1/2 -translate-y-1/2 text-[#9CA3AF] pointer-events-none" />
                 </div>
               </div>
             </div>
 
-            <div className="results-table-container">
-              <div className="table-header">
-                <div className="col-provider">PROVIDER / INSTITUTION</div>
-                {viewMode === 'grouped' && <div className="col-type">PRODUCT TYPE</div>}
-                <div className="col-rate">NOMINAL RATE</div>
-                <div className="col-yield">AFTER TAX YIELD</div>
-                <div className="col-deposit">MIN. DEPOSIT</div>
-                <div className="col-action">ACTION</div>
+            <div className="overflow-hidden rounded-2xl border border-[#1D8DEE] bg-[#081329] shadow-[0_10px_30px_rgba(0,0,0,0.5)] max-[768px]:overflow-visible max-[768px]:rounded-xl">
+              <div className={`hidden border-b border-[#1E293B] bg-[#0A1429] md:grid md:gap-4 ${viewMode === 'grouped' ? 'md:grid-cols-[2fr_1fr_1fr_1fr_1fr_1fr]' : 'md:grid-cols-[2fr_1fr_1fr_1fr_1fr]'}`}>
+                <div className="flex items-center justify-center py-4 text-center text-xs font-bold uppercase tracking-[0.05em] text-[#94A3B8]">PROVIDER / INSTITUTION</div>
+                {viewMode === 'grouped' && <div className="flex items-center justify-center py-4 text-center text-xs font-bold uppercase tracking-[0.05em] text-[#94A3B8]">PRODUCT TYPE</div>}
+                <div className="flex items-center justify-center py-4 text-center text-xs font-bold uppercase tracking-[0.05em] text-[#94A3B8]">NOMINAL RATE</div>
+                <div className="flex items-center justify-center py-4 text-center text-xs font-bold uppercase tracking-[0.05em] text-[#94A3B8]">AFTER TAX YIELD</div>
+                <div className="flex items-center justify-center py-4 text-center text-xs font-bold uppercase tracking-[0.05em] text-[#94A3B8]">MIN. DEPOSIT</div>
+                <div className="flex items-center justify-center py-4 text-center text-xs font-bold uppercase tracking-[0.05em] text-[#94A3B8]">ACTION</div>
               </div>
-              <div className="table-body">
+              <div>
                 {(() => {
                   const filtered = safeResults.filter(r => 
                     productTypeFilter === 'All products' || r.productType === productTypeFilter
@@ -795,13 +896,13 @@ export default function App() {
                   } else {
                     return (
                       <>
-                        <div className="group-header">Bank CDs</div>
+                        <div className="border-y border-[#1E293B] bg-[#0A1429] px-6 py-4 text-[0.9rem] font-bold text-[#E2E8F0] max-[768px]:px-[14px] max-[768px]:py-3 max-[768px]:text-[0.82rem]">Bank CDs</div>
                         {filtered.filter(r => r.productType === 'Bank CDs').sort((a, b) => b.afterTaxYield - a.afterTaxYield).map(r => renderResultCard(r, true))}
 
-                        <div className="group-header mt-8">Brokerage CDs</div>
+                        <div className="mt-8 border-y border-[#1E293B] bg-[#0A1429] px-6 py-4 text-[0.9rem] font-bold text-[#E2E8F0] max-[768px]:px-[14px] max-[768px]:py-3 max-[768px]:text-[0.82rem]">Brokerage CDs</div>
                         {filtered.filter(r => r.productType === 'Brokerage CDs').sort((a, b) => b.afterTaxYield - a.afterTaxYield).map(r => renderResultCard(r, true))}
 
-                        <div className="group-header mt-8">US Treasury</div>
+                        <div className="mt-8 border-y border-[#1E293B] bg-[#0A1429] px-6 py-4 text-[0.9rem] font-bold text-[#E2E8F0] max-[768px]:px-[14px] max-[768px]:py-3 max-[768px]:text-[0.82rem]">US Treasury</div>
                         {filtered.filter(r => r.productType === 'Treasuries').sort((a, b) => b.afterTaxYield - a.afterTaxYield).map(r => renderResultCard(r, true))}
                       </>
                     );
@@ -815,12 +916,12 @@ export default function App() {
       </main>
 
       {/* Footer */}
-      <footer className={showResults ? "results-footer" : "footer-light"}>
-        <div className="footer-light-last-updated">Last updated: January 2026</div>
-        <div className="footer-light-copyright">
+      <footer className={`mt-auto flex w-full flex-col items-center justify-center gap-2 ${showResults ? 'bg-[radial-gradient(circle,#243C6B_0%,#1E2941_100%)] px-5 py-10 max-[768px]:px-[14px] max-[768px]:py-[22px]' : 'border-t border-[#E5E7EB] bg-white px-16 pt-8 pb-6 max-[768px]:px-[14px] max-[768px]:pt-[22px] max-[768px]:pb-[22px]'}`}>
+        <div className={`text-[0.8rem] font-medium ${showResults ? 'text-[rgba(255,255,255,0.8)]' : 'text-[#717182]'}`}>Last updated: January 2026</div>
+        <div className={`mb-2 text-[0.85rem] font-semibold ${showResults ? 'text-[rgba(255,255,255,0.8)]' : 'text-[#717182]'}`}>
           © 2026 SmartCD.ai - All Rights Reserved
         </div>
-        <div className="footer-light-disclaimer">
+        <div className={`max-w-[1000px] text-center text-[0.75rem] font-medium leading-[1.5] ${showResults ? 'text-[rgba(255,255,255,0.8)]' : 'text-[#717182] opacity-80'}`}>
           SmartCD.AI is an AI-powered aggregator of publicly available information. Annual Percentage Yields (APY) are subject to change without notice. Minimum deposit requirements and regional availability may apply. This tool provides information for educational purposes only and does not constitute investment, financial, tax, or legal advice. Always verify rates directly with the financial institution before making investment decisions.
         </div>
       </footer>
