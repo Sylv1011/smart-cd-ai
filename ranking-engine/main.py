@@ -38,6 +38,70 @@ def _env(key: str) -> Optional[str]:
     return v.strip() if v and v.strip() else None
 
 
+STATE_NAME_TO_CODE = {
+    "alabama": "AL",
+    "alaska": "AK",
+    "arizona": "AZ",
+    "arkansas": "AR",
+    "california": "CA",
+    "colorado": "CO",
+    "connecticut": "CT",
+    "delaware": "DE",
+    "florida": "FL",
+    "georgia": "GA",
+    "hawaii": "HI",
+    "idaho": "ID",
+    "illinois": "IL",
+    "indiana": "IN",
+    "iowa": "IA",
+    "kansas": "KS",
+    "kentucky": "KY",
+    "louisiana": "LA",
+    "maine": "ME",
+    "maryland": "MD",
+    "massachusetts": "MA",
+    "michigan": "MI",
+    "minnesota": "MN",
+    "mississippi": "MS",
+    "missouri": "MO",
+    "montana": "MT",
+    "nebraska": "NE",
+    "nevada": "NV",
+    "new hampshire": "NH",
+    "new jersey": "NJ",
+    "new mexico": "NM",
+    "new york": "NY",
+    "north carolina": "NC",
+    "north dakota": "ND",
+    "ohio": "OH",
+    "oklahoma": "OK",
+    "oregon": "OR",
+    "pennsylvania": "PA",
+    "rhode island": "RI",
+    "south carolina": "SC",
+    "south dakota": "SD",
+    "tennessee": "TN",
+    "texas": "TX",
+    "utah": "UT",
+    "vermont": "VT",
+    "virginia": "VA",
+    "washington": "WA",
+    "west virginia": "WV",
+    "wisconsin": "WI",
+    "wyoming": "WY",
+}
+
+VALID_STATE_CODES = set(STATE_NAME_TO_CODE.values())
+LOCAL_TAX_STATES = {"NY", "MD", "IN", "MI"}
+
+
+def normalize_state_to_code(state: str) -> str:
+    value = (state or "").strip()
+    if len(value) == 2:
+        return value.upper()
+    return STATE_NAME_TO_CODE.get(value.lower(), value.upper())
+
+
 @lru_cache(maxsize=1)
 def get_data_client() -> DataClient:
     """
@@ -157,21 +221,29 @@ def weather_not_supported():
 @app.post("/rank", response_model=RankResponse, response_model_exclude_none=True)
 def rank(req: RankRequest) -> Dict[str, Any]:
     try:
+        normalized_state = normalize_state_to_code(req.state)
+        if normalized_state not in VALID_STATE_CODES:
+            raise HTTPException(status_code=422, detail="Invalid state provided")
+
+        normalized_local_area = (req.local_area or "").strip().lower() or None
+        if normalized_state not in LOCAL_TAX_STATES:
+            normalized_local_area = None
+
         logger.info(
             "Rank request: amount=%s term=%s state=%s income=%s",
             req.investment_amount,
             req.term_months,
-            req.state,
+            normalized_state,
             req.income_range,
         )
 
         inp = RankingInput(
             investment_amount=req.investment_amount,
             term_months=req.term_months,
-            state=req.state.upper(),
+            state=normalized_state,
             income_range=req.income_range,
             filing_status=req.filing_status.lower(),
-            local_area=req.local_area.lower() if req.local_area else None,
+            local_area=normalized_local_area,
         )
 
         data_client = get_data_client()
@@ -196,6 +268,8 @@ def rank(req: RankRequest) -> Dict[str, Any]:
     except RuntimeError as e:
         logger.exception("Server configuration error")
         raise HTTPException(status_code=503, detail=str(e))
+    except HTTPException:
+        raise
     except Exception:
         logger.exception("Ranking failed")
         raise HTTPException(status_code=500, detail="Ranking engine failed")
