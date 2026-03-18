@@ -2,210 +2,85 @@
 
 Structured financial data ingestion pipeline for Certificates of Deposit and U.S. Treasury securities.
 
-This system collects, validates, normalizes, and stores fixed income product data with strict schema enforcement and deterministic deduplication.
+This system automatically collects, validates, normalizes, and stores fixed income product data with strict schema enforcement and deterministic deduplication.
 
-# Overview
+---
+Author -  Abhinav Ramineni 
+
+## Overview
 
 The engine supports three product types:
-- Bank Certificates of Deposit (bank_cd)
-- Brokered Certificates of Deposit (brokered_cd)
-- U.S. Treasury Securities (treasury)
 
-Data is processed through a validation layer before optional database persistence.
+- bank_cd (Bank Certificates of Deposit)
+- brokered_cd (Brokered Certificates of Deposit)
+- treasury (U.S. Treasury Securities)
 
+Data flows through a validation layer before optional database persistence.
 
-# Data Sources
+---
 
-## 1. Bank CDs
+## Architecture
 
-__Source: Bankrate CD rates page__
-- HTML is manually downloaded and stored as: data/raw/bankrate.html
-- Parsed using parse_bankrate.py
-- Canonical destination URLs mapped via bank_maps.py
+### Data Flow
 
+External Sources  
+→ Raw HTML / JSON  
+→ Parsing  
+→ Validation + Normalization  
+→ Deduplication (SHA256 record_hash)  
+→ Clean Output  
+→ Optional Supabase Insert
 
-## 2. Brokered CDs
+---
 
-__Source: Structured output from LLM (Gemini)__
+## Data Sources
 
-Initial Prompt to set the environment : 
-```
-You are a structured financial data extraction engine.
+### Bank CDs (Automated)
 
-Your role is to return strictly validated, schema-compliant JSON records for fixed income products.
+- Source: Bankrate CD rates page  
+- Scraped daily → `data/raw/bankrate.html`  
+- Parsed via `parse_bankrate.py`  
+- Destination URLs mapped via `bank_maps.py`
 
-You must follow these global rules at all times.
+---
 
-Global Output Rules
+### U.S. Treasury (Automated)
 
-• Output must be strictly valid JSON
-• Top-level must be an array
-• No commentary
-• No markdown
-• No explanation
-• No text outside JSON
-• No assumptions
-• No speculative data
-• No fabricated URLs
-• No invented institutions
-• If data cannot be verified → exclude it
+- Source: U.S. Treasury yield data  
+- Scraped daily → `data/raw/treasury.html`  
+- Parsed via `treasury_html_to_json.py`  
+- Output → `data/raw/treasury.json`  
 
+---
 
-Data Integrity Rules
+### Brokered CDs (Hybrid: Manual + Optional Automation)
 
-• Only return currently available products
-• Do not return expired offers
-• Do not return historical rates
-• Do not estimate APY
-• Do not infer missing values
-• If required field cannot be confirmed → exclude the record
-• If issuing_bank is unknown → null
-• If minimum_deposit is unknown → null
-• APY must be numeric only (no % symbol)
-• minimum_deposit must be numeric only
+- Source: Structured LLM output (Gemini)  
+- Input file → `data/raw/brokered_cd.json`  
+- Used in:
+  - manual ingestion runs
+  - optional scheduled ingestion (if automated later)
 
+Brokerage values must strictly match:
 
-Date Rule
+- Fidelity  
+- Charles Schwab  
+- Vanguard  
+- Morgan Stanley  
+- E*Trade  
 
-• retrieved_at must be today’s date in YYYY-MM-DD format
-• Do not return historical dates
+---
 
-
-Financial Compliance Rules
-
-• Brokered CDs must be FDIC insured
-• Bank CDs must be FDIC insured
-• Treasury securities are not FDIC insured
-• Exclude callable CDs
-• Exclude structured notes
-• Exclude secondary market trades
-• Include only new issue primary market brokered CDs
-• Exclude non-bank products
-
-Brokerage Name Standardization
-
-Brokerage_firm must exactly match one of the following values:
-
-Fidelity
-Charles Schwab
-Vanguard
-Morgan Stanley
-E*Trade
-
-Do not return variations such as:
-	•	Schwab
-	•	ETRADE
-	•	E Trade
-	•	Charles Schwab & Co.
-
-Use only the exact allowed value.
-
-Schema Discipline:
-
-You must strictly follow the schema provided in the next prompt.
-
-Do not:
-• Add extra fields
-• Rename fields
-• Modify field types
-
-If you cannot comply → return an empty JSON array.
-
-Wait for the product-specific extraction prompt before returning any data.
-
-** Brokered CD Prompt :
-Return currently available FDIC-insured brokered CDs for these terms:
-3, 6, 12, 24, 60 months
-
-Allowed brokerage_firm values (MUST MATCH EXACTLY, case and punctuation included):
-- Fidelity
-- Charles Schwab
-- Vanguard
-- Morgan Stanley
-- E*Trade
-
-Do not output any other spelling variants.
-Examples that are INVALID and must never appear:
-ETrade, ETRADE, E-Trade, Schwab, CharlesSchwab, MorganStanley
-
-Return up to 5 verified offers per term.
-
-Output must be strictly valid JSON only (top-level array). No commentary.
-
-Schema:
-[
-  {
-    "product_type": "brokered_cd",
-    "institution_name": null,
-    "brokerage_firm": "Fidelity | Charles Schwab | Vanguard | Morgan Stanley | E*Trade",
-    "issuing_bank": "string or null",
-    "term_months": 3 | 6 | 12 | 24 | 60,
-    "apy": number,
-    "minimum_deposit": number or null,
-    "fdic_insured": true,
-    "source_name": "MUST equal brokerage_firm exactly",
-    "retrieved_at": "YYYY-MM-DD"
-  }
-]
-
-Strict rules:
-- FDIC-insured only
-- Exclude callable unless explicitly labeled callable true
-- Exclude structured notes
-- Exclude secondary market trades
-- Do not guess issuing_bank (use null if unknown)
-- Do not guess minimum_deposit (use null if unknown)
-- If any field cannot be verified, exclude that record
-- Use current data only
-- Do not fabricate anything
-
-Final validation before you respond:
-- brokerage_firm must be one of the 5 allowed values EXACTLY
-- source_name must match brokerage_firm EXACTLY
-- term_months must be one of: 3, 6, 12, 24, 60
-If any record fails validation, drop it.
-If no valid records, return []
-```
-- Data pasted into:data/raw/brokered_cd.json
-- URLs are intentionally not generated by LLM
-- Brokerage landing pages are filled automatically during ingestion
-
-
-## 3. U.S. Treasury
-
-Source: Official Treasury yield CSV
-- CSV stored in: data/raw/treasury.csv
-- Converted using treasury_csv_to_json.py
-- Destination standardized to: TreasuryDirect Marketable Securities page
-
-# Architecture
-
-Data Flow:
-```
-External Sources
-→ Raw JSON / CSV
-→ Validation + Normalization
-→ Deduplication (SHA256 record_hash)
-→ Clean Output
-→ Optional Supabase Upsert
-```
-
-# Tech Stack
-- Python 3
-- BeautifulSoup (HTML parsing)
-- Regex normalization
-- JSON / CSV transformation
-- Deterministic hashing
-- Supabase (Postgres backend, optional)
-- Environment-based credential management
-
-# Project Structure
-```
+## Project Structure
 smartcd_ingest/
 │
 ├── scripts/
+│   ├── run_daily_ingestion.py
+│   ├── clear_data.sh
+│   ├── fetch_bank_treasury.py
+│   ├── fetch_brokered_cds.py
 │   ├── parse_bankrate.py
-│   ├── treasury_csv_to_json.py
+│   ├── treasury_html_to_json.py
 │   ├── ingest.py
 │   ├── bank_maps.py
 │
@@ -215,104 +90,169 @@ smartcd_ingest/
 │   ├── rejects/
 │
 ├── requirements.txt
-├── .env
+├── .env (not committed)
 └── README.md
-```
+---
 
-# Fetching Data
-## 1. Setup
-1. Create Virtual Environment: ```python -m venv .venv
-                            source .venv/bin/activate```
-2. Install Dependencies : 
-```python -m pip install -r requirements.txt```
+## Setup
 
-__Important: First Run in Validation Mode__
-
-Before pushing data to Supabase:
-1. Remove Supabase credentials from .env
-2.	Run ingestion in validation-only mode: 	
-	- python scripts/parse_bankrate.py
-    - python scripts/treasury_csv_to_json.py
-    - python scripts/ingest.py
-
-This allows you to verify:
-- Clean records count
-- Rejected records count
-- Any bank_cd rejected due to destination fallback from source
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+python3 -m pip install -r requirements.txt
 
 
-## 2. Bank CD URL Enforcement Rule
+Modes of Operation
 
-For bank_cd:
-- Destination URL must map to an official bank CD page.
-- If destination falls back to source_url, the record is rejected.
-- To fix rejected records:
-- Add the correct bank CD landing page URL to BANK_DEST_URL_MAP in bank_maps.py
-- Re-run ingestion
+1. Validation Mode (No Database)
 
-This ensures product-level URL integrity.
+If .env does NOT contain Supabase credentials:
+python3 scripts/run_daily_ingestion.py
 
+Behavior:
+	•	Runs full pipeline
+	•	Does NOT write to database
+	•	Writes:
+	•	data/clean/offers_clean.json
+	•	data/rejects/offers_rejected.json
 
-## 3. Running Full Ingestion with Database
+⸻
 
-After validation succeeds:
-1. Add Supabase credentials to .env: 
-```
+2. Full Production Mode
+
+Add .env:
 SUPABASE_URL=...
 SUPABASE_SERVICE_ROLE_KEY=...
-SUPABASE_TABLE=offers     
-```                                   
+SUPABASE_TABLE=offers
 
-2.	Run:  
-```
-python scripts/ingest.py
-```
+Run: python3 scripts/run_daily_ingestion.py
+"
+Behavior:
+	•	Replaces ALL products (bank + treasury + brokered)
+	•	Inserts fresh daily snapshot
 
-Data will be upserted using record_hash as primary key.    
-# Deduplication Strategy
+⸻
 
-Each record generates a SHA256 hash using:
-- product_type
-- institution_name
-- brokerage_firm
-- issuing_bank
-- term_months
-- apy
-- minimum_deposit
-- fdic_insured
-- source_url
-- destination_url
-- retrieved_at
+3. Brokered-Only Mode (Manual Override)
 
-Upserts use record_hash for deterministic conflict resolution.
+python3 scripts/ingest.py --mode brokered
 
+ehavior:
+	•	Deletes ONLY brokered_cd records
+	•	Inserts new brokered CDs from brokered_cd.json
+	•	Does NOT affect bank or treasury data
 
-# Validation Rules
-- Strict product_type enforcement
-- Term months restricted to approved set
-- APY numeric and within allowed range
-- URL validation
-- Product-specific compliance rules
-- Treasury destination standardized
-- Brokered CD URLs auto-filled from brokerage map
-- Bank CD requires canonical destination mapping
+⸻
+
+Data Replacement Strategy
+
+This system does NOT maintain historical data.
+
+Each run represents a fresh snapshot:
+
+Mode- full ; Behavior- Replaces all products
+Mode - brokered - Replaces only 
 
 
-# Current Capabilities
-- 100+ validated offers per run
-- Deterministic upserts
-- URL canonicalization
-- Structured rejection logging
-- Database-backed ingestion
-- Clean separation between ingestion and ranking layers
-- Ready for ZIP-based tax module integration
+Validation Rules
+	•	Strict product_type enforcement
+	•	Allowed terms only: 3, 6, 12, 24, 60
+	•	APY must be numeric
+	•	FDIC rules enforced
+	•	No callable / structured / secondary products
+	•	No missing required fields
+	•	Treasury always non-FDIC
+	•	Brokered must be FDIC
 
-# Operational Workflow (Daily)
-1. Download Bankrate HTML
-2. Update Treasury CSV
-3. Update brokered_cd.json with information retrieved with Gemini 
-4. Paste brokered CD JSON
-5. Run validation-only
-6. Fix URL mapping if needed
-7. Enable Supabase credentials
-8. Run ingestion                 
+⸻
+
+Deduplication
+
+Each record generates a SHA256 record_hash using:
+	•	product_type
+	•	institution_name
+	•	brokerage_firm
+	•	issuing_bank
+	•	term_months
+	•	apy
+	•	minimum_deposit
+	•	fdic_insured
+	•	source_url
+	•	destination_url
+	•	retrieved_at
+
+Ensures deterministic inserts.
+
+⸻
+
+Bank CD URL Enforcement
+	•	Destination URL must map to official bank site
+	•	If fallback to source occurs → record rejected
+	•	Fix via bank_maps.py
+
+⸻
+
+Automated Daily Pipeline
+
+python3 scripts/run_daily_ingestion.py
+
+Steps executed:
+	1.	Clear previous raw files
+	2.	Fetch Bankrate HTML
+	3.	Fetch Treasury HTML
+	4.	Fetch brokered placeholder (or real data later)
+	5.	Parse bank CDs
+	6.	Parse treasury
+	7.	Validate + normalize
+	8.	Insert (if credentials present)
+
+⸻
+
+Deployment (Render)
+
+Build Command
+
+pip install -r requirements.txt
+
+Start Command (Scheduled Job / Worker)
+
+python scripts/run_daily_ingestion.py
+
+Environment Variables
+
+Set in Render dashboard:
+	•	SUPABASE_URL
+	•	SUPABASE_SERVICE_ROLE_KEY
+	•	SUPABASE_TABLE
+
+⸻
+
+Notes
+	•	.env must NEVER be committed
+	•	Always test in validation mode first
+	•	Brokered CDs can be updated independently
+	•	Pipeline supports future LLM automation but does NOT depend on it
+
+⸻
+
+Current Capabilities
+	•	Fully automated daily ingestion (bank + treasury)
+	•	Hybrid ingestion for brokered CDs
+	•	Deterministic data replacement
+	•	Strict validation layer
+	•	Clean separation from ranking engine
+	•	Production-ready for scheduled deployment
+
+⸻
+
+Quick Start
+# Install
+python3 -m pip install -r requirements.txt
+
+# Run pipeline (validation)
+python3 scripts/run_daily_ingestion.py
+
+# Run brokered-only update
+python3 scripts/ingest.py --mode brokered
+
+

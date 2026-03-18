@@ -1,12 +1,19 @@
 # scripts/parse_bankrate.py
 import re
 import json
+import logging
+import os
 from datetime import date
 from bs4 import BeautifulSoup
 
 from bank_maps import bank_destination_url
 
+# --- logging ---
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("parse_bankrate")
+
 BANKRATE_HTML_PATH = "data/raw/bankrate.html"
+OUT_PATH = "data/raw/bank_cd.json"
 SOURCE_URL = "https://www.bankrate.com/banking/cds/cd-rates/"
 RETRIEVED_AT = date.today().isoformat()
 
@@ -65,14 +72,29 @@ def parse_min_deposit(dep_str: str):
     return None
 
 
-def main():
+def parse_bankrate_html():
+    if not os.path.exists(BANKRATE_HTML_PATH):
+        logger.warning(f"Bankrate HTML not found: {BANKRATE_HTML_PATH}")
+        return []
+
     with open(BANKRATE_HTML_PATH, "r", encoding="utf-8", errors="ignore") as f:
         soup = BeautifulSoup(f.read(), "html.parser")
 
     offers = []
 
-    for article in soup.select('article[id^="institution-details-"]'):
-        name_el = article.select_one("h3")
+    # --- NOTE ---
+    # If Bankrate changes structure, parsing may silently fail.
+    # We will validate later and fail fast if needed.
+
+    articles = soup.select('article[id^="institution-details-"]')
+
+    # fallback in case structure changes
+    if not articles:
+        logger.warning("Primary selector failed. Trying fallback selector.")
+        articles = soup.select("article")
+
+    for article in articles:
+        name_el = article.select_one("h3") or article.select_one("h2")
         institution_name = name_el.get_text(strip=True) if name_el else None
         if not institution_name:
             continue
@@ -105,28 +127,47 @@ def main():
                         "fdic_insured": True,
                         "source_name": "Bankrate",
                         "source_url": SOURCE_URL,
-                        "destination_url": dest_url,  # may be None (that’s fine now)
+                        "destination_url": dest_url,
                         "retrieved_at": RETRIEVED_AT,
                     }
                 )
 
+    # Deduplicate
     seen = set()
     deduped = []
     for o in offers:
-        k = (o["institution_name"], o["term_months"], o["apy"], o["minimum_deposit"])
-        if k in seen:
+        key = (o["institution_name"], o["term_months"], o["apy"], o["minimum_deposit"])
+        if key in seen:
             continue
-        seen.add(k)
+        seen.add(key)
         deduped.append(o)
 
-    out_path = "data/raw/bank_cd.json"
-    with open(out_path, "w", encoding="utf-8") as f:
-        json.dump(deduped, f, ensure_ascii=False, indent=2)
+    logger.info(f"Parsed offers: {len(deduped)}")
 
-    mapped = sum(1 for o in deduped if o.get("destination_url"))
-    print(f"Parsed offers: {len(deduped)}")
-    print(f"Destination mapped: {mapped} (unmapped will be rejected in ingest for bank_cd)")
-    print(f"Wrote: {out_path}")
+    # --- fail fast if parsing breaks ---
+    if len(deduped) == 0:
+        logger.error("No offers parsed from Bankrate. Possible HTML structure change.")
+        raise ValueError("Bankrate parsing returned zero offers. Stopping pipeline.")
+
+    return deduped
+
+
+def main():
+    logger.info("\n=== PARSE BANKRATE START ===")
+
+    os.makedirs("data/raw", exist_ok=True)
+
+    offers = parse_bankrate_html()
+
+    with open(OUT_PATH, "w", encoding="utf-8") as f:
+        json.dump(offers, f, ensure_ascii=False, indent=2)
+
+    mapped = sum(1 for o in offers if o.get("destination_url"))
+
+    logger.info(f"Destination mapped: {mapped}")
+    logger.info(f"Wrote: {OUT_PATH}")
+    logger.info("=== PARSE BANKRATE COMPLETE ===\n")
+    logger.info("Bankrate parsing pipeline completed successfully")
 
 
 if __name__ == "__main__":

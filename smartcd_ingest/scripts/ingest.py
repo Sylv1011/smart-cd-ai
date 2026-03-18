@@ -1,20 +1,20 @@
 # scripts/ingest.py
-import os
-import json
-import re
+import argparse
 import hashlib
+import json
+import os
+import re
 from datetime import datetime
 from urllib.parse import urlparse
 
 from dotenv import load_dotenv
 
 try:
-    from supabase import create_client, Client  # type: ignore
+    from supabase import create_client  # type: ignore
 except Exception:
     create_client = None
-    Client = None
 
-from bank_maps import canonical_bank_key, BANK_DEST_URL_MAP  # unified bank map
+from bank_maps import BANK_DEST_URL_MAP, canonical_bank_key  # unified bank map
 
 
 # ---------------- config ----------------
@@ -70,6 +70,14 @@ BROKERAGE_URL_MAP_RAW = {
     "E*Trade": "https://us.etrade.com/what-we-offer/pricing-and-rates?icid=et-brokerage_pricingbanner_see-all",
 }
 BROKERAGE_URL_MAP = {_norm_name(k): v for k, v in BROKERAGE_URL_MAP_RAW.items()}
+
+
+def _maybe_copy_with(r: dict, **updates) -> dict:
+    if not updates:
+        return r
+    out = dict(r)
+    out.update(updates)
+    return out
 
 
 # ---------------- helpers ----------------
@@ -134,8 +142,7 @@ def _fill_urls_best_effort(r: dict, flags: list[str]) -> dict:
                 key = _canonical_broker_key(bf)
                 url = BROKERAGE_URL_MAP.get(key)
                 if url:
-                    r = dict(r)
-                    r["source_url"] = url
+                    r = _maybe_copy_with(r, source_url=url)
                     flags.append("source_url_filled_from_brokerage_map")
                 else:
                     flags.append("brokerage_firm_unknown_for_source_url")
@@ -148,8 +155,7 @@ def _fill_urls_best_effort(r: dict, flags: list[str]) -> dict:
                 # For bank_cd, we only have ONE unified map: BANK_DEST_URL_MAP
                 url = BANK_DEST_URL_MAP.get(canonical_bank_key(inst))
                 if url:
-                    r = dict(r)
-                    r["source_url"] = url
+                    r = _maybe_copy_with(r, source_url=url)
                     flags.append("source_url_filled_from_bank_map")
                 else:
                     flags.append("institution_unknown_for_source_url")
@@ -180,8 +186,7 @@ def _fill_urls_best_effort(r: dict, flags: list[str]) -> dict:
                     flags.append("destination_url_filled_from_bank_map")
 
         if dest and _is_valid_url(dest):
-            r = dict(r)
-            r["destination_url"] = dest
+            r = _maybe_copy_with(r, destination_url=dest)
         else:
             # IMPORTANT RULE CHANGE:
             # bank_cd must NOT fallback destination_url -> source_url.
@@ -191,8 +196,7 @@ def _fill_urls_best_effort(r: dict, flags: list[str]) -> dict:
             else:
                 su = r.get("source_url")
                 if isinstance(su, str) and _is_valid_url(su):
-                    r = dict(r)
-                    r["destination_url"] = su
+                    r = _maybe_copy_with(r, destination_url=su)
                     flags.append("destination_url_filled_from_source_url")
                 else:
                     flags.append("destination_url_missing")
@@ -295,7 +299,7 @@ def _validate_and_normalize(r: dict):
     return normalized, [], flags
 
 
-def _load_json_array(path: str):
+def _load_json_array(path: str) -> list:
     if not os.path.exists(path):
         raise FileNotFoundError(f"Missing raw file: {path}")
 
@@ -342,43 +346,61 @@ def _summarize(clean, rejected):
 def main():
     load_dotenv()
 
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--mode", choices=["full", "brokered"], default="full")
+    args = parser.parse_args()
+    mode = args.mode
+
+    print(f"Running ingestion mode: {mode}")
+
     supabase_url = os.getenv("SUPABASE_URL")
     supabase_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
     table = os.getenv("SUPABASE_TABLE", "offers")
 
     supabase_mode = bool(supabase_url and supabase_key and create_client is not None)
-
     if not supabase_mode:
         print("No Supabase creds found (or supabase lib missing). Running validation-only mode.")
 
     clean = []
     rejected = []
 
-    for expected_type, path in RAW_FILES:
+    files_to_process = RAW_FILES if mode == "full" else [("brokered_cd", "data/raw/brokered_cd.json")]
+
+    for expected_type, path in files_to_process:
         records = _load_json_array(path)
 
-        for r in records:
-            if SKIP_CALLABLE_FIELD and isinstance(r, dict) and "callable" in r:
-                r = dict(r)
-                r.pop("callable", None)
+        for record in records:
+            if SKIP_CALLABLE_FIELD and isinstance(record, dict) and "callable" in record:
+                record = dict(record)
+                record.pop("callable", None)
 
-            nr, reasons, flags = _validate_and_normalize(r)
+            normalized, reasons, flags = _validate_and_normalize(record)
 
-            if nr is None:
-                rejected.append({"raw": r, "reasons": reasons, "flags": flags, "source_file": path})
-                continue
-
-            if nr["product_type"] != expected_type:
+            if normalized is None:
                 rejected.append(
-                    {"raw": r, "reasons": ["product_type_mismatch_for_file"], "flags": flags, "source_file": path}
+                    {
+                        "raw": record,
+                        "reasons": reasons,
+                        "flags": flags,
+                        "source_file": path,
+                    }
                 )
                 continue
 
-            clean.append(nr)
+            if normalized["product_type"] != expected_type:
+                rejected.append(
+                    {
+                        "raw": record,
+                        "reasons": ["product_type_mismatch_for_file"],
+                        "flags": flags,
+                        "source_file": path,
+                    }
+                )
+                continue
 
-    dedup = {}
-    for r in clean:
-        dedup[r["record_hash"]] = r
+            clean.append(normalized)
+
+    dedup = {record["record_hash"]: record for record in clean}
     clean = list(dedup.values())
 
     os.makedirs(os.path.dirname(CLEAN_OUT), exist_ok=True)
@@ -399,14 +421,35 @@ def main():
         return
 
     sb = create_client(supabase_url, supabase_key)
-    db_rows = [{k: v for k, v in r.items() if k != "flags"} for r in clean]
+    db_rows = [{k: v for k, v in record.items() if k != "flags"} for record in clean]
 
     if not db_rows:
-        print("No valid rows to upsert.")
+        print("No valid rows to write to database.")
         return
 
-    sb.table(table).upsert(db_rows, on_conflict="record_hash").execute()
-    print(f"Upserted {len(db_rows)} row(s) into {table}.")
+    if mode == "full":
+        if len(db_rows) < 5:
+            raise RuntimeError("Too few valid records. Aborting full refresh.")
+
+        # delete only product types we are refreshing
+        product_types = list({row["product_type"] for row in db_rows})
+
+        print(f"Refreshing {table} for product_types={product_types}...")
+
+        for pt in product_types:
+            sb.table(table).delete().eq("product_type", pt).execute()
+
+        sb.table(table).insert(db_rows).execute()
+        print(f"Inserted {len(db_rows)} row(s) into {table}.")
+        return
+
+    # Replace brokered CDs instead of upserting (no historical data)
+    print(f"Refreshing {table} for product_type=brokered_cd...")
+
+    sb.table(table).delete().eq("product_type", "brokered_cd").execute()
+    sb.table(table).insert(db_rows).execute()
+
+    print(f"Replaced {len(db_rows)} brokered row(s) into {table}.")
 
 
 if __name__ == "__main__":

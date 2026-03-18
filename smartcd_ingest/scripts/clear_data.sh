@@ -10,7 +10,7 @@ echo "[]" > data/raw/brokered_cd.json
 echo "[]" > data/raw/treasury.json
 
 : > data/raw/bankrate.html
-: > data/raw/treasury.csv
+: > data/raw/treasury.html
 : > data/raw/brokered_cd_raw.json
 
 echo "✅ Files cleared but not deleted."

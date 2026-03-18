@@ -50,6 +50,11 @@ BANK_DEST_URL_MAP: Dict[str, str] = {
     canonical_bank_key("Alliant Credit Union"): "https://www.alliantcreditunion.org/bank/credit-union-certificate",
     canonical_bank_key("Colorado Federal Savings Bank"): "https://www.coloradofederalbank.com/deposits",
     canonical_bank_key("E*Trade"): "https://us.etrade.com/invest/cd-rates",
+    canonical_bank_key("M.Y. Safra Bank"): "https://www.mysafra.com/MYSB-Online-Offers",
+    canonical_bank_key("WebBank"): "https://www.webbank.com/rates-fees",
+    canonical_bank_key("Credit One Bank"): "https://www.creditonebank.com/deposits/cd-brx?productId=12M_CD_STAND&app_source=BRLPT_090524_BRX_RTX_CDPP_01",
+    canonical_bank_key("Lending Club"): "https://www.lendingclub.com/pd/af/personal-savings/cd?utm_campaign=00695&pid=2&utm_medium=affiliate&utm_source=Bankrate&utm_content=7&publisher_details=Bankrate&ranMID=53672&ranEAID=27pXCeFyR%2FA&ranSiteID=27pXCeFyR_A-HEUhrwyWsNdZB1EzJ6KoAg",
+
 }
 
 
