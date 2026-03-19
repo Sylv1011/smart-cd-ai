@@ -532,6 +532,15 @@ export default function App() {
 
   return (
     <div className="layout">
+      {loading && (
+        <div className="loading-overlay" role="status" aria-live="polite" aria-label="Loading">
+          <img
+            src="/loading-state-logo.png"
+            alt="Loading"
+            className="loading-overlay-logo"
+          />
+        </div>
+      )}
       {showPrivacy && (
         <div className="fixed inset-0 z-[1000] flex flex-col overflow-hidden bg-white text-[#374151]">
           <div className="relative flex h-full flex-col bg-white">

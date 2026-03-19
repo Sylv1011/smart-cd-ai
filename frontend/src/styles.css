@@ -135,10 +135,40 @@ label {
 
 
 /* Remove up/down spinners from number inputs */
-input[type=number]::-webkit-inner-spin-button,
-input[type=number]::-webkit-outer-spin-button {
-  -webkit-appearance: none;
-  margin: 0;
+input[type=number]::-webkit-inner-spin-button, 
+input[type=number]::-webkit-outer-spin-button { 
+  -webkit-appearance: none; 
+  margin: 0; 
+}
+
+.loading-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(4px);
+}
+
+.loading-overlay-logo {
+  width: 88px;
+  height: 88px;
+  object-fit: contain;
+  animation: smartcd-spin 1s linear infinite;
+}
+
+@keyframes smartcd-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .loading-overlay-logo {
+    animation: none;
+  }
 }
 
 input[type=number] {
@@ -172,5 +202,4 @@ input[type=number] {
     padding: 18px 12px;
   }
 }
-
 
