@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import './styles.css';
 import { locationData } from './utils/locationData';
 import { usStates } from './utils/statesData';
+import { stateNameToCode } from './utils/stateCodes';
 import AIAssistant from './AIAssistant';
 import SearchableSelect from './components/SearchableSelect';
 import StrictSelect from './components/StrictSelect';
@@ -93,30 +94,6 @@ const ExternalLinkIcon = ({ className }) => (
 
 const STATES_WITH_LOCAL_TAX = ['New York', 'Maryland', 'Indiana', 'Michigan'];
 
-const STATE_TO_CODE = {
-  California: 'CA',
-  Texas: 'TX',
-  Florida: 'FL',
-  'New York': 'NY',
-  Illinois: 'IL',
-};
-
-const normalizeIncomeRangeForRanker = (value) => {
-  const v = (value || '').trim();
-  const map = {
-    'less than $25,000': '<$25,000',
-    '$25,000 - $35,000': '$25,000 - $50,000',
-    '$35,000 - $50,000': '$25,000 - $50,000',
-    '$50,000 - $75,000': '$50,000 - $75,000',
-    '$75,000 - $100,000': '$75,000 - $100,000',
-    '$100,000 - $150,000': '$100,000 - $150,000',
-    '$150,000 - $200,000': '$150,000 - $200,000',
-    '$200,000 - $250,000': '$200,000+',
-    '$250,000 above': '$200,000+',
-  };
-  return map[v] || v;
-};
-
 const normalizeFilingStatusForRanker = (value) => {
   const v = (value || '').trim().toLowerCase();
   if (!v) return 'single';
@@ -138,6 +115,50 @@ const parseTermToMonths = (label) => {
   if (/^5\s*Year/i.test(v)) return 60;
   // Safe fallback: 12 months
   return 12;
+};
+
+const ALLOWED_TERM_MONTHS = [3, 6, 9, 12, 18, 24, 36, 48, 60];
+const TERM_LENGTH_OPTIONS = [
+  '3 Month',
+  '6 Month',
+  '9 Month',
+  '12 Month',
+  '18 Month',
+  '24 Month',
+  '3 Year',
+  '4 Year',
+  '5 Year',
+];
+
+const INCOME_RANGE_OPTIONS = [
+  '<$25,000',
+  '$25,000 - $50,000',
+  '$50,000 - $75,000',
+  '$75,000 - $100,000',
+  '$100,000 - $150,000',
+  '$150,000 - $200,000',
+  '$200,000+',
+];
+
+const LAST_SEARCH_STORAGE_KEY = 'smartcd:last_rank_inputs:v1';
+
+const normalizeSavedTermLabel = (value) => {
+  const v = (value || '').trim();
+  if (TERM_LENGTH_OPTIONS.includes(v)) return v;
+  if (/^5\s*Year\s*and\s*Above$/i.test(v)) return '5 Year';
+  return v;
+};
+
+const normalizeSavedIncomeLabel = (value) => {
+  const v = (value || '').trim();
+  const map = {
+    'less than $25,000': '<$25,000',
+    '$25,000 - $35,000': '$25,000 - $50,000',
+    '$35,000 - $50,000': '$25,000 - $50,000',
+    '$200,000 - $250,000': '$200,000+',
+    '$250,000 above': '$200,000+',
+  };
+  return map[v] || v;
 };
 
 const formatMoney = (n) => {
@@ -251,6 +272,7 @@ export default function App() {
   const [sortColumn, setSortColumn] = useState(null); // 'nominalRate' | 'afterTaxYield' | 'minDeposit' | null
   const [sortDirection, setSortDirection] = useState('desc'); // 'asc' | 'desc'
   const latestRequestIdRef = useRef(0);
+  const didRestoreRef = useRef(false);
 
   const toggleSort = (column) => {
     if (sortColumn !== column) {
@@ -340,12 +362,27 @@ export default function App() {
   });
   const [termsAgreed, setTermsAgreed] = useState(false);
   const [showErrors, setShowErrors] = useState(false);
+  const refreshTimeoutRef = useRef(null);
+
+  const persistLastSearch = (nextFormData) => {
+    try {
+      const payload = {
+        formData: nextFormData,
+        termsAgreed: Boolean(termsAgreed),
+        savedAt: Date.now(),
+      };
+      window.localStorage.setItem(LAST_SEARCH_STORAGE_KEY, JSON.stringify(payload));
+    } catch {
+      // best-effort only
+    }
+  };
 
   const fetchRankResults = async (nextFormData, options = {}) => {
     const { navigateToResults = false, scrollToTop = false } = options;
     const amt = parseFloat(nextFormData.investment_amount);
     const requestId = ++latestRequestIdRef.current;
 
+    persistLastSearch(nextFormData);
     setLoading(true);
     setError(null);
 
@@ -358,8 +395,8 @@ export default function App() {
       const rankRequest = {
         investment_amount: amt,
         term_months: parseTermToMonths(nextFormData.term_length_months),
-        state: STATE_TO_CODE[nextFormData.state_selection] || nextFormData.state_selection,
-        income_range: normalizeIncomeRangeForRanker(nextFormData.income_range),
+        state: stateNameToCode[nextFormData.state_selection] || nextFormData.state_selection,
+        income_range: nextFormData.income_range,
         filing_status: normalizeFilingStatusForRanker(nextFormData.tax_filing_status),
         local_area: nextFormData.city_county || null,
         top_n_bank_cds: 10,
@@ -408,39 +445,135 @@ export default function App() {
     }
   };
 
+  const canAutoRefreshRank = (nextFormData) => {
+    const amt = parseFloat(nextFormData.investment_amount);
+    const isCityCountyRequired = STATES_WITH_LOCAL_TAX.includes(nextFormData.state_selection);
+    const isCityCountyValid = isCityCountyRequired ? Boolean(nextFormData.city_county) : true;
+
+    const parsedMonths = parseTermToMonths(nextFormData.term_length_months);
+    const isAllowedTerm = ALLOWED_TERM_MONTHS.includes(parsedMonths);
+
+    const isIncomeAllowed = INCOME_RANGE_OPTIONS.includes(nextFormData.income_range);
+
+    return (
+      nextFormData.investment_amount &&
+      !isNaN(amt) &&
+      amt >= 5000 &&
+      nextFormData.term_length_months &&
+      isAllowedTerm &&
+      nextFormData.income_range &&
+      isIncomeAllowed &&
+      nextFormData.state_selection &&
+      isCityCountyValid &&
+      nextFormData.tax_filing_status
+    );
+  };
+
+  const scheduleAutoRefreshRank = (nextFormData) => {
+    if (!showResults) return;
+
+    if (refreshTimeoutRef.current) {
+      clearTimeout(refreshTimeoutRef.current);
+    }
+
+    refreshTimeoutRef.current = setTimeout(() => {
+      if (canAutoRefreshRank(nextFormData)) {
+        fetchRankResults(nextFormData);
+      }
+    }, 250);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (refreshTimeoutRef.current) {
+        clearTimeout(refreshTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!showResults) return;
+    if (didRestoreRef.current) return;
+    if (rankResponse) return;
+
+    let saved = null;
+    try {
+      saved = JSON.parse(window.localStorage.getItem(LAST_SEARCH_STORAGE_KEY) || 'null');
+    } catch {
+      saved = null;
+    }
+
+    const savedFormData = saved?.formData;
+    if (!savedFormData || saved?.termsAgreed === false) {
+      didRestoreRef.current = true;
+      return;
+    }
+
+    const nextState = (savedFormData.state_selection || '').trim();
+    const isLocalTaxState = STATES_WITH_LOCAL_TAX.includes(nextState);
+    const allowedAreas = isLocalTaxState ? (locationData[nextState] || []) : [];
+
+    const normalized = {
+      ...formData,
+      ...savedFormData,
+      term_length_months: normalizeSavedTermLabel(savedFormData.term_length_months),
+      income_range: normalizeSavedIncomeLabel(savedFormData.income_range),
+      city_county: isLocalTaxState
+        ? (() => {
+          const area = (savedFormData.city_county || '').trim().toLowerCase();
+          if (!area) return 'other';
+          return allowedAreas.includes(area) ? area : 'other';
+        })()
+        : '',
+    };
+
+    setFormData(normalized);
+    setTermsAgreed(true);
+    didRestoreRef.current = true;
+
+    if (canAutoRefreshRank(normalized)) {
+      fetchRankResults(normalized, { navigateToResults: false, scrollToTop: true });
+    } else {
+      setError('Please review your inputs to refresh results.');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showResults, rankResponse]);
+
+  const isAutoRefreshField = (name) => (
+    name === 'term_length_months' ||
+    name === 'income_range' ||
+    name === 'state_selection' ||
+    name === 'city_county' ||
+    name === 'tax_filing_status'
+  );
+
   const handleChange = (e) => {
     const { name, value } = e.target;
 
     if (name === 'state_selection') {
       const isCityCountyEnabled = STATES_WITH_LOCAL_TAX.includes(value);
-      setFormData({
+      const allowedAreas = isCityCountyEnabled ? (locationData[value] || []) : [];
+      const nextCityCounty =
+        isCityCountyEnabled
+          ? (allowedAreas.includes(formData.city_county) ? formData.city_county : 'other')
+          : '';
+      const nextFormData = {
         ...formData,
         [name]: value,
-        city_county: isCityCountyEnabled ? formData.city_county : ''
-      });
+        city_county: nextCityCounty,
+      };
+      setFormData(nextFormData);
+      if (showResults) {
+        scheduleAutoRefreshRank(nextFormData);
+      }
       return;
     }
 
     const nextFormData = { ...formData, [name]: value };
     setFormData(nextFormData);
 
-    if (name === 'term_length_months' && showResults) {
-      const amt = parseFloat(nextFormData.investment_amount);
-      const isCityCountyRequiredForRefresh = STATES_WITH_LOCAL_TAX.includes(nextFormData.state_selection);
-      const isCityCountyValidForRefresh = isCityCountyRequiredForRefresh ? nextFormData.city_county : true;
-      const canRefresh =
-        nextFormData.investment_amount &&
-        !isNaN(amt) &&
-        amt >= 5000 &&
-        nextFormData.term_length_months &&
-        nextFormData.income_range &&
-        nextFormData.state_selection &&
-        isCityCountyValidForRefresh &&
-        nextFormData.tax_filing_status;
-
-      if (canRefresh) {
-        fetchRankResults(nextFormData);
-      }
+    if (isAutoRefreshField(name) && showResults) {
+      scheduleAutoRefreshRank(nextFormData);
     }
   };
 
@@ -779,19 +912,7 @@ export default function App() {
                         name="term_length_months"
                         value={formData.term_length_months}
                         onChange={handleChange}
-                        options={[
-                          "3 Month",
-                          "6 Month",
-                          "9 Month",
-                          "12 Month",
-                          "15 Month",
-                          "18 Month",
-                          "24 Month",
-                          "30 Month",
-                          "3 Year",
-                          "4 Year",
-                          "5 Year and Above"
-                        ]}
+                        options={TERM_LENGTH_OPTIONS}
                         placeholder="Select Duration"
                         hasError={showErrors && !formData.term_length_months}
                         hasSeparators={true}
@@ -823,7 +944,7 @@ export default function App() {
                             : Object.values(locationData).flat()
                         }
                         placeholder="Select or type City/County"
-                        hasError={showErrors && !formData.city_county}
+                        hasError={showErrors && STATES_WITH_LOCAL_TAX.includes(formData.state_selection) && !formData.city_county}
                         disabled={!STATES_WITH_LOCAL_TAX.includes(formData.state_selection)}
                       />
                     </div>
@@ -836,17 +957,7 @@ export default function App() {
                         name="income_range"
                         value={formData.income_range}
                         onChange={handleChange}
-                        options={[
-                          "less than $25,000",
-                          "$25,000 - $35,000",
-                          "$35,000 - $50,000",
-                          "$50,000 - $75,000",
-                          "$75,000 - $100,000",
-                          "$100,000 - $150,000",
-                          "$150,000 - $200,000",
-                          "$200,000 - $250,000",
-                          "$250,000 above"
-                        ]}
+                        options={INCOME_RANGE_OPTIONS}
                         placeholder="Select Income Range"
                         hasError={showErrors && !formData.income_range}
                       />
