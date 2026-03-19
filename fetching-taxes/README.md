@@ -11,7 +11,7 @@ Federal and state tax data are sourced from the [Tax Foundation](https://taxfoun
 * [Federal Tax Rates, 2026](https://taxfoundation.org/data/all/federal/2026-tax-brackets/)
 * [State Tax Rates, 2026](https://taxfoundation.org/data/all/state/state-income-tax-rates-2026/)
 
-> **Note on Local Taxes:** Because local tax rates in the U.S. are extremely numerous, this tool only stores data for specific cities or counties. You must manually provide the local tax Excel file in the appropriate folder and specify the file name in your `.env` file.
+> **Note on Local Taxes:** Because local tax rates in the U.S. are extremely numerous, this tool only stores data for specific cities or counties. You must manually provide the local tax Excel file in the appropriate folder and specify the file name in your `.env` file. Please don't change current overall format of the local tax Excel file, which is `local_taxes.xlsx`, because the Python script strictly follows current format to extract data. However, you can add new rows, change the name in a cell (not a column), or change the number in a cell. Anything, like changing the column names or adding a new column, may cause the code execution to fail. 
 
 
 ## Database Schema
