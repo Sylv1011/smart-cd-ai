@@ -34,6 +34,19 @@ export default function AIAssistant({ rankResponse }) {
   const aiBase = import.meta.env.VITE_AI_LAYER_URL;
 
   const appendMessage = (msg) => setMessages(prev => [...prev, msg]);
+  const removeTypingMessage = () =>
+    setMessages((prev) => (prev.length && prev[prev.length - 1]?.typing ? prev.slice(0, -1) : prev));
+
+  const isExplainTop3Command = (text) => {
+    const q = (text || '').trim().toLowerCase();
+    if (!q) return false;
+    return (
+      q === 'explain top 3' ||
+      q === 'explain top three' ||
+      q.startsWith('explain top 3') ||
+      q.startsWith('explain top three')
+    );
+  };
 
   const buildSlimRankingResponse = (full) => {
     if (!full || typeof full !== 'object') return null;
@@ -143,10 +156,45 @@ export default function AIAssistant({ rankResponse }) {
       return;
     }
 
-    const slim = buildSlimRankingResponse(rankResponse);
-
     setIsSending(true);
+    appendMessage({ role: 'ai', content: '...', typing: true });
     try {
+      if (isExplainTop3Command(question)) {
+        const slim = buildSlimRankingResponse(rankResponse);
+
+        const res = await fetch(`${aiBase}/explain-top-3`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ranking_response: slim || rankResponse }),
+        });
+
+        if (!res.ok) {
+          const payload = await res.json().catch(() => ({}));
+          throw new Error(payload.detail || 'AI explanation request failed.');
+        }
+
+        const payload = await res.json();
+        const products = Array.isArray(payload?.products) ? payload.products : [];
+
+        let text = 'I could not generate explanations for the top results right now.';
+        if (products.length) {
+          const lines = products.slice(0, 3).map((p) => {
+            const title = p?.title || `Rank #${p?.rank_overall ?? ''}`;
+            const why = p?.why_this_fits || '';
+            const highlights = Array.isArray(p?.highlights) && p.highlights.length
+              ? `\nâ€¢ ${p.highlights.slice(0, 3).join('\nâ€¢ ')}`
+              : '';
+            return `${title}\n${why}${highlights}`.trim();
+          });
+          text = lines.join('\n\n');
+        }
+
+        removeTypingMessage();
+        appendMessage({ role: 'ai', content: text });
+        return;
+      }
+
+      const slim = buildSlimRankingResponse(rankResponse);
       const res = await fetch(`${aiBase}/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -159,8 +207,10 @@ export default function AIAssistant({ rankResponse }) {
       }
 
       const payload = await res.json();
+      removeTypingMessage();
       appendMessage({ role: 'ai', content: payload?.response || 'No response returned from AI service.' });
     } catch (err) {
+      removeTypingMessage();
       appendMessage({ role: 'ai', content: err.message || 'Unable to reach the AI service right now.' });
     } finally {
       setIsSending(false);
@@ -170,10 +220,6 @@ export default function AIAssistant({ rankResponse }) {
   const quickActions = ['Explain top 3', 'Best rates', 'Compare options', 'Tax info'];
 
   const handleQuickAction = (action) => {
-    if (action === 'Explain top 3') {
-      explainTop3();
-      return;
-    }
     setInputValue(action);
   };
 
@@ -214,7 +260,15 @@ export default function AIAssistant({ rankResponse }) {
                   </div>
                 )}
                 <div className={`ai-message-bubble ${msg.role}`}>
-                  {msg.content}
+                  {msg.typing ? (
+                    <span className="ai-typing-dots" aria-label="Thinking">
+                      <span />
+                      <span />
+                      <span />
+                    </span>
+                  ) : (
+                    msg.content
+                  )}
                 </div>
               </div>
             ))}

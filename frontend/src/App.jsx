@@ -54,6 +54,22 @@ const ChevronUpIcon = ({ className, onClick }) => (
   </svg>
 );
 
+const SortIcon = ({ active, direction }) => {
+  const upActive = active && direction === 'asc';
+  const downActive = active && direction === 'desc';
+
+  const base = 'transition-colors';
+  const upClass = `${base} ${upActive ? 'text-[#22C55E]' : active ? 'text-[#E2E8F0]' : 'text-[#475569]'}`;
+  const downClass = `${base} ${downActive ? 'text-[#22C55E]' : active ? 'text-[#E2E8F0]' : 'text-[#475569]'}`;
+
+  return (
+    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M6 2L9 5H3L6 2Z" className={upClass} fill="currentColor" />
+      <path d="M6 10L3 7H9L6 10Z" className={downClass} fill="currentColor" />
+    </svg>
+  );
+};
+
 const FilterIcon = ({ className }) => (
   <svg className={className} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon>
@@ -136,8 +152,6 @@ const adaptRankResponseToUiResults = (rankPayload) => {
   const treasuries = Array.isArray(rankPayload?.treasuries) ? rankPayload.treasuries : [];
   const overallTop = Array.isArray(rankPayload?.overall_top) ? rankPayload.overall_top : [];
 
-  const topPickKey = overallTop[0]?.destination_url || overallTop[0]?.source_url || null;
-
   const toProductType = (pt) => {
     if (pt === 'treasury') return 'Treasuries';
     if (pt === 'brokered_cd') return 'Brokerage CDs';
@@ -176,6 +190,9 @@ const adaptRankResponseToUiResults = (rankPayload) => {
     const stateTax = grossInterest * stateRate;
     const localTax = grossInterest * localRate;
 
+    const rankOverall = Number(o?.rank_overall);
+    const topPickRank = Number.isFinite(rankOverall) && rankOverall >= 1 && rankOverall <= 3 ? rankOverall : null;
+
     const linkKey = o?.destination_url || o?.source_url || '';
     const idBase = `${productType}-${provider}-${o?.term_months ?? ''}-${o?.apy_nominal ?? ''}-${linkKey}`;
 
@@ -187,7 +204,8 @@ const adaptRankResponseToUiResults = (rankPayload) => {
       nominalRate: Number(o?.apy_nominal ?? 0),
       afterTaxYield: Number(o?.after_tax_apy ?? 0),
       minDeposit: Number(o?.minimum_deposit ?? 0),
-      isTopPick: topPickKey && (o?.destination_url === topPickKey || o?.source_url === topPickKey),
+      isTopPick: Boolean(topPickRank),
+      topPickRank,
       taxBreakdown: {
         federalBracket: fedTax > 0 ? `-${formatMoney(fedTax)}` : '$0.00',
         stateTax: stateTax > 0 ? `-${formatMoney(stateTax)}` : '$0.00',
@@ -230,7 +248,54 @@ export default function App() {
   const [expandedCardId, setExpandedCardId] = useState(null);
   const [productTypeFilter, setProductTypeFilter] = useState('All products');
   const [expandedSections, setExpandedSections] = useState({});
+  const [sortColumn, setSortColumn] = useState(null); // 'nominalRate' | 'afterTaxYield' | 'minDeposit' | null
+  const [sortDirection, setSortDirection] = useState('desc'); // 'asc' | 'desc'
   const latestRequestIdRef = useRef(0);
+
+  const toggleSort = (column) => {
+    if (sortColumn !== column) {
+      setSortColumn(column);
+      setSortDirection('desc');
+      return;
+    }
+
+    if (sortDirection === 'desc') {
+      setSortDirection('asc');
+      return;
+    }
+
+    // Third click restores default sorting.
+    setSortColumn(null);
+    setSortDirection('desc');
+  };
+
+  const effectiveSortColumn = sortColumn || 'afterTaxYield';
+  const effectiveSortDirection = sortColumn ? sortDirection : 'desc';
+
+  const sortResults = (items) => {
+    const dir = effectiveSortDirection === 'asc' ? 1 : -1;
+
+    const toNum = (v) => {
+      const n = Number(v);
+      return Number.isFinite(n) ? n : NaN;
+    };
+
+    const cmp = (a, b) => {
+      const av = toNum(a?.[effectiveSortColumn]);
+      const bv = toNum(b?.[effectiveSortColumn]);
+
+      const aNan = Number.isNaN(av);
+      const bNan = Number.isNaN(bv);
+      if (aNan && bNan) return 0;
+      if (aNan) return 1;
+      if (bNan) return -1;
+
+      if (av === bv) return 0;
+      return av > bv ? dir : -dir;
+    };
+
+    return [...items].sort(cmp);
+  };
 
   const toggleSection = (cardId, section) => {
     setExpandedSections(prev => {
@@ -885,13 +950,71 @@ export default function App() {
               </div>
             </div>
 
-            <div className="overflow-hidden rounded-2xl border border-[#1D8DEE] bg-[#081329] shadow-[0_10px_30px_rgba(0,0,0,0.5)] max-[768px]:overflow-visible max-[768px]:rounded-xl">
+              <div className="overflow-hidden rounded-2xl border border-[#1D8DEE] bg-[#081329] shadow-[0_10px_30px_rgba(0,0,0,0.5)] max-[768px]:overflow-visible max-[768px]:rounded-xl">
+              {/* Mobile sort controls */}
+              <div className="flex items-center justify-between gap-2 border-b border-[#1E293B] bg-[#0A1429] px-[14px] py-3 md:hidden">
+                <div className="text-[0.72rem] font-bold uppercase tracking-[0.05em] text-[#94A3B8]">Sort</div>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    className="flex items-center gap-1 rounded-md border border-[#1A3050] bg-[#0D1B2D] px-2.5 py-2 text-[0.72rem] font-bold uppercase tracking-[0.05em] text-[#E2E8F0]"
+                    onClick={() => toggleSort('nominalRate')}
+                  >
+                    Nominal <SortIcon active={sortColumn === 'nominalRate'} direction={sortDirection} />
+                  </button>
+                  <button
+                    type="button"
+                    className="flex items-center gap-1 rounded-md border border-[#1A3050] bg-[#0D1B2D] px-2.5 py-2 text-[0.72rem] font-bold uppercase tracking-[0.05em] text-[#E2E8F0]"
+                    onClick={() => toggleSort('afterTaxYield')}
+                  >
+                    After-Tax <SortIcon active={sortColumn === 'afterTaxYield'} direction={sortDirection} />
+                  </button>
+                  <button
+                    type="button"
+                    className="flex items-center gap-1 rounded-md border border-[#1A3050] bg-[#0D1B2D] px-2.5 py-2 text-[0.72rem] font-bold uppercase tracking-[0.05em] text-[#E2E8F0]"
+                    onClick={() => toggleSort('minDeposit')}
+                  >
+                    Deposit <SortIcon active={sortColumn === 'minDeposit'} direction={sortDirection} />
+                  </button>
+                </div>
+              </div>
+
               <div className={`hidden border-b border-[#1E293B] bg-[#0A1429] md:grid md:gap-4 ${viewMode === 'grouped' ? 'md:grid-cols-[2fr_1fr_1fr_1fr_1fr_1fr]' : 'md:grid-cols-[2fr_1fr_1fr_1fr_1fr]'}`}>
                 <div className="flex items-center justify-center py-4 text-center text-xs font-bold uppercase tracking-[0.05em] text-[#94A3B8]">PROVIDER / INSTITUTION</div>
                 {viewMode === 'grouped' && <div className="flex items-center justify-center py-4 text-center text-xs font-bold uppercase tracking-[0.05em] text-[#94A3B8]">PRODUCT TYPE</div>}
-                <div className="flex items-center justify-center py-4 text-center text-xs font-bold uppercase tracking-[0.05em] text-[#94A3B8]">NOMINAL RATE</div>
-                <div className="flex items-center justify-center py-4 text-center text-xs font-bold uppercase tracking-[0.05em] text-[#94A3B8]">AFTER TAX YIELD</div>
-                <div className="flex items-center justify-center py-4 text-center text-xs font-bold uppercase tracking-[0.05em] text-[#94A3B8]">MIN. DEPOSIT</div>
+                <div className="flex items-center justify-center gap-2 py-4 text-center text-xs font-bold uppercase tracking-[0.05em] text-[#94A3B8]">
+                  NOMINAL RATE
+                  <button
+                    type="button"
+                    className="flex items-center justify-center border-none bg-transparent p-0 text-[#475569] hover:text-[#E2E8F0]"
+                    onClick={() => toggleSort('nominalRate')}
+                    aria-label="Sort by nominal rate"
+                  >
+                    <SortIcon active={sortColumn === 'nominalRate'} direction={sortDirection} />
+                  </button>
+                </div>
+                <div className="flex items-center justify-center gap-2 py-4 text-center text-xs font-bold uppercase tracking-[0.05em] text-[#94A3B8]">
+                  AFTER TAX YIELD
+                  <button
+                    type="button"
+                    className="flex items-center justify-center border-none bg-transparent p-0 text-[#475569] hover:text-[#E2E8F0]"
+                    onClick={() => toggleSort('afterTaxYield')}
+                    aria-label="Sort by after-tax yield"
+                  >
+                    <SortIcon active={sortColumn === 'afterTaxYield'} direction={sortDirection} />
+                  </button>
+                </div>
+                <div className="flex items-center justify-center gap-2 py-4 text-center text-xs font-bold uppercase tracking-[0.05em] text-[#94A3B8]">
+                  MIN. DEPOSIT
+                  <button
+                    type="button"
+                    className="flex items-center justify-center border-none bg-transparent p-0 text-[#475569] hover:text-[#E2E8F0]"
+                    onClick={() => toggleSort('minDeposit')}
+                    aria-label="Sort by minimum deposit"
+                  >
+                    <SortIcon active={sortColumn === 'minDeposit'} direction={sortDirection} />
+                  </button>
+                </div>
                 <div className="flex items-center justify-center py-4 text-center text-xs font-bold uppercase tracking-[0.05em] text-[#94A3B8]">ACTION</div>
               </div>
               <div>
@@ -901,18 +1024,19 @@ export default function App() {
                   );
 
                   if (viewMode === 'combined') {
-                    return filtered.sort((a, b) => b.afterTaxYield - a.afterTaxYield).map(r => renderResultCard(r, false));
+                    const sorted = sortResults(filtered);
+                    return sorted.map(r => renderResultCard(r, false));
                   } else {
                     return (
                       <>
                         <div className="border-y border-[#1E293B] bg-[#0A1429] px-6 py-4 text-[0.9rem] font-bold text-[#E2E8F0] max-[768px]:px-[14px] max-[768px]:py-3 max-[768px]:text-[0.82rem]">Bank CDs</div>
-                        {filtered.filter(r => r.productType === 'Bank CDs').sort((a, b) => b.afterTaxYield - a.afterTaxYield).map(r => renderResultCard(r, true))}
+                        {sortResults(filtered.filter(r => r.productType === 'Bank CDs')).map(r => renderResultCard(r, true))}
 
                         <div className="mt-8 border-y border-[#1E293B] bg-[#0A1429] px-6 py-4 text-[0.9rem] font-bold text-[#E2E8F0] max-[768px]:px-[14px] max-[768px]:py-3 max-[768px]:text-[0.82rem]">Brokerage CDs</div>
-                        {filtered.filter(r => r.productType === 'Brokerage CDs').sort((a, b) => b.afterTaxYield - a.afterTaxYield).map(r => renderResultCard(r, true))}
+                        {sortResults(filtered.filter(r => r.productType === 'Brokerage CDs')).map(r => renderResultCard(r, true))}
 
                         <div className="mt-8 border-y border-[#1E293B] bg-[#0A1429] px-6 py-4 text-[0.9rem] font-bold text-[#E2E8F0] max-[768px]:px-[14px] max-[768px]:py-3 max-[768px]:text-[0.82rem]">US Treasury</div>
-                        {filtered.filter(r => r.productType === 'Treasuries').sort((a, b) => b.afterTaxYield - a.afterTaxYield).map(r => renderResultCard(r, true))}
+                        {sortResults(filtered.filter(r => r.productType === 'Treasuries')).map(r => renderResultCard(r, true))}
                       </>
                     );
                   }
