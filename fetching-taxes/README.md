@@ -47,7 +47,7 @@ Stores tax data for specific U.S. cities or counties.
     * `SUPABASE_KEY`
     * `LOCAL_TAXES_FILE_NAME`
 
-2.  **Using `locally`**: You must manually download the Federal and State tax Excel files from the Tax Foundation and place them inside the `locally` folder.
+2.  **Using `locally`**: You must manually download the Federal and State tax Excel files from the Tax Foundation and place them inside the `locally` folder. Also, don't forget to include the **local** tax Excel file in this folder.
 
 3.  **Using `auto-fetcher`**: You only need to manually upload the **local** tax rate Excel file to the `auto-fetcher` folder; the Federal and State files will be retrieved automatically by the crawler.
 
