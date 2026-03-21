@@ -1,0 +1,207 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  --bg-main: #061124;
+  /* Very dark navy blue */
+  --bg-card: #081329;
+
+  --text-main: #FFFFFF;
+
+  --primary-blue: #1D8DEE;
+  /* Bright light blue */
+  --accent-green: #00E676;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: var(--font-family);
+  background-color: var(--bg-main);
+  color: var(--text-main);
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+
+html,
+body,
+#root {
+  width: 100%;
+  overflow-x: hidden;
+}
+
+.layout {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+/* Main Content */
+.main-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 60px 20px;
+  background-image:
+    radial-gradient(circle at 50% 10%, rgba(29, 141, 238, 0.05) 0%, transparent 40%),
+    radial-gradient(circle at 50% 80%, rgba(29, 141, 238, 0.03) 0%, transparent 50%);
+}
+
+.text-green {
+  color: var(--accent-green);
+}
+
+.text-white {
+  color: #FFFFFF;
+}
+
+.text-blue {
+  color: var(--primary-blue);
+}
+
+/* Dashboard Grid Layout */
+.dashboard-grid {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+  width: 100%;
+  max-width: 1200px;
+  position: relative;
+}
+
+@media (max-width: 1100px) {
+  .dashboard-grid {
+    flex-direction: column;
+  }
+}
+
+
+/* Center Main Card */
+.main-card {
+  background-color: var(--bg-card);
+  border: 1px solid var(--primary-blue);
+  border-radius: 16px;
+  flex: 1;
+  max-width: 900px;
+  width: 100%;
+  padding: 32px 40px;
+  box-shadow: 0 10px 40px -10px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.card-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: #FFFFFF;
+  margin-bottom: 32px;
+  padding-bottom: 24px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.title-icon-wrapper {
+  background-color: var(--primary-blue);
+  border-radius: 50%;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.card-title-icon {
+  color: #FFFFFF;
+  width: 12px;
+  height: 12px;
+}
+
+label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #6B7280;
+  text-transform: capitalize;
+}
+
+
+/* Remove up/down spinners from number inputs */
+input[type=number]::-webkit-inner-spin-button, 
+input[type=number]::-webkit-outer-spin-button { 
+  -webkit-appearance: none; 
+  margin: 0; 
+}
+
+.loading-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* Pale overlay (no blur) */
+  background: rgba(255, 255, 255, 0.16);
+  -webkit-backdrop-filter: saturate(70%) brightness(1.05);
+  backdrop-filter: saturate(70%) brightness(1.05);
+}
+
+.loading-overlay-logo {
+  width: 88px;
+  height: 88px;
+  object-fit: contain;
+  animation: smartcd-spin 1s linear infinite;
+  filter: drop-shadow(0 10px 28px rgba(0, 0, 0, 0.45));
+}
+
+@keyframes smartcd-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .loading-overlay-logo {
+    animation: none;
+  }
+}
+
+input[type=number] {
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+
+@media (max-width: 768px) {
+  .main-content {
+    padding: 32px 12px;
+  }
+
+  .main-card {
+    padding: 22px 14px;
+    border-radius: 12px;
+  }
+
+  .card-title {
+    margin-bottom: 18px;
+    padding-bottom: 14px;
+  }
+
+}
+
+@media (max-width: 480px) {
+  .main-content {
+    padding: 24px 10px;
+  }
+
+  .main-card {
+    padding: 18px 12px;
+  }
+}
