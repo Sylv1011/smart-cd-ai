@@ -1218,7 +1218,6 @@ export default function App() {
                     <option value="6 Month">6 Month</option>
                     <option value="9 Month">9 Month</option>
                     <option value="12 Month">12 Month</option>
-                    <option value="15 Month">15 Month</option>
                     <option value="18 Month">18 Month</option>
                     <option value="24 Month">24 Month</option>
                     <option value="30 Month">30 Month</option>
