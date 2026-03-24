@@ -3,8 +3,9 @@ from __future__ import annotations
 
 import os
 import logging
+import time
 from dataclasses import dataclass
-from typing import List, Optional
+from typing import List, Optional, Dict
 
 try:
     from supabase import create_client  # type: ignore
@@ -75,7 +76,6 @@ def _state_status_value(fs: str) -> str:
     n = _normalize_filing_status(fs)
     if n == "joint":
         return "joint"
-    # HOH -> single for state/local
     return "single"
 
 
@@ -130,20 +130,64 @@ class DataClient:
         self.federal_brackets_table = federal_brackets_table
         self.local_tax_table = local_tax_table
 
-        # simple in-memory caches (avoid repeated DB hits for offers + tax tables)
+        # simple in-memory caches
         self._offers_cache = {}
         self._federal_cache = {}
         self._state_cache = {}
         self._local_cache = {}
 
+        # cache timestamps
+        self._offers_cache_ts = {}
+        self._federal_cache_ts = {}
+        self._state_cache_ts = {}
+        self._local_cache_ts = {}
+
+        # TTLs (seconds)
+        self.OFFERS_CACHE_TTL = 9 * 60 * 60
+        self.TAX_CACHE_TTL = 180 * 24 * 60 * 60
+
+        # cache metrics
+        self._metrics = {
+            "offers_hit": 0,
+            "offers_miss": 0,
+            "offers_expired": 0,
+            "federal_hit": 0,
+            "federal_miss": 0,
+            "federal_fallback": 0,
+            "state_hit": 0,
+            "state_miss": 0,
+            "state_no_tax": 0,
+            "state_no_bracket": 0,
+            "local_cache_hit": 0,
+            "local_hit_city": 0,
+            "local_hit_county": 0,
+            "local_miss": 0,
+            "local_no_area": 0,
+        }
+
+    def log_cache_metrics(self) -> None:
+        logger.info("Cache Metrics: %s", self._metrics)
+
+    def get_cache_metrics(self) -> Dict[str, int]:
+        return dict(self._metrics)
+
     # ---------------- Offers ----------------
 
     def fetch_offers(self, term_months: int) -> List[Offer]:
         cache_key = int(term_months)
-        if cache_key in self._offers_cache:
-            logger.info("Offers cache hit for term_months=%s", term_months)
-            return self._offers_cache[cache_key]
+        now = time.time()
 
+        if cache_key in self._offers_cache:
+            age = now - self._offers_cache_ts.get(cache_key, 0)
+            if age < self.OFFERS_CACHE_TTL:
+                self._metrics["offers_hit"] += 1
+                logger.info("Offers cache hit (fresh) for term_months=%s", term_months)
+                return self._offers_cache[cache_key]
+            else:
+                self._metrics["offers_expired"] += 1
+                logger.info("Offers cache expired for term_months=%s", term_months)
+
+        self._metrics["offers_miss"] += 1
         logger.info("Offers cache miss for term_months=%s. Fetching from Supabase.", term_months)
 
         resp = (
@@ -180,6 +224,7 @@ class DataClient:
             )
 
         self._offers_cache[cache_key] = out
+        self._offers_cache_ts[cache_key] = now
         return out
 
     # ---------------- Tax: Federal ----------------
@@ -197,8 +242,15 @@ class DataClient:
         income = float(estimated_income)
 
         cache_key = (fs_db, round(income, 2))
+        now = time.time()
+
         if cache_key in self._federal_cache:
-            return self._federal_cache[cache_key]
+            age = now - self._federal_cache_ts.get(cache_key, 0)
+            if age < self.TAX_CACHE_TTL:
+                self._metrics["federal_hit"] += 1
+                return self._federal_cache[cache_key]
+
+        self._metrics["federal_miss"] += 1
 
         try:
             resp = (
@@ -212,7 +264,9 @@ class DataClient:
                 .execute()
             )
             rows = resp.data or []
+
             if not rows:
+                self._metrics["federal_fallback"] += 1
                 logger.warning(
                     "Federal tax lookup found no matching bracket for filing_status=%s income=%s. Using fallback 22%%.",
                     fs_db,
@@ -234,9 +288,11 @@ class DataClient:
                 )
 
             self._federal_cache[cache_key] = rate
+            self._federal_cache_ts[cache_key] = now
             return rate
 
         except Exception as e:
+            self._metrics["federal_fallback"] += 1
             logger.exception("Federal tax lookup failed; using fallback 22%%. error=%s", e)
             return 0.22
 
@@ -259,8 +315,15 @@ class DataClient:
         inc = float(income)
 
         cache_key = (st, fs, round(inc, 2))
+        now = time.time()
+
         if cache_key in self._state_cache:
-            return self._state_cache[cache_key]
+            age = now - self._state_cache_ts.get(cache_key, 0)
+            if age < self.TAX_CACHE_TTL:
+                self._metrics["state_hit"] += 1
+                return self._state_cache[cache_key]
+
+        self._metrics["state_miss"] += 1
 
         # 1) check if state has income tax
         try:
@@ -272,14 +335,13 @@ class DataClient:
                 .execute()
             ).data or []
 
-            # if config missing, treat as taxable (don’t zero it out)
             has_tax = True if not cfg_rows else bool(cfg_rows[0].get("has_tax", True))
             if not has_tax:
+                self._metrics["state_no_tax"] += 1
                 if DEBUG:
                     logger.debug("[STATE] %s marked has_tax=false -> 0.0", st)
                 return 0.0
         except Exception as e:
-            # if config lookup fails, still try brackets
             logger.warning("State config lookup failed for state=%s; trying brackets anyway. error=%s", st, e)
 
         # 2) pick marginal bracket: largest threshold <= income
@@ -296,6 +358,7 @@ class DataClient:
             ).data or []
 
             if not rows:
+                self._metrics["state_no_bracket"] += 1
                 if DEBUG:
                     logger.debug("[STATE] no bracket match for state=%s status=%s income=%s", st, fs, inc)
                 return 0.0
@@ -314,6 +377,7 @@ class DataClient:
                 )
 
             self._state_cache[cache_key] = rate
+            self._state_cache_ts[cache_key] = now
             return rate
         except Exception as e:
             logger.exception(
@@ -340,10 +404,16 @@ class DataClient:
         area = _norm_text(local_area)
 
         cache_key = (st, area)
+        now = time.time()
+
         if cache_key in self._local_cache:
-            return self._local_cache[cache_key]
+            age = now - self._local_cache_ts.get(cache_key, 0)
+            if age < self.TAX_CACHE_TTL:
+                self._metrics["local_cache_hit"] += 1
+                return self._local_cache[cache_key]
 
         if not area:
+            self._metrics["local_no_area"] += 1
             if DEBUG:
                 logger.debug("[LOCAL] no local area provided -> 0.0")
             return 0.0
@@ -374,7 +444,14 @@ class DataClient:
                     row.get("tax_rate"),
                     rate,
                 )
+
+            if col == "city":
+                self._metrics["local_hit_city"] += 1
+            else:
+                self._metrics["local_hit_county"] += 1
+
             self._local_cache[cache_key] = rate
+            self._local_cache_ts[cache_key] = now
             return rate
 
         try:
@@ -391,6 +468,7 @@ class DataClient:
         except Exception as e:
             logger.warning("Local county lookup failed for state=%s area=%s. error=%s", st, area, e)
 
+        self._metrics["local_miss"] += 1
         if DEBUG:
             logger.debug("[LOCAL] no local match for state=%s area=%s -> 0.0", st, area)
         return 0.0
@@ -410,8 +488,13 @@ class StaticDataClient:
     """
 
     def __init__(self) -> None:
-        # Use a stable timestamp to avoid confusing "freshness" differences in local dev.
         self._retrieved_at = "2026-01-01T00:00:00Z"
+
+    def log_cache_metrics(self) -> None:
+        logger.info("Cache Metrics: {}")
+
+    def get_cache_metrics(self) -> Dict[str, int]:
+        return {}
 
     def fetch_offers(self, term_months: int) -> List[Offer]:
         t = int(term_months)
@@ -444,12 +527,11 @@ class StaticDataClient:
                 retrieved_at=self._retrieved_at,
             )
 
-        # Very simple "curve" for demo: slightly higher APY for longer term up to 60m.
         term_factor = min(max(t, 3), 60) / 60.0
 
-        bank_base = 4.0 + (0.6 * term_factor)       # ~4.03% .. 4.60%
-        brokered_base = 4.05 + (0.55 * term_factor) # ~4.08% .. 4.60%
-        treasury_base = 3.9 + (0.5 * term_factor)   # ~3.93% .. 4.40%
+        bank_base = 4.0 + (0.6 * term_factor)
+        brokered_base = 4.05 + (0.55 * term_factor)
+        treasury_base = 3.9 + (0.5 * term_factor)
 
         return [
             _mk(
@@ -507,12 +589,10 @@ class StaticDataClient:
         ]
 
     def fetch_federal_marginal_rate(self, filing_status: str, estimated_income: float) -> float:
-        # Return a reasonable default marginal rate (decimal).
         return 0.22
 
     def fetch_state_marginal_rate(self, state: str, filing_status: str, income: float) -> float:
         st = (state or "").strip().upper()
-        # Very rough defaults for local dev only (decimals).
         defaults = {
             "CA": 0.09,
             "NY": 0.064,
