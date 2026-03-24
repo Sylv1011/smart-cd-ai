@@ -9,6 +9,7 @@ const ChevronDownIcon = ({ className }) => (
 export default function StrictSelect({ 
   value, 
   onChange, 
+  onBlur,
   options, 
   placeholder, 
   disabled = false,
@@ -49,6 +50,7 @@ export default function StrictSelect({
           value={value || ''}
           placeholder={placeholder}
           disabled={disabled}
+          onBlur={(e) => onBlur?.(e)}
           readOnly
           style={{ cursor: disabled ? 'not-allowed' : 'pointer' }}
         />

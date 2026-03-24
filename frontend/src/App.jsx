@@ -155,6 +155,13 @@ const INCOME_RANGE_OPTIONS = [
   '$200,000+',
 ];
 
+const FILING_STATUS_OPTIONS = [
+  'Single',
+  'Married Filing Jointly (includes Qualifying Surviving Spouse)',
+  'Married Filing Separately',
+  'Head of Household',
+];
+
 const LAST_SEARCH_STORAGE_KEY = 'smartcd:last_rank_inputs:v1';
 
 const normalizeSavedTermLabel = (value) => {
@@ -225,6 +232,8 @@ const formatMoney = (n) => {
     const fedTax = grossInterest * fedRate;
     const stateTax = grossInterest * stateRate;
     const localTax = grossInterest * localRate;
+    const totalTax = fedTax + stateTax + localTax;
+    const estimatedSavings = Math.max(0, stateTax + localTax);
 
     const rankOverall = Number(o?.rank_overall);
     const topPickRank = Number.isFinite(rankOverall) && rankOverall >= 1 && rankOverall <= 3 ? rankOverall : null;
@@ -247,9 +256,9 @@ const formatMoney = (n) => {
       topPickRank,
       detailsUrl,
       taxBreakdown: {
-        federalBracket: fedTax > 0 ? `-${formatMoney(fedTax)}` : '$0.00',
-        stateTax: stateTax > 0 ? `-${formatMoney(stateTax)}` : '$0.00',
-        localOswego: localTax > 0 ? `-${formatMoney(localTax)}` : '$0.00',
+        interestEarned: formatMoney(grossInterest),
+        totalTax: totalTax > 0 ? `-${formatMoney(totalTax)}` : '$0.00',
+        totalSavings: formatMoney(estimatedSavings),
       },
       netReturn: formatMoney(Number(o?.after_tax_interest_usd ?? 0)),
       whyThisFits: toWhyThisFits(productType),
@@ -287,7 +296,6 @@ export default function App() {
   const [viewMode, setViewMode] = useState('combined');
   const [expandedCardId, setExpandedCardId] = useState(null);
   const [productTypeFilter, setProductTypeFilter] = useState('All products');
-  const [expandedSections, setExpandedSections] = useState({});
   const [sortColumn, setSortColumn] = useState(null); // 'nominalRate' | 'afterTaxYield' | 'minDeposit' | null
   const [sortDirection, setSortDirection] = useState('desc'); // 'asc' | 'desc'
   const latestRequestIdRef = useRef(0);
@@ -339,26 +347,6 @@ export default function App() {
     return [...items].sort(cmp);
   };
 
-  const toggleSection = (cardId, section) => {
-    setExpandedSections(prev => {
-      const cardSections = prev[cardId] || { tax: true, fit: true };
-      return {
-        ...prev,
-        [cardId]: {
-          ...cardSections,
-          [section]: !cardSections[section]
-        }
-      };
-    });
-  };
-
-  const handleSectionKeyDown = (e, cardId, section) => {
-    if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault();
-      toggleSection(cardId, section);
-    }
-  };
-
   useEffect(() => {
     const handlePopState = () => {
       if (window.location.pathname === '/results') {
@@ -382,7 +370,75 @@ export default function App() {
   });
   const [termsAgreed, setTermsAgreed] = useState(false);
   const [showErrors, setShowErrors] = useState(false);
+  const [touchedFields, setTouchedFields] = useState({});
   const refreshTimeoutRef = useRef(null);
+
+  const getAllowedAreas = (stateSelection) => {
+    const state = (stateSelection || '').trim();
+    return state ? (locationData[state] || []) : [];
+  };
+
+  const getFieldError = (fieldName, data = formData) => {
+    const amount = parseFloat(data.investment_amount);
+    const state = (data.state_selection || '').trim();
+    const income = (data.income_range || '').trim();
+    const filing = (data.tax_filing_status || '').trim();
+    const term = (data.term_length_months || '').trim();
+    const cityCounty = (data.city_county || '').trim();
+    const cityCountyLower = cityCounty.toLowerCase();
+    const isCityRequired = STATES_WITH_LOCAL_TAX.includes(state);
+    const allowedAreas = getAllowedAreas(state);
+    const allowedAreasLower = allowedAreas.map((x) => String(x).toLowerCase());
+
+    if (fieldName === 'investment_amount') {
+      if (!data.investment_amount) return 'Please enter a cash amount.';
+      if (!Number.isFinite(amount)) return 'Please enter a valid amount.';
+      if (amount < 5000) return 'Minimum cash amount is $5,000.';
+      return '';
+    }
+
+    if (fieldName === 'term_length_months') {
+      if (!term) return 'Please select a duration.';
+      if (!ALLOWED_TERM_MONTHS.includes(parseTermToMonths(term))) return 'Please select a valid duration.';
+      return '';
+    }
+
+    if (fieldName === 'income_range') {
+      if (!income) return 'Please select an annual income range.';
+      if (!INCOME_RANGE_OPTIONS.includes(income)) return 'Please select a valid income range.';
+      return '';
+    }
+
+    if (fieldName === 'state_selection') {
+      if (!state) return 'Please select a state.';
+      if (!usStates.includes(state)) return 'Please select a valid U.S. state from the list.';
+      return '';
+    }
+
+    if (fieldName === 'city_county') {
+      if (!isCityRequired) return '';
+      if (!cityCounty) return 'Please select a city/county for this state.';
+      if (cityCountyLower !== 'other' && !allowedAreasLower.includes(cityCountyLower)) {
+        return 'Please select a valid city/county from the list.';
+      }
+      return '';
+    }
+
+    if (fieldName === 'tax_filing_status') {
+      if (!filing) return 'Please select a filing status.';
+      if (!FILING_STATUS_OPTIONS.includes(filing)) return 'Please select a valid filing status.';
+      return '';
+    }
+
+    return '';
+  };
+
+  const getVisibleFieldError = (fieldName) => {
+    if (!showErrors && !touchedFields[fieldName]) {
+      return '';
+    }
+    return getFieldError(fieldName);
+  };
 
   const persistLastSearch = (nextFormData) => {
     try {
@@ -467,13 +523,20 @@ export default function App() {
 
   const canAutoRefreshRank = (nextFormData) => {
     const amt = parseFloat(nextFormData.investment_amount);
-    const isCityCountyRequired = STATES_WITH_LOCAL_TAX.includes(nextFormData.state_selection);
-    const isCityCountyValid = isCityCountyRequired ? Boolean(nextFormData.city_county) : true;
+    const state = (nextFormData.state_selection || '').trim();
+    const isStateValid = usStates.includes(state);
+    const isCityCountyRequired = STATES_WITH_LOCAL_TAX.includes(state);
+    const cityCounty = (nextFormData.city_county || '').trim().toLowerCase();
+    const allowedAreasLower = getAllowedAreas(state).map((x) => String(x).toLowerCase());
+    const isCityCountyValid = isCityCountyRequired
+      ? Boolean(cityCounty) && (cityCounty === 'other' || allowedAreasLower.includes(cityCounty))
+      : true;
 
     const parsedMonths = parseTermToMonths(nextFormData.term_length_months);
     const isAllowedTerm = ALLOWED_TERM_MONTHS.includes(parsedMonths);
 
     const isIncomeAllowed = INCOME_RANGE_OPTIONS.includes(nextFormData.income_range);
+    const isFilingAllowed = FILING_STATUS_OPTIONS.includes(nextFormData.tax_filing_status);
 
     return (
       nextFormData.investment_amount &&
@@ -483,9 +546,9 @@ export default function App() {
       isAllowedTerm &&
       nextFormData.income_range &&
       isIncomeAllowed &&
-      nextFormData.state_selection &&
+      isStateValid &&
       isCityCountyValid &&
-      nextFormData.tax_filing_status
+      isFilingAllowed
     );
   };
 
@@ -599,22 +662,56 @@ export default function App() {
     }
   };
 
+  const handleFieldBlur = (e) => {
+    const { name, value } = e.target;
+    if (!name) {
+      return;
+    }
+
+    if (name === 'state_selection' && value !== formData.state_selection) {
+      const isCityCountyEnabled = STATES_WITH_LOCAL_TAX.includes(value);
+      const allowedAreas = isCityCountyEnabled ? getAllowedAreas(value) : [];
+      const nextCityCounty =
+        isCityCountyEnabled
+          ? (allowedAreas.includes(formData.city_county) ? formData.city_county : 'other')
+          : '';
+
+      setSelectedStateCode(stateNameToCode[value] || '');
+      setFormData((prev) => ({
+        ...prev,
+        state_selection: value,
+        city_county: nextCityCounty,
+      }));
+    }
+
+    setTouchedFields((prev) => ({
+      ...prev,
+      [name]: true,
+    }));
+  };
+
   const handleSearch = async (e) => {
     e.preventDefault();
 
-    const amt = parseFloat(formData.investment_amount);
-    const isAmtInvalid = !formData.investment_amount || isNaN(amt) || amt < 5000;
-    const isFilingInvalid = !formData.tax_filing_status;
-    const isCityCountyRequired = STATES_WITH_LOCAL_TAX.includes(formData.state_selection);
-    const isCityCountyInvalid = isCityCountyRequired && !formData.city_county;
+    const hasFieldValidationError = [
+      'investment_amount',
+      'term_length_months',
+      'income_range',
+      'state_selection',
+      'city_county',
+      'tax_filing_status',
+    ].some((fieldName) => Boolean(getFieldError(fieldName)));
 
-    if (isAmtInvalid ||
-      !formData.term_length_months ||
-      !formData.income_range ||
-      !formData.state_selection ||
-      isCityCountyInvalid ||
-      isFilingInvalid ||
-      !termsAgreed) {
+    if (hasFieldValidationError || !termsAgreed) {
+      setTouchedFields((prev) => ({
+        ...prev,
+        investment_amount: true,
+        term_length_months: true,
+        income_range: true,
+        state_selection: true,
+        city_county: true,
+        tax_filing_status: true,
+      }));
       setShowErrors(true);
       setError("Please enter at least $5,000 and complete all selections.");
       return;
@@ -627,23 +724,17 @@ export default function App() {
   const renderResultCard = (result, showProductType = false) => {
     const isExpanded = expandedCardId === result.id;
     const toggleExpand = () => setExpandedCardId(isExpanded ? null : result.id);
+    const safeMatch = Math.max(0, Math.min(100, Number(result.matchPercentage) || 0));
 
-    const openDetailsLink = (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-
+    const openProviderLink = () => {
       const url = result?.detailsUrl;
       if (!url) {
-        console.warn('No details URL available for this product.', result?.id);
         return;
       }
 
       try {
-        // Validate URL shape to avoid opening malformed strings.
-        // Supports http(s) and other absolute URL protocols if they ever appear.
         new URL(url);
       } catch {
-        console.warn('Invalid details URL. Skipping navigation.', url);
         return;
       }
 
@@ -653,124 +744,124 @@ export default function App() {
     return (
       <div key={result.id}>
         <div
-          className={`relative cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(29,141,238,0.35)] max-[768px]:flex max-[768px]:flex-col max-[768px]:items-stretch max-[768px]:gap-3 max-[768px]:px-4 max-[768px]:py-3 md:grid md:gap-4 md:items-center md:p-6 md:hover:bg-[rgba(29,141,238,0.05)] ${showProductType ? 'md:grid-cols-[2fr_1fr_1fr_1fr_1fr_1fr]' : 'md:grid-cols-[2fr_1fr_1fr_1fr_1fr]'} ${isExpanded ? 'bg-[#0A1E14] border-b-0' : result.isTopPick ? 'bg-[#062314] border-b border-[#1E293B]' : 'bg-[#081329] border-b border-[#1E293B]'}`}
-          role="button"
-          tabIndex={0}
-          aria-expanded={isExpanded}
-          onClick={toggleExpand}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' || e.key === ' ') {
-              e.preventDefault();
-              toggleExpand();
-            }
-          }}
+          className={`relative transition-colors max-[768px]:flex max-[768px]:flex-col max-[768px]:items-stretch max-[768px]:gap-3 max-[768px]:px-4 max-[768px]:py-3 md:grid md:items-center md:gap-4 md:px-5 md:hover:bg-[rgba(29,141,238,0.05)] ${result.isTopPick ? 'md:pt-8 md:pb-5' : 'md:py-5'} ${showProductType ? 'md:grid-cols-[minmax(220px,2.05fr)_minmax(145px,1.12fr)_minmax(118px,0.9fr)_minmax(150px,1.02fr)_minmax(130px,0.9fr)_220px]' : 'md:grid-cols-[minmax(220px,2.2fr)_minmax(118px,0.95fr)_minmax(150px,1.05fr)_minmax(130px,0.95fr)_220px]'} ${isExpanded ? 'bg-[#0A1E14] border-b-0' : result.isTopPick ? 'bg-[#062314] border-b border-[#1E293B]' : 'bg-[#081329] border-b border-[#1E293B]'}`}
         >
           <div className="flex items-center max-[768px]:order-1 max-[768px]:border-b max-[768px]:border-[#1E293B] max-[768px]:pb-3">
-            <div className="flex w-full min-w-0 items-center gap-3">
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[6px] bg-white text-[0.8rem] font-bold text-[#1D4ED8] max-[480px]:h-7 max-[480px]:w-7 max-[480px]:text-[0.72rem]">{result.provider.substring(0, 2).toUpperCase()}</div>
+            <div className="flex w-full min-w-0 items-center gap-3 md:pr-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] bg-white text-[0.9rem] font-bold text-[#1D4ED8] max-[480px]:h-8 max-[480px]:w-8 max-[480px]:text-[0.72rem]">{result.provider.substring(0, 2).toUpperCase()}</div>
               <div className="min-w-0">
                 <div className="mb-0.5 flex flex-wrap items-center gap-2">
-                  <span className="break-words text-[0.95rem] font-bold text-[#E2E8F0] max-[480px]:text-[0.9rem]">{result.provider}</span>
-                  {result.isTopPick && <span className="shrink-0 rounded-full bg-[linear-gradient(180deg,#22C55E_0%,#16A34A_100%)] px-2 py-1 text-[0.68rem] font-extrabold uppercase tracking-[0.04em] text-white md:absolute md:top-[-10px] md:left-6 md:text-[0.6rem]">★ TOP PICK</span>}
+                  <span className="break-words text-[1.02rem] font-bold tracking-[-0.01em] text-[#F8FAFC] max-[480px]:text-[0.95rem]">{result.provider}</span>
                 </div>
-                <div className="break-words text-[0.7rem] text-[#6B7280]">{result.institutionType}</div>
+                <div className="break-words text-[0.72rem] leading-[1.35] tracking-[0.005em] text-[#5F7EA6]">{result.institutionType}</div>
               </div>
             </div>
+            {result.isTopPick && <span className="absolute left-4 top-2 shrink-0 rounded-full bg-[linear-gradient(180deg,#22C55E_0%,#16A34A_100%)] px-3 py-1 text-[0.66rem] font-extrabold uppercase tracking-[0.04em] text-white">★ TOP PICK</span>}
           </div>
 
           {showProductType && (
-            <div className="flex w-full justify-between text-left text-[0.9rem] font-medium text-[#E2E8F0] md:items-center md:justify-center md:text-center md:before:hidden max-[768px]:order-2">
+            <div className="flex w-full justify-between text-left text-[0.9rem] font-medium text-[#E2E8F0] md:w-auto md:justify-self-center md:items-center md:justify-center md:text-center md:before:hidden max-[768px]:order-2">
               <span className="text-[0.74rem] font-bold uppercase tracking-[0.04em] text-[#94A3B8] md:hidden">Product Type</span>
               <span>{result.productType || 'Other'}</span>
             </div>
           )}
 
-          <div className="flex w-full justify-between text-left text-[1.1rem] font-bold text-white md:items-center md:justify-center md:text-center max-[768px]:order-4">
+          <div className="flex w-full justify-between text-left text-[1.1rem] font-bold text-white md:w-auto md:justify-self-center md:items-center md:justify-center md:text-center max-[768px]:order-4">
             <span className="text-[0.74rem] font-bold uppercase tracking-[0.04em] text-[#94A3B8] md:hidden">Nominal Rate</span>
             <span className="flex items-center justify-center">{result.nominalRate.toFixed(2)} <span className="ml-0.5 text-[0.75rem] text-[#6B7280]">%</span></span>
           </div>
 
-          <div className="flex w-full justify-between text-left text-[1.1rem] font-bold text-[#22C55E] md:items-center md:justify-center md:text-center max-[768px]:order-3">
+          <div className="flex w-full justify-between text-left text-[1.1rem] font-bold text-[#22C55E] md:w-auto md:justify-self-center md:items-center md:justify-center md:text-center max-[768px]:order-3">
             <span className="text-[0.74rem] font-bold uppercase tracking-[0.04em] text-[#94A3B8] md:hidden">After-Tax Yield</span>
             <span className="flex items-center justify-center max-[768px]:text-[1.25rem]">{result.afterTaxYield.toFixed(2)} <span className="ml-0.5 text-[0.75rem] text-[#10B981]">%</span></span>
           </div>
 
-          <div className="flex w-full justify-between text-left text-[0.9rem] font-medium text-[#E2E8F0] md:items-center md:justify-center md:text-center max-[768px]:order-5">
+          <div className="flex w-full justify-between text-left text-[0.9rem] font-medium text-[#E2E8F0] md:w-auto md:justify-self-center md:items-center md:justify-center md:text-center max-[768px]:order-5">
             <span className="text-[0.74rem] font-bold uppercase tracking-[0.04em] text-[#94A3B8] md:hidden">Min Deposit</span>
             <span>${result.minDeposit.toLocaleString()}</span>
           </div>
 
           <div className="flex w-full flex-col gap-2 md:flex-row md:items-center md:justify-end max-[768px]:order-6 max-[768px]:pt-1">
-            <span className="text-[0.74rem] font-bold uppercase tracking-[0.04em] text-[#94A3B8] md:hidden">Action</span>
-            <div className="mt-1 flex w-full items-center justify-end gap-2 md:mt-0 md:w-auto">
+            <span className="text-[0.74rem] font-bold uppercase tracking-[0.04em] text-[#94A3B8] md:hidden">Actions</span>
+            <div className="mt-1 flex w-full items-center justify-end gap-2 md:mt-0 md:w-auto md:justify-end">
               <button
-                className={`flex h-10 w-full max-w-full items-center justify-center gap-1.5 rounded-md border-none px-4 text-[0.82rem] font-semibold transition-all md:w-auto disabled:cursor-not-allowed disabled:opacity-60 ${result.isTopPick ? 'bg-[linear-gradient(180deg,#22C55E_0%,#16A34A_100%)] text-white hover:bg-[linear-gradient(180deg,#16A34A_0%,#15803D_100%)]' : 'bg-white text-[#111827] hover:bg-[#E5E7EB]'}`}
-                onClick={openDetailsLink}
+                type="button"
+                className="flex h-11 min-w-[154px] w-full max-w-full items-center justify-center gap-1.5 whitespace-nowrap rounded-[14px] bg-[#1A3050] px-4 text-[0.82rem] font-bold text-[#EEF2FF] transition-all hover:bg-[#2F568F] appearance-none border-none focus:outline-none ring-0 shadow-none md:h-[50px] md:w-[138px] md:min-w-0 md:px-3 md:text-[0.82rem]"
+                onClick={toggleExpand}
+                aria-expanded={isExpanded}
+              >
+                Tax Breakdown
+                {isExpanded ? (
+                  <ChevronUpIcon className="h-4 w-4 shrink-0" />
+                ) : (
+                  <ChevronDownIcon className="h-4 w-4 shrink-0" />
+                )}
+              </button>
+              <button
+                type="button"
+                className="flex h-11 min-w-[140px] w-full max-w-full items-center justify-center gap-2 whitespace-nowrap rounded-[14px] bg-[linear-gradient(180deg,#2BC65F_0%,#20B856_100%)] px-5 text-[0.82rem] font-bold text-white transition-all enabled:hover:bg-[linear-gradient(180deg,#29BA5A_0%,#1AA34C_100%)] appearance-none border-none focus:outline-none ring-0 shadow-none md:h-[50px] md:w-[106px] md:min-w-0 md:px-3 md:text-[0.86rem] disabled:cursor-not-allowed disabled:opacity-60"
+                onClick={openProviderLink}
                 disabled={!result.detailsUrl}
               >
-                Details <ExternalLinkIcon className="ml-0.5" />
+                Provider <ExternalLinkIcon className="h-4 w-4" />
               </button>
-              <span
-                aria-hidden="true"
-                className={`flex h-10 w-10 items-center justify-center rounded-md bg-[rgba(255,255,255,0.06)] transition-colors ${isExpanded ? 'text-[#E2E8F0]' : 'text-[#94A3B8]'} max-[768px]:w-12`}
-                title={isExpanded ? 'Collapse' : 'Expand'}
-              >
-                <ChevronDownIcon className={`h-4 w-4 transition-transform duration-200 ${isExpanded ? 'rotate-180' : 'rotate-0'}`} />
-              </span>
             </div>
           </div>
         </div>
 
         {isExpanded && (
-          <div className="flex flex-col border-b border-[#1E293B] bg-[#0A1E14] px-10 pb-6 max-[768px]:px-[14px] max-[768px]:pb-[14px]">
-            <div className="mt-4 grid grid-cols-2 gap-[60px] max-[768px]:grid-cols-1 max-[768px]:gap-[18px]">
-              <div className="tax-breakdown-section">
-                <div role="button" tabIndex={0} aria-expanded={expandedSections[result.id]?.tax !== false} className="mb-4 flex min-h-[44px] cursor-pointer items-center justify-between border-b border-[rgba(255,255,255,0.1)] pb-2" onClick={() => toggleSection(result.id, 'tax')} onKeyDown={(e) => handleSectionKeyDown(e, result.id, 'tax')}>
-                  <h4 className="m-0 text-[0.85rem] font-bold text-[#E2E8F0]">Road Tax Breakdown</h4>
-                  {expandedSections[result.id]?.tax !== false ? (
-                    <ChevronUpIcon className="h-[14px] w-[14px] text-[#9CA3AF]" />
-                  ) : (
-                    <ChevronDownIcon className="h-[14px] w-[14px] text-[#9CA3AF]" />
-                  )}
+          <div className="bg-[#0A1E14] px-8 pb-7 pt-1 max-[768px]:px-[14px] max-[768px]:pb-[14px]">
+            <div className="mt-4 grid grid-cols-2 gap-6 max-[768px]:grid-cols-1 max-[768px]:gap-[16px]">
+              <div className="rounded-2xl border border-[#123B2F] bg-[rgba(2,10,22,0.84)] px-5 py-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] max-[768px]:px-4 max-[768px]:py-3">
+                <div className="mb-4 flex min-h-[44px] items-center justify-between border-b border-[rgba(29,141,238,0.16)] pb-3">
+                  <h4 className="m-0 text-[1.05rem] font-bold text-[#E2E8F0] max-[768px]:text-[0.95rem]">Read Tax Break down</h4>
                 </div>
-                {(expandedSections[result.id]?.tax !== false) && (
-                  <div className="tax-breakdown-content">
-                    <div className="mb-3 flex justify-between text-[0.8rem]">
-                      <span className="text-[#9CA3AF]">Federal Bracket :</span>
-                      <span className="font-semibold text-blue">{result.taxBreakdown.federalBracket}</span>
-                    </div>
-                    <div className="mb-3 flex justify-between text-[0.8rem]">
-                      <span className="text-[#9CA3AF]">State Tax :</span>
-                      <span className="font-semibold text-[#10B981]">{result.taxBreakdown.stateTax}</span>
-                    </div>
-                    <div className="mb-3 flex justify-between text-[0.8rem]">
-                      <span className="text-[#9CA3AF]">Local Oswego :</span>
-                      <span className="font-semibold text-blue">{result.taxBreakdown.localOswego}</span>
-                    </div>
-                    <div className="my-4 border-t border-[rgba(255,255,255,0.1)]"></div>
-                    <div className="mb-3 flex justify-between text-[0.9rem] font-bold">
-                      <span className="text-[#E2E8F0]">Net Return :</span>
-                      <span className="font-semibold text-[#10B981]">{result.netReturn}</span>
-                    </div>
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between gap-3 text-[0.8rem]">
+                    <span className="text-[#9CA3AF]">Interest Earned :</span>
+                    <span className="text-right font-bold text-[#22C55E]">{result.taxBreakdown.interestEarned}</span>
                   </div>
-                )}
+                  <div className="flex items-center justify-between gap-3 text-[0.8rem]">
+                    <span className="text-[#9CA3AF]">Total Tax :</span>
+                    <span className="text-right font-bold text-[#FF5C5C]">{result.taxBreakdown.totalTax}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-3 text-[0.8rem]">
+                    <span className="text-[#9CA3AF]">Total Savings :</span>
+                    <span className="text-right font-bold text-[#22C55E]">{result.taxBreakdown.totalSavings}</span>
+                  </div>
+                </div>
+                <div className="my-4 border-t border-[rgba(255,255,255,0.1)]"></div>
+                <div className="mt-2 flex items-center justify-between rounded-xl border border-[rgba(34,197,94,0.28)] bg-[rgba(34,197,94,0.12)] px-4 py-3 text-[1rem] font-bold">
+                  <span className="text-[#E2E8F0]">Net Return :</span>
+                  <span className="text-[1.03rem] leading-none text-[#22C55E] max-[768px]:text-[0.8rem]">{result.netReturn}</span>
+                </div>
               </div>
 
-              <div className="fit-description-section">
-                <div role="button" tabIndex={0} aria-expanded={expandedSections[result.id]?.fit !== false} className="mb-4 flex min-h-[44px] cursor-pointer items-center justify-between border-b border-[rgba(255,255,255,0.1)] pb-2" onClick={() => toggleSection(result.id, 'fit')} onKeyDown={(e) => handleSectionKeyDown(e, result.id, 'fit')}>
-                  <h4 className="m-0 text-[0.85rem] font-bold text-[#E2E8F0]">Why this fits</h4>
-                  <div className="ml-auto mr-3 text-[0.9rem] font-extrabold text-green max-[768px]:mr-2 max-[768px]:text-[0.82rem]">{result.matchPercentage} % Match</div>
-                  {expandedSections[result.id]?.fit !== false ? (
-                    <ChevronUpIcon className="h-[14px] w-[14px] text-[#9CA3AF]" />
-                  ) : (
-                    <ChevronDownIcon className="h-[14px] w-[14px] text-[#9CA3AF]" />
-                  )}
+              <div className="rounded-2xl border border-[#1C6FC4] bg-[rgba(2,10,22,0.72)] px-5 py-4 shadow-[0_0_0_1px_rgba(29,141,238,0.18),inset_0_1px_0_rgba(255,255,255,0.03)] max-[768px]:px-4 max-[768px]:py-3">
+                <div className="mb-3 flex min-h-[44px] items-center gap-3 border-b border-[rgba(29,141,238,0.25)] pb-3">
+                  <h4 className="m-0 text-[1.05rem] font-bold text-[#E2E8F0] max-[768px]:text-[0.95rem]">Why this Fits</h4>
+                  <div className="ml-auto flex min-w-[246px] items-center gap-3.5 pt-[1px] max-[768px]:min-w-0 max-[768px]:gap-2">
+                    <span className="text-[0.75rem] font-bold text-[#3C6CA9]">Match Score</span>
+                    <div className="h-[8px] flex-1 overflow-hidden rounded-full bg-[rgba(34,197,94,0.18)]">
+                      <div className="h-full rounded-full bg-[linear-gradient(90deg,#22C55E_0%,#16A34A_100%)]" style={{ width: `${safeMatch}%` }}></div>
+                    </div>
+                    <span className="text-[0.78rem] font-extrabold text-[#22C55E]">{safeMatch}%</span>
+                  </div>
                 </div>
-                {(expandedSections[result.id]?.fit !== false) && (
-                  <p className="text-[0.8rem] leading-[1.6] text-[#D1D5DB]">
-                    {result.whyThisFits}
-                  </p>
-                )}
+
+                <div className="mb-4 flex items-center gap-1.5 text-[0.72rem] tracking-[0.005em] text-[#4E76A8]">
+                  <SparkleIcon className="h-3 w-3 text-[#1D8DEE]" />
+                  <span>AI analyzed based on your income, tax bracket, investment term</span>
+                </div>
+
+                <p className="text-[0.86rem] leading-[1.45] tracking-[0.003em] text-[#80A4CC] max-[768px]:text-[0.84rem]">
+                  {result.whyThisFits}
+                </p>
+
+                <div className="mt-5 flex items-center gap-2 text-[0.74rem] tracking-[0.005em] text-[#5C81AF]">
+                  <span className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-[#1D8DEE] text-[#1D8DEE]">•</span>
+                  <span>Generated by <strong className="text-[#9BCBFF]">SmartCD.AI</strong> · Results may vary · Not financial advice</span>
+                </div>
               </div>
             </div>
           </div>
@@ -779,16 +870,23 @@ export default function App() {
     );
   };
 
-  const isAmtValid = formData.investment_amount && !isNaN(parseFloat(formData.investment_amount)) && parseFloat(formData.investment_amount) >= 5000;
-  const isCityCountyRequired = STATES_WITH_LOCAL_TAX.includes(formData.state_selection);
-  const isCityCountyValid = isCityCountyRequired ? formData.city_county : true;
-  const isFormValid = isAmtValid &&
-    formData.term_length_months &&
-    formData.income_range &&
-    formData.state_selection &&
-    isCityCountyValid &&
-    formData.tax_filing_status &&
-    termsAgreed;
+  const investmentAmountError = getVisibleFieldError('investment_amount');
+  const termLengthError = getVisibleFieldError('term_length_months');
+  const incomeRangeError = getVisibleFieldError('income_range');
+  const stateSelectionError = getVisibleFieldError('state_selection');
+  const cityCountyError = getVisibleFieldError('city_county');
+  const filingStatusError = getVisibleFieldError('tax_filing_status');
+
+  const hasAnyValidationError = [
+    'investment_amount',
+    'term_length_months',
+    'income_range',
+    'state_selection',
+    'city_county',
+    'tax_filing_status',
+  ].some((fieldName) => Boolean(getFieldError(fieldName)));
+
+  const isFormValid = !hasAnyValidationError && termsAgreed;
 
   const safeResults = Array.isArray(results) ? results : [];
 
@@ -964,12 +1062,14 @@ export default function App() {
                           name="investment_amount"
                           value={formData.investment_amount}
                           onChange={handleChange}
-                          className={`w-full pl-8 pr-4 py-4 text-base font-medium rounded-[8px] border outline-none bg-white text-[#111827] transition-all placeholder:text-[#9CA3AF] placeholder:font-normal appearance-none focus:shadow-[0_0_0_2px_rgba(29,141,238,0.3)] ${showErrors && (!formData.investment_amount || parseFloat(formData.investment_amount) < 5000) ? 'border-[#FF5252] shadow-[0_0_0_2px_rgba(255,82,82,0.2)]' : 'border-[#E5E7EB]'}`}
+                          onBlur={handleFieldBlur}
+                          className={`w-full pl-8 pr-4 py-4 text-base font-medium rounded-[8px] border outline-none bg-white text-[#111827] transition-all placeholder:text-[#9CA3AF] placeholder:font-normal appearance-none focus:shadow-[0_0_0_2px_rgba(29,141,238,0.3)] ${investmentAmountError ? 'border-[#FF5252] shadow-[0_0_0_2px_rgba(255,82,82,0.2)]' : 'border-[#E5E7EB]'}`}
                           placeholder="Enter amount ($5,000 minimum)"
                           min="5000"
                           required
                         />
                       </div>
+                      {investmentAmountError && <p className="text-[0.75rem] font-medium text-[#FF5252]">{investmentAmountError}</p>}
                     </div>
                     <div className="flex flex-col gap-2.5 relative">
                       <label htmlFor="term_length_months" className="text-xs font-semibold text-[#6B7280] capitalize">Duration</label>
@@ -977,11 +1077,13 @@ export default function App() {
                         name="term_length_months"
                         value={formData.term_length_months}
                         onChange={handleChange}
+                        onBlur={handleFieldBlur}
                         options={TERM_LENGTH_OPTIONS}
                         placeholder="Select Duration"
-                        hasError={showErrors && !formData.term_length_months}
+                        hasError={Boolean(termLengthError)}
                         hasSeparators={true}
                       />
+                      {termLengthError && <p className="text-[0.75rem] font-medium text-[#FF5252]">{termLengthError}</p>}
                     </div>
                   </div>
 
@@ -992,10 +1094,12 @@ export default function App() {
                         name="state_selection"
                         value={formData.state_selection}
                         onChange={handleChange}
+                        onBlur={handleFieldBlur}
                         options={usStates}
                         placeholder="Select or type State"
-                        hasError={showErrors && !formData.state_selection}
+                        hasError={Boolean(stateSelectionError)}
                       />
+                      {stateSelectionError && <p className="text-[0.75rem] font-medium text-[#FF5252]">{stateSelectionError}</p>}
                     </div>
                     <div className="flex flex-col gap-2.5 relative">
                       <label htmlFor="city_county" className="text-xs font-semibold text-[#6B7280] capitalize">City / County</label>
@@ -1003,15 +1107,17 @@ export default function App() {
                         name="city_county"
                         value={formData.city_county}
                         onChange={handleChange}
+                        onBlur={handleFieldBlur}
                         options={
                           formData.state_selection 
                             ? (locationData[formData.state_selection] || []) 
                             : Object.values(locationData).flat()
                         }
                         placeholder="Select or type City/County"
-                        hasError={showErrors && STATES_WITH_LOCAL_TAX.includes(formData.state_selection) && !formData.city_county}
+                        hasError={Boolean(cityCountyError)}
                         disabled={!STATES_WITH_LOCAL_TAX.includes(formData.state_selection)}
                       />
+                      {cityCountyError && <p className="text-[0.75rem] font-medium text-[#FF5252]">{cityCountyError}</p>}
                     </div>
                   </div>
 
@@ -1022,10 +1128,12 @@ export default function App() {
                         name="income_range"
                         value={formData.income_range}
                         onChange={handleChange}
+                        onBlur={handleFieldBlur}
                         options={INCOME_RANGE_OPTIONS}
                         placeholder="Select Income Range"
-                        hasError={showErrors && !formData.income_range}
+                        hasError={Boolean(incomeRangeError)}
                       />
+                      {incomeRangeError && <p className="text-[0.75rem] font-medium text-[#FF5252]">{incomeRangeError}</p>}
                     </div>
                     <div className="flex flex-col gap-2.5 relative">
                       <label htmlFor="tax_filing_status" className="text-xs font-semibold text-[#6B7280] capitalize">Tax Filing Status</label>
@@ -1033,15 +1141,12 @@ export default function App() {
                         name="tax_filing_status"
                         value={formData.tax_filing_status}
                         onChange={handleChange}
-                        options={[
-                          "Single",
-                          "Married Filing Jointly (includes Qualifying Surviving Spouse)",
-                          "Married Filing Separately",
-                          "Head of Household"
-                        ]}
+                        onBlur={handleFieldBlur}
+                        options={FILING_STATUS_OPTIONS}
                         placeholder="Select Filing Status"
-                        hasError={showErrors && !formData.tax_filing_status}
+                        hasError={Boolean(filingStatusError)}
                       />
+                      {filingStatusError && <p className="text-[0.75rem] font-medium text-[#FF5252]">{filingStatusError}</p>}
                     </div>
                   </div>
 
@@ -1155,10 +1260,10 @@ export default function App() {
                 </div>
               </div>
 
-              <div className={`hidden border-b border-[#1E293B] bg-[#0A1429] md:grid md:gap-4 ${viewMode === 'combined' ? 'md:grid-cols-[2fr_1fr_1fr_1fr_1fr_1fr]' : 'md:grid-cols-[2fr_1fr_1fr_1fr_1fr]'}`}>
+              <div className={`hidden border-b border-[#1E293B] bg-[#0A1429] md:grid md:gap-4 ${viewMode === 'combined' ? 'md:grid-cols-[minmax(220px,2.05fr)_minmax(145px,1.12fr)_minmax(118px,0.9fr)_minmax(150px,1.02fr)_minmax(130px,0.9fr)_220px]' : 'md:grid-cols-[minmax(220px,2.2fr)_minmax(118px,0.95fr)_minmax(150px,1.05fr)_minmax(130px,0.95fr)_220px]'}`}>
                 <div className="flex items-center justify-center py-4 text-center text-xs font-bold uppercase tracking-[0.05em] text-[#94A3B8]">PROVIDER / INSTITUTION</div>
                 {viewMode === 'combined' && <div className="flex items-center justify-center py-4 text-center text-xs font-bold uppercase tracking-[0.05em] text-[#94A3B8]">PRODUCT TYPE</div>}
-                <div className="flex items-center justify-center gap-2 py-4 text-center text-xs font-bold uppercase tracking-[0.05em] text-[#94A3B8]">
+                <div className="flex items-center justify-center gap-2 py-4 text-center text-xs font-bold uppercase tracking-[0.05em] text-[#94A3B8] whitespace-nowrap">
                   NOMINAL RATE
                   <button
                     type="button"
@@ -1169,7 +1274,7 @@ export default function App() {
                     <SortIcon active={sortColumn === 'nominalRate'} direction={sortDirection} />
                   </button>
                 </div>
-                <div className="flex items-center justify-center gap-2 py-4 text-center text-xs font-bold uppercase tracking-[0.05em] text-[#94A3B8]">
+                <div className="flex items-center justify-center gap-2 py-4 text-center text-xs font-bold uppercase tracking-[0.05em] text-[#94A3B8] whitespace-nowrap">
                   AFTER TAX YIELD
                   <button
                     type="button"
@@ -1180,7 +1285,7 @@ export default function App() {
                     <SortIcon active={sortColumn === 'afterTaxYield'} direction={sortDirection} />
                   </button>
                 </div>
-                <div className="flex items-center justify-center gap-2 py-4 text-center text-xs font-bold uppercase tracking-[0.05em] text-[#94A3B8]">
+                <div className="flex items-center justify-center gap-2 py-4 text-center text-xs font-bold uppercase tracking-[0.05em] text-[#94A3B8] whitespace-nowrap">
                   MIN. DEPOSIT
                   <button
                     type="button"
@@ -1191,7 +1296,7 @@ export default function App() {
                     <SortIcon active={sortColumn === 'minDeposit'} direction={sortDirection} />
                   </button>
                 </div>
-                <div className="flex items-center justify-center py-4 text-center text-xs font-bold uppercase tracking-[0.05em] text-[#94A3B8]">ACTION</div>
+                <div className="flex items-center justify-start py-4 pl-4 text-left text-xs font-bold uppercase tracking-[0.05em] text-[#94A3B8]">ACTIONS</div>
               </div>
               <div>
                 {(() => {

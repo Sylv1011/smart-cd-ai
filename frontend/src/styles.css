@@ -51,9 +51,7 @@ body,
   flex-direction: column;
   align-items: center;
   padding: 60px 20px;
-  background-image:
-    radial-gradient(circle at 50% 10%, rgba(29, 141, 238, 0.05) 0%, transparent 40%),
-    radial-gradient(circle at 50% 80%, rgba(29, 141, 238, 0.03) 0%, transparent 50%);
+  background-color: var(--bg-main);
 }
 
 .text-green {

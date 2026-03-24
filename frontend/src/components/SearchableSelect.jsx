@@ -9,6 +9,7 @@ const ChevronDownIcon = ({ className }) => (
 export default function SearchableSelect({ 
   value, 
   onChange, 
+  onBlur,
   options, 
   placeholder, 
   disabled = false,
@@ -69,6 +70,7 @@ export default function SearchableSelect({
           className={`w-full pr-9 py-4 px-4 text-base font-normal rounded-[8px] border outline-none bg-white text-[#111827] box-border transition-all placeholder:text-[#9CA3AF] focus:border-[#22C55E] ${hasError ? 'border-[#FF5252] shadow-[0_0_0_2px_rgba(255,82,82,0.2)]' : 'border-[#E5E7EB] focus:shadow-[0_0_0_2px_rgba(29,141,238,0.3)]'}`}
           value={inputValue}
           onChange={handleInputChange}
+          onBlur={(e) => onBlur?.(e)}
           onFocus={(e) => {
             if (!disabled) {
               setFilteredOptions(options);

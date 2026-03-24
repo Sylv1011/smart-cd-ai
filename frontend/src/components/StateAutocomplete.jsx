@@ -54,6 +54,7 @@ export default function StateAutocomplete({
   name,
   value,
   onChange,
+  onBlur,
   options,
   placeholder,
   disabled = false,
@@ -81,16 +82,11 @@ export default function StateAutocomplete({
     const handleClickOutside = (event) => {
       if (wrapperRef.current && !wrapperRef.current.contains(event.target)) {
         setIsOpen(false);
-        const normalized = (inputValue || '').trim();
-        if (normalized && !((options || []).includes(normalized))) {
-          setInputValue(value || '');
-          setHasTyped(false);
-        }
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [inputValue, options, value]);
+  }, []);
 
   const selectOption = (opt) => {
     setInputValue(opt);
@@ -120,6 +116,9 @@ export default function StateAutocomplete({
               setHasTyped(false);
               setActiveIndex(0);
             }
+          }}
+          onBlur={(e) => {
+            onBlur?.({ target: { name, value: e.target.value } });
           }}
           onKeyDown={(e) => {
             if (disabled) return;
