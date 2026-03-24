@@ -4,6 +4,7 @@ from dotenv import load_dotenv
 # Load env vars from `ranking-engine/.env` regardless of where the process is started from.
 # In Render/production this file typically doesn't exist, so this is a no-op.
 load_dotenv(dotenv_path=Path(__file__).resolve().parent / ".env", override=False)
+
 import os
 import logging
 from typing import Optional, Any, Dict
@@ -32,6 +33,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
 
 def _env(key: str) -> Optional[str]:
     v = os.getenv(key)
@@ -94,6 +96,10 @@ STATE_NAME_TO_CODE = {
 VALID_STATE_CODES = set(STATE_NAME_TO_CODE.values())
 LOCAL_TAX_STATES = {"NY", "MD", "IN", "MI"}
 
+# log cache metrics every N rank requests
+METRICS_LOG_EVERY = int(os.getenv("METRICS_LOG_EVERY", "10"))
+_rank_request_count = 0
+
 
 def normalize_state_to_code(state: str) -> str:
     value = (state or "").strip()
@@ -103,7 +109,7 @@ def normalize_state_to_code(state: str) -> str:
 
 
 @lru_cache(maxsize=1)
-def get_data_client() -> DataClient:
+def get_data_client():
     """
     Chooses the data backend for ranking:
       - default: Supabase if configured
@@ -131,12 +137,12 @@ def get_data_client() -> DataClient:
         try:
             return DataClient(supabase_url, supabase_key)
         except Exception as e:
-            # Fallback for local environments missing supabase-py; keep service usable.
             logger.exception("Supabase client init failed; falling back to StaticDataClient. error=%s", e)
             return StaticDataClient()
 
     logger.warning("Supabase not configured -> using StaticDataClient (set SUPABASE_URL + SUPABASE_*_KEY to enable)")
     return StaticDataClient()
+
 
 # ---------------- Request model ----------------
 class RankRequest(BaseModel):
@@ -186,7 +192,6 @@ class RankResponse(BaseModel):
     overall_top: list[RankedOfferResponse]
 
 
-
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
     logger.info("%s %s", request.method, request.url.path)
@@ -209,7 +214,31 @@ def root():
         "health": "/health",
         "docs": "/docs",
         "rank": "/rank",
+        "metrics": "/metrics",
         "data_mode": (_env("SMARTCD_DATA_MODE") or ("supabase" if _env("SUPABASE_URL") else "static")),
+    }
+
+
+@app.get("/metrics")
+def metrics():
+    data_client = get_data_client()
+
+    if hasattr(data_client, "get_cache_metrics"):
+        return {
+            "data_mode": data_client.__class__.__name__,
+            "cache_metrics": data_client.get_cache_metrics(),
+        }
+
+    if hasattr(data_client, "_metrics"):
+        return {
+            "data_mode": data_client.__class__.__name__,
+            "cache_metrics": dict(data_client._metrics),
+        }
+
+    return {
+        "data_mode": data_client.__class__.__name__,
+        "cache_metrics": {},
+        "message": "Metrics not available for current data client",
     }
 
 
@@ -218,8 +247,11 @@ def weather_not_supported():
     # Some browser extensions / tools probe this path. This API doesn't serve weather.
     raise HTTPException(status_code=404, detail="Route not supported. Use /docs for available endpoints.")
 
+
 @app.post("/rank", response_model=RankResponse, response_model_exclude_none=True)
 def rank(req: RankRequest) -> Dict[str, Any]:
+    global _rank_request_count
+
     try:
         normalized_state = normalize_state_to_code(req.state)
         if normalized_state not in VALID_STATE_CODES:
@@ -257,7 +289,11 @@ def rank(req: RankRequest) -> Dict[str, Any]:
             top_n_overall=req.top_n_overall,
         )
 
-        # Return only the sections needed by the frontend
+        _rank_request_count += 1
+        if METRICS_LOG_EVERY > 0 and _rank_request_count % METRICS_LOG_EVERY == 0:
+            if hasattr(data_client, "log_cache_metrics"):
+                data_client.log_cache_metrics()
+
         return {
             "bank_cds": result.get("bank_cds", []),
             "brokered_cds": result.get("brokered_cds", []),
@@ -271,5 +307,7 @@ def rank(req: RankRequest) -> Dict[str, Any]:
     except HTTPException:
         raise
     except Exception:
+        logger.exception("Ranking failed")
+        raise HTTPException(status_code=500, detail="Ranking engine failed")
         logger.exception("Ranking failed")
         raise HTTPException(status_code=500, detail="Ranking engine failed")
