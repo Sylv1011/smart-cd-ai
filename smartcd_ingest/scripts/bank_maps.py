@@ -28,7 +28,7 @@ def canonical_bank_key(bank_name: str) -> str:
 # Keys are normalized canonical names
 BANK_DEST_URL_MAP: Dict[str, str] = {
     canonical_bank_key("Marcus by Goldman Sachs"): "https://www.marcus.com/us/en/savings/high-yield-cds",
-    canonical_bank_key("Capital One"): "https://www.capitalone.com/bank/cds/",
+    canonical_bank_key("Capital One"): "https://www.capitalone.com/bank/cds/online-cds/",
     canonical_bank_key("American Express National Bank"): "https://www.americanexpress.com/en-us/banking/online-savings/cd-account/",
     canonical_bank_key("Synchrony Bank"): "https://www.synchronybank.com/banking/cd/",
     canonical_bank_key("Ally Bank"): "https://www.ally.com/bank/high-yield-cd/",
@@ -36,7 +36,7 @@ BANK_DEST_URL_MAP: Dict[str, str] = {
     canonical_bank_key("CIT Bank"): "https://www.cit.com/cit-bank/bank/cds",
     canonical_bank_key("Barclays"): "https://www.banking.barclaysus.com/online-cd.html",
     canonical_bank_key("Popular Direct"): "https://www.populardirect.com/products/cds",
-    canonical_bank_key("First National Bank of America"): "https://www.fnba.com/personal-banking/certificates-of-deposit/",
+    canonical_bank_key("First National Bank of America"): "https://www.fnba.com/deposit-rates/online/",
     canonical_bank_key("Bread Savings"): "https://www.breadsavings.com/products/certificates-of-deposit/",
     canonical_bank_key("Limelight Bank"): "https://www.limelightbank.com/certificates-of-deposit",
     canonical_bank_key("Live Oak Bank"): "https://www.liveoak.bank/personal-cd-accounts/",
