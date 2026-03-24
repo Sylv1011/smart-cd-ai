@@ -6,6 +6,7 @@ import { stateNameToCode } from './utils/stateCodes';
 import AIAssistant from './AIAssistant';
 import SearchableSelect from './components/SearchableSelect';
 import StrictSelect from './components/StrictSelect';
+import StateAutocomplete from './components/StateAutocomplete';
 
 const SparkleIcon = ({ className, style }) => (
   <svg className={className} style={style} width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -181,7 +182,7 @@ const formatMoney = (n) => {
   return `$${x.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 };
 
-const adaptRankResponseToUiResults = (rankPayload) => {
+  const adaptRankResponseToUiResults = (rankPayload) => {
   const bank = Array.isArray(rankPayload?.bank_cds) ? rankPayload.bank_cds : [];
   const brokered = Array.isArray(rankPayload?.brokered_cds) ? rankPayload.brokered_cds : [];
   const treasuries = Array.isArray(rankPayload?.treasuries) ? rankPayload.treasuries : [];
@@ -230,6 +231,9 @@ const adaptRankResponseToUiResults = (rankPayload) => {
 
     const linkKey = o?.destination_url || o?.source_url || '';
     const idBase = `${productType}-${provider}-${o?.term_months ?? ''}-${o?.apy_nominal ?? ''}-${linkKey}`;
+    const detailsUrl = typeof o?.destination_url === 'string' && o.destination_url.trim()
+      ? o.destination_url.trim()
+      : (typeof o?.source_url === 'string' && o.source_url.trim() ? o.source_url.trim() : null);
 
     return {
       id: idBase,
@@ -241,6 +245,7 @@ const adaptRankResponseToUiResults = (rankPayload) => {
       minDeposit: Number(o?.minimum_deposit ?? 0),
       isTopPick: Boolean(topPickRank),
       topPickRank,
+      detailsUrl,
       taxBreakdown: {
         federalBracket: fedTax > 0 ? `-${formatMoney(fedTax)}` : '$0.00',
         stateTax: stateTax > 0 ? `-${formatMoney(stateTax)}` : '$0.00',
@@ -287,6 +292,7 @@ export default function App() {
   const [sortDirection, setSortDirection] = useState('desc'); // 'asc' | 'desc'
   const latestRequestIdRef = useRef(0);
   const didRestoreRef = useRef(false);
+  const [selectedStateCode, setSelectedStateCode] = useState('');
 
   const toggleSort = (column) => {
     if (sortColumn !== column) {
@@ -409,7 +415,7 @@ export default function App() {
       const rankRequest = {
         investment_amount: amt,
         term_months: parseTermToMonths(nextFormData.term_length_months),
-        state: stateNameToCode[nextFormData.state_selection] || nextFormData.state_selection,
+        state: selectedStateCode || stateNameToCode[nextFormData.state_selection] || nextFormData.state_selection,
         income_range: nextFormData.income_range,
         filing_status: normalizeFilingStatusForRanker(nextFormData.tax_filing_status),
         local_area: nextFormData.city_county || null,
@@ -542,6 +548,7 @@ export default function App() {
     };
 
     setFormData(normalized);
+    setSelectedStateCode(stateNameToCode[normalized.state_selection] || '');
     setTermsAgreed(true);
     didRestoreRef.current = true;
 
@@ -571,6 +578,7 @@ export default function App() {
         isCityCountyEnabled
           ? (allowedAreas.includes(formData.city_county) ? formData.city_county : 'other')
           : '';
+      setSelectedStateCode(stateNameToCode[value] || '');
       const nextFormData = {
         ...formData,
         [name]: value,
@@ -620,10 +628,42 @@ export default function App() {
     const isExpanded = expandedCardId === result.id;
     const toggleExpand = () => setExpandedCardId(isExpanded ? null : result.id);
 
+    const openDetailsLink = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+
+      const url = result?.detailsUrl;
+      if (!url) {
+        console.warn('No details URL available for this product.', result?.id);
+        return;
+      }
+
+      try {
+        // Validate URL shape to avoid opening malformed strings.
+        // Supports http(s) and other absolute URL protocols if they ever appear.
+        new URL(url);
+      } catch {
+        console.warn('Invalid details URL. Skipping navigation.', url);
+        return;
+      }
+
+      window.open(url, '_blank', 'noopener,noreferrer');
+    };
+
     return (
       <div key={result.id}>
         <div
-          className={`relative transition-colors max-[768px]:flex max-[768px]:flex-col max-[768px]:items-stretch max-[768px]:gap-3 max-[768px]:px-4 max-[768px]:py-3 md:grid md:gap-4 md:items-center md:p-6 md:hover:bg-[rgba(29,141,238,0.05)] ${showProductType ? 'md:grid-cols-[2fr_1fr_1fr_1fr_1fr_1fr]' : 'md:grid-cols-[2fr_1fr_1fr_1fr_1fr]'} ${isExpanded ? 'bg-[#0A1E14] border-b-0' : result.isTopPick ? 'bg-[#062314] border-b border-[#1E293B]' : 'bg-[#081329] border-b border-[#1E293B]'}`}
+          className={`relative cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(29,141,238,0.35)] max-[768px]:flex max-[768px]:flex-col max-[768px]:items-stretch max-[768px]:gap-3 max-[768px]:px-4 max-[768px]:py-3 md:grid md:gap-4 md:items-center md:p-6 md:hover:bg-[rgba(29,141,238,0.05)] ${showProductType ? 'md:grid-cols-[2fr_1fr_1fr_1fr_1fr_1fr]' : 'md:grid-cols-[2fr_1fr_1fr_1fr_1fr]'} ${isExpanded ? 'bg-[#0A1E14] border-b-0' : result.isTopPick ? 'bg-[#062314] border-b border-[#1E293B]' : 'bg-[#081329] border-b border-[#1E293B]'}`}
+          role="button"
+          tabIndex={0}
+          aria-expanded={isExpanded}
+          onClick={toggleExpand}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              toggleExpand();
+            }
+          }}
         >
           <div className="flex items-center max-[768px]:order-1 max-[768px]:border-b max-[768px]:border-[#1E293B] max-[768px]:pb-3">
             <div className="flex w-full min-w-0 items-center gap-3">
@@ -641,7 +681,7 @@ export default function App() {
           {showProductType && (
             <div className="flex w-full justify-between text-left text-[0.9rem] font-medium text-[#E2E8F0] md:items-center md:justify-center md:text-center md:before:hidden max-[768px]:order-2">
               <span className="text-[0.74rem] font-bold uppercase tracking-[0.04em] text-[#94A3B8] md:hidden">Product Type</span>
-              <span>{result.productType}</span>
+              <span>{result.productType || 'Other'}</span>
             </div>
           )}
 
@@ -662,12 +702,22 @@ export default function App() {
 
           <div className="flex w-full flex-col gap-2 md:flex-row md:items-center md:justify-end max-[768px]:order-6 max-[768px]:pt-1">
             <span className="text-[0.74rem] font-bold uppercase tracking-[0.04em] text-[#94A3B8] md:hidden">Action</span>
-            <button
-              className={`mt-1 flex h-10 w-full max-w-full items-center justify-center gap-1.5 rounded-md border-none px-4 text-[0.82rem] font-semibold transition-all md:mt-0 md:w-auto ${result.isTopPick ? 'bg-[linear-gradient(180deg,#22C55E_0%,#16A34A_100%)] text-white hover:bg-[linear-gradient(180deg,#16A34A_0%,#15803D_100%)]' : 'bg-white text-[#111827] hover:bg-[#E5E7EB]'}`}
-              onClick={toggleExpand}
-            >
-              Details <ExternalLinkIcon className="ml-0.5" />
-            </button>
+            <div className="mt-1 flex w-full items-center justify-end gap-2 md:mt-0 md:w-auto">
+              <button
+                className={`flex h-10 w-full max-w-full items-center justify-center gap-1.5 rounded-md border-none px-4 text-[0.82rem] font-semibold transition-all md:w-auto disabled:cursor-not-allowed disabled:opacity-60 ${result.isTopPick ? 'bg-[linear-gradient(180deg,#22C55E_0%,#16A34A_100%)] text-white hover:bg-[linear-gradient(180deg,#16A34A_0%,#15803D_100%)]' : 'bg-white text-[#111827] hover:bg-[#E5E7EB]'}`}
+                onClick={openDetailsLink}
+                disabled={!result.detailsUrl}
+              >
+                Details <ExternalLinkIcon className="ml-0.5" />
+              </button>
+              <span
+                aria-hidden="true"
+                className={`flex h-10 w-10 items-center justify-center rounded-md bg-[rgba(255,255,255,0.06)] transition-colors ${isExpanded ? 'text-[#E2E8F0]' : 'text-[#94A3B8]'} max-[768px]:w-12`}
+                title={isExpanded ? 'Collapse' : 'Expand'}
+              >
+                <ChevronDownIcon className={`h-4 w-4 transition-transform duration-200 ${isExpanded ? 'rotate-180' : 'rotate-0'}`} />
+              </span>
+            </div>
           </div>
         </div>
 
@@ -938,7 +988,7 @@ export default function App() {
                   <div className="grid grid-cols-2 gap-6 max-[640px]:grid-cols-1 max-[640px]:gap-4">
                     <div className="flex flex-col gap-2.5 relative">
                       <label htmlFor="state_selection" className="text-xs font-semibold text-[#6B7280] capitalize">State</label>
-                      <SearchableSelect
+                      <StateAutocomplete
                         name="state_selection"
                         value={formData.state_selection}
                         onChange={handleChange}
@@ -1105,9 +1155,9 @@ export default function App() {
                 </div>
               </div>
 
-              <div className={`hidden border-b border-[#1E293B] bg-[#0A1429] md:grid md:gap-4 ${viewMode === 'grouped' ? 'md:grid-cols-[2fr_1fr_1fr_1fr_1fr_1fr]' : 'md:grid-cols-[2fr_1fr_1fr_1fr_1fr]'}`}>
+              <div className={`hidden border-b border-[#1E293B] bg-[#0A1429] md:grid md:gap-4 ${viewMode === 'combined' ? 'md:grid-cols-[2fr_1fr_1fr_1fr_1fr_1fr]' : 'md:grid-cols-[2fr_1fr_1fr_1fr_1fr]'}`}>
                 <div className="flex items-center justify-center py-4 text-center text-xs font-bold uppercase tracking-[0.05em] text-[#94A3B8]">PROVIDER / INSTITUTION</div>
-                {viewMode === 'grouped' && <div className="flex items-center justify-center py-4 text-center text-xs font-bold uppercase tracking-[0.05em] text-[#94A3B8]">PRODUCT TYPE</div>}
+                {viewMode === 'combined' && <div className="flex items-center justify-center py-4 text-center text-xs font-bold uppercase tracking-[0.05em] text-[#94A3B8]">PRODUCT TYPE</div>}
                 <div className="flex items-center justify-center gap-2 py-4 text-center text-xs font-bold uppercase tracking-[0.05em] text-[#94A3B8]">
                   NOMINAL RATE
                   <button
@@ -1151,18 +1201,18 @@ export default function App() {
 
                   if (viewMode === 'combined') {
                     const sorted = sortResults(filtered);
-                    return sorted.map(r => renderResultCard(r, false));
+                    return sorted.map(r => renderResultCard(r, true));
                   } else {
                     return (
                       <>
                         <div className="border-y border-[#1E293B] bg-[#0A1429] px-6 py-4 text-[0.9rem] font-bold text-[#E2E8F0] max-[768px]:px-[14px] max-[768px]:py-3 max-[768px]:text-[0.82rem]">Bank CDs</div>
-                        {sortResults(filtered.filter(r => r.productType === 'Bank CDs')).map(r => renderResultCard(r, true))}
+                        {sortResults(filtered.filter(r => r.productType === 'Bank CDs')).map(r => renderResultCard(r, false))}
 
                         <div className="mt-8 border-y border-[#1E293B] bg-[#0A1429] px-6 py-4 text-[0.9rem] font-bold text-[#E2E8F0] max-[768px]:px-[14px] max-[768px]:py-3 max-[768px]:text-[0.82rem]">Brokerage CDs</div>
-                        {sortResults(filtered.filter(r => r.productType === 'Brokerage CDs')).map(r => renderResultCard(r, true))}
+                        {sortResults(filtered.filter(r => r.productType === 'Brokerage CDs')).map(r => renderResultCard(r, false))}
 
                         <div className="mt-8 border-y border-[#1E293B] bg-[#0A1429] px-6 py-4 text-[0.9rem] font-bold text-[#E2E8F0] max-[768px]:px-[14px] max-[768px]:py-3 max-[768px]:text-[0.82rem]">US Treasury</div>
-                        {sortResults(filtered.filter(r => r.productType === 'Treasuries')).map(r => renderResultCard(r, true))}
+                        {sortResults(filtered.filter(r => r.productType === 'Treasuries')).map(r => renderResultCard(r, false))}
                       </>
                     );
                   }
