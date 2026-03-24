@@ -49,7 +49,7 @@ BANK_DEST_URL_MAP: Dict[str, str] = {
     canonical_bank_key("TAB Bank"): "https://www.tabbank.com/cd-rates-terms/",
     canonical_bank_key("Alliant Credit Union"): "https://www.alliantcreditunion.org/bank/credit-union-certificate",
     canonical_bank_key("Colorado Federal Savings Bank"): "https://www.coloradofederalbank.com/deposits",
-    canonical_bank_key("E*Trade"): "https://us.etrade.com/invest/cd-rates",
+    canonical_bank_key("E*Trade"): "https://us.etrade.com/bank/certificate-of-deposit",
     canonical_bank_key("M.Y. Safra Bank"): "https://www.mysafra.com/MYSB-Online-Offers",
     canonical_bank_key("WebBank"): "https://www.webbank.com/rates-fees",
     canonical_bank_key("Credit One Bank"): "https://www.creditonebank.com/deposits/cd-brx?productId=12M_CD_STAND&app_source=BRLPT_090524_BRX_RTX_CDPP_01",
