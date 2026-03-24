@@ -746,7 +746,8 @@ export default function App() {
         <div
           className={`relative transition-colors max-[768px]:flex max-[768px]:flex-col max-[768px]:items-stretch max-[768px]:gap-3 max-[768px]:px-4 max-[768px]:py-3 md:grid md:items-center md:gap-4 md:px-5 md:hover:bg-[rgba(29,141,238,0.05)] ${result.isTopPick ? 'md:pt-8 md:pb-5' : 'md:py-5'} ${showProductType ? 'md:grid-cols-[minmax(220px,2.05fr)_minmax(145px,1.12fr)_minmax(118px,0.9fr)_minmax(150px,1.02fr)_minmax(130px,0.9fr)_220px]' : 'md:grid-cols-[minmax(220px,2.2fr)_minmax(118px,0.95fr)_minmax(150px,1.05fr)_minmax(130px,0.95fr)_220px]'} ${isExpanded ? 'bg-[#0A1E14] border-b-0' : result.isTopPick ? 'bg-[#062314] border-b border-[#1E293B]' : 'bg-[#081329] border-b border-[#1E293B]'}`}
         >
-          <div className="flex items-center max-[768px]:order-1 max-[768px]:border-b max-[768px]:border-[#1E293B] max-[768px]:pb-3">
+          <div className="flex items-center max-[768px]:order-1 max-[768px]:flex-col max-[768px]:items-start max-[768px]:gap-2 max-[768px]:border-b max-[768px]:border-[#1E293B] max-[768px]:pb-3">
+            {result.isTopPick && <span className="inline-flex shrink-0 rounded-full bg-[linear-gradient(180deg,#22C55E_0%,#16A34A_100%)] px-3 py-1 text-[0.64rem] font-extrabold uppercase tracking-[0.04em] text-white md:hidden">★ TOP PICK</span>}
             <div className="flex w-full min-w-0 items-center gap-3 md:pr-3">
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] bg-white text-[0.9rem] font-bold text-[#1D4ED8] max-[480px]:h-8 max-[480px]:w-8 max-[480px]:text-[0.72rem]">{result.provider.substring(0, 2).toUpperCase()}</div>
               <div className="min-w-0">
@@ -756,7 +757,7 @@ export default function App() {
                 <div className="break-words text-[0.72rem] leading-[1.35] tracking-[0.005em] text-[#5F7EA6]">{result.institutionType}</div>
               </div>
             </div>
-            {result.isTopPick && <span className="absolute left-4 top-2 shrink-0 rounded-full bg-[linear-gradient(180deg,#22C55E_0%,#16A34A_100%)] px-3 py-1 text-[0.66rem] font-extrabold uppercase tracking-[0.04em] text-white">★ TOP PICK</span>}
+            {result.isTopPick && <span className="absolute left-4 top-2 hidden shrink-0 rounded-full bg-[linear-gradient(180deg,#22C55E_0%,#16A34A_100%)] px-3 py-1 text-[0.66rem] font-extrabold uppercase tracking-[0.04em] text-white md:inline-flex">★ TOP PICK</span>}
           </div>
 
           {showProductType && (
@@ -783,7 +784,7 @@ export default function App() {
 
           <div className="flex w-full flex-col gap-2 md:flex-row md:items-center md:justify-end max-[768px]:order-6 max-[768px]:pt-1">
             <span className="text-[0.74rem] font-bold uppercase tracking-[0.04em] text-[#94A3B8] md:hidden">Actions</span>
-            <div className="mt-1 flex w-full items-center justify-end gap-2 md:mt-0 md:w-auto md:justify-end">
+            <div className="mt-1 flex w-full flex-col items-stretch gap-2 md:mt-0 md:w-auto md:flex-row md:items-center md:justify-end">
               <button
                 type="button"
                 className="flex h-11 min-w-[154px] w-full max-w-full items-center justify-center gap-1.5 whitespace-nowrap rounded-[14px] bg-[#1A3050] px-4 text-[0.82rem] font-bold text-[#EEF2FF] transition-all hover:bg-[#2F568F] appearance-none border-none focus:outline-none ring-0 shadow-none md:h-[50px] md:w-[138px] md:min-w-0 md:px-3 md:text-[0.82rem]"
@@ -1234,24 +1235,24 @@ export default function App() {
               {/* Mobile sort controls */}
               <div className="flex items-center justify-between gap-2 border-b border-[#1E293B] bg-[#0A1429] px-[14px] py-3 md:hidden">
                 <div className="text-[0.72rem] font-bold uppercase tracking-[0.05em] text-[#94A3B8]">Sort</div>
-                <div className="flex items-center gap-1.5">
+                <div className="flex flex-1 flex-wrap items-center justify-end gap-1.5">
                   <button
                     type="button"
-                    className="flex items-center gap-1 rounded-md border border-[#1A3050] bg-[#0D1B2D] px-2.5 py-2 text-[0.72rem] font-bold uppercase tracking-[0.05em] text-[#E2E8F0]"
+                    className="flex min-w-0 flex-1 items-center justify-center gap-1 rounded-md border border-[#1A3050] bg-[#0D1B2D] px-2 py-2 text-[0.72rem] font-bold uppercase tracking-[0.05em] text-[#E2E8F0]"
                     onClick={() => toggleSort('nominalRate')}
                   >
                     Nominal <SortIcon active={sortColumn === 'nominalRate'} direction={sortDirection} />
                   </button>
                   <button
                     type="button"
-                    className="flex items-center gap-1 rounded-md border border-[#1A3050] bg-[#0D1B2D] px-2.5 py-2 text-[0.72rem] font-bold uppercase tracking-[0.05em] text-[#E2E8F0]"
+                    className="flex min-w-0 flex-1 items-center justify-center gap-1 rounded-md border border-[#1A3050] bg-[#0D1B2D] px-2 py-2 text-[0.72rem] font-bold uppercase tracking-[0.05em] text-[#E2E8F0]"
                     onClick={() => toggleSort('afterTaxYield')}
                   >
                     After-Tax <SortIcon active={sortColumn === 'afterTaxYield'} direction={sortDirection} />
                   </button>
                   <button
                     type="button"
-                    className="flex items-center gap-1 rounded-md border border-[#1A3050] bg-[#0D1B2D] px-2.5 py-2 text-[0.72rem] font-bold uppercase tracking-[0.05em] text-[#E2E8F0]"
+                    className="flex min-w-0 flex-1 items-center justify-center gap-1 rounded-md border border-[#1A3050] bg-[#0D1B2D] px-2 py-2 text-[0.72rem] font-bold uppercase tracking-[0.05em] text-[#E2E8F0]"
                     onClick={() => toggleSort('minDeposit')}
                   >
                     Deposit <SortIcon active={sortColumn === 'minDeposit'} direction={sortDirection} />
