@@ -26,6 +26,25 @@
   height: 20px;
 }
 
+.ai-chat-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: saturate(110%) brightness(0.9);
+  -webkit-backdrop-filter: saturate(110%) brightness(0.9);
+  animation: aiOverlayFade 0.18s ease-out;
+}
+
+@keyframes aiOverlayFade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
 .ai-chat-window {
   position: fixed;
   bottom: 32px;
@@ -40,6 +59,7 @@
   box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
   z-index: 10000;
   overflow: hidden;
+  overscroll-behavior: contain;
   border: 1px solid rgba(255, 255, 255, 0.1);
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
   animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
@@ -92,6 +112,8 @@
   flex: 1;
   padding: 20px;
   overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
   display: flex;
   flex-direction: column;
   gap: 16px;

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import './AIAssistant.css';
 
 const SparkleIcon = ({ className }) => (
@@ -23,126 +23,117 @@ const CloseIcon = ({ className, onClick }) => (
 
 export default function AIAssistant({ rankResponse }) {
   const [isOpen, setIsOpen] = useState(false);
+  const bodyScrollLockRef = useRef(null);
+  const streamAbortRef = useRef(null);
+  const messagesEndRef = useRef(null);
+  const scrollRafRef = useRef(null);
   const [messages, setMessages] = useState([
-    { role: 'ai', content: 'Hi! I can help you find the best CD rates and calculate your after-tax yield based on your location. What would you like to know?' }
+    { role: 'ai', content: 'Hi! I can help you understand these results. What would you like to know?' }
   ]);
   const [inputValue, setInputValue] = useState('');
   const [isSending, setIsSending] = useState(false);
 
-  const toggleChat = () => setIsOpen(!isOpen);
-
   const aiBase = import.meta.env.VITE_AI_LAYER_URL;
+  const toggleChat = () => setIsOpen((v) => !v);
 
-  const appendMessage = (msg) => setMessages(prev => [...prev, msg]);
-  const removeTypingMessage = () =>
-    setMessages((prev) => (prev.length && prev[prev.length - 1]?.typing ? prev.slice(0, -1) : prev));
+  const appendMessage = (msg) => setMessages((prev) => [...prev, msg]);
 
-  const isExplainTop3Command = (text) => {
-    const q = (text || '').trim().toLowerCase();
-    if (!q) return false;
-    return (
-      q === 'explain top 3' ||
-      q === 'explain top three' ||
-      q.startsWith('explain top 3') ||
-      q.startsWith('explain top three')
-    );
-  };
+  useEffect(() => {
+    if (!isOpen) return;
 
-  const buildSlimRankingResponse = (full) => {
-    if (!full || typeof full !== 'object') return null;
+    if (scrollRafRef.current) {
+      cancelAnimationFrame(scrollRafRef.current);
+    }
 
-    const pickOffer = (o, { keepRank } = { keepRank: false }) => {
-      if (!o || typeof o !== 'object') return null;
+    scrollRafRef.current = requestAnimationFrame(() => {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'auto', block: 'end' });
+    });
 
-      const productType = o.product_type;
-      const institutionName = o.institution_name || o.issuing_bank || null;
-      const brokerageFirm = o.brokerage_firm || null;
-
-      const slim = {
-        ...(keepRank && o.rank_overall != null ? { rank_overall: o.rank_overall } : {}),
-        product_type: productType,
-        institution_name: institutionName,
-        brokerage_firm: brokerageFirm,
-        term_months: o.term_months,
-        apy_nominal: o.apy_nominal,
-        after_tax_apy: o.after_tax_apy,
-        after_tax_interest_usd: o.after_tax_interest_usd,
-        minimum_deposit: o.minimum_deposit,
-      };
-
-      // FDIC insured is only useful for non-treasury products; omit nulls.
-      if (productType !== 'treasury' && o.fdic_insured != null) {
-        slim.fdic_insured = o.fdic_insured;
+    return () => {
+      if (scrollRafRef.current) {
+        cancelAnimationFrame(scrollRafRef.current);
+        scrollRafRef.current = null;
       }
+    };
+  }, [isOpen, messages]);
 
-      return slim;
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const body = document.body;
+    const scrollY = window.scrollY || window.pageYOffset || 0;
+
+    bodyScrollLockRef.current = {
+      scrollY,
+      style: {
+        overflow: body.style.overflow,
+        position: body.style.position,
+        top: body.style.top,
+        left: body.style.left,
+        right: body.style.right,
+        width: body.style.width,
+      },
     };
 
-    const mapList = (arr, opts) => (Array.isArray(arr) ? arr.map(o => pickOffer(o, opts)).filter(Boolean) : []);
+    body.style.overflow = 'hidden';
+    body.style.position = 'fixed';
+    body.style.top = `-${scrollY}px`;
+    body.style.left = '0';
+    body.style.right = '0';
+    body.style.width = '100%';
 
-    return {
-      overall_top: mapList(full.overall_top, { keepRank: true }),
-      bank_cds: mapList(full.bank_cds),
-      brokered_cds: mapList(full.brokered_cds),
-      treasuries: mapList(full.treasuries),
+    return () => {
+      const saved = bodyScrollLockRef.current;
+      if (!saved) return;
+
+      body.style.overflow = saved.style.overflow;
+      body.style.position = saved.style.position;
+      body.style.top = saved.style.top;
+      body.style.left = saved.style.left;
+      body.style.right = saved.style.right;
+      body.style.width = saved.style.width;
+
+      window.scrollTo(0, saved.scrollY);
+      bodyScrollLockRef.current = null;
     };
-  };
+  }, [isOpen]);
 
-  const explainTop3 = async () => {
-    if (!aiBase) {
-      appendMessage({ role: 'ai', content: 'AI is not configured. Set VITE_AI_LAYER_URL to enable the real chatbot.' });
-      return;
-    }
-    if (!rankResponse) {
-      appendMessage({ role: 'ai', content: 'Run a search first so I can explain the ranked results.' });
-      return;
-    }
-
-    const slim = buildSlimRankingResponse(rankResponse);
-
-    setIsSending(true);
-    try {
-      const res = await fetch(`${aiBase}/explain-top-3`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ranking_response: slim || rankResponse }),
-      });
-
-      if (!res.ok) {
-        const payload = await res.json().catch(() => ({}));
-        throw new Error(payload.detail || 'AI explanation request failed.');
+  useEffect(() => {
+    return () => {
+      if (streamAbortRef.current) {
+        streamAbortRef.current.abort();
+        streamAbortRef.current = null;
       }
+    };
+  }, []);
 
-      const payload = await res.json();
-      const products = Array.isArray(payload?.products) ? payload.products : [];
+  const updateLastAiMessage = (updater) => {
+    setMessages((prev) => {
+      const next = [...prev];
+      const idx = (() => {
+        for (let i = next.length - 1; i >= 0; i -= 1) {
+          if (next[i]?.role === 'ai' && next[i]?.streaming) return i;
+        }
+        for (let i = next.length - 1; i >= 0; i -= 1) {
+          if (next[i]?.role === 'ai') return i;
+        }
+        return -1;
+      })();
 
-      if (!products.length) {
-        appendMessage({ role: 'ai', content: 'I could not generate explanations for the top results right now.' });
-        return;
+      if (idx >= 0) {
+        const current = next[idx];
+        const patch = typeof updater === 'function' ? updater(current) : updater;
+        next[idx] = { ...current, ...patch };
       }
-
-      const lines = products.slice(0, 3).map((p) => {
-        const title = p?.title || `Rank #${p?.rank_overall ?? ''}`;
-        const why = p?.why_this_fits || '';
-        const highlights = Array.isArray(p?.highlights) && p.highlights.length
-          ? `\n• ${p.highlights.slice(0, 3).join('\n• ')}`
-          : '';
-        return `${title}\n${why}${highlights}`.trim();
-      });
-
-      appendMessage({ role: 'ai', content: lines.join('\n\n') });
-    } catch (err) {
-      appendMessage({ role: 'ai', content: err.message || 'Unable to reach the AI service right now.' });
-    } finally {
-      setIsSending(false);
-    }
+      return next;
+    });
   };
 
   const handleSend = async (e) => {
     e.preventDefault();
-    if (!inputValue.trim()) return;
-    
     const question = inputValue.trim();
+    if (!question) return;
+
     appendMessage({ role: 'user', content: question });
     setInputValue('');
 
@@ -157,48 +148,20 @@ export default function AIAssistant({ rankResponse }) {
     }
 
     setIsSending(true);
-    appendMessage({ role: 'ai', content: '...', typing: true });
+    appendMessage({ role: 'ai', content: '', streaming: true });
+
     try {
-      if (isExplainTop3Command(question)) {
-        const slim = buildSlimRankingResponse(rankResponse);
-
-        const res = await fetch(`${aiBase}/explain-top-3`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ranking_response: slim || rankResponse }),
-        });
-
-        if (!res.ok) {
-          const payload = await res.json().catch(() => ({}));
-          throw new Error(payload.detail || 'AI explanation request failed.');
-        }
-
-        const payload = await res.json();
-        const products = Array.isArray(payload?.products) ? payload.products : [];
-
-        let text = 'I could not generate explanations for the top results right now.';
-        if (products.length) {
-          const lines = products.slice(0, 3).map((p) => {
-            const title = p?.title || `Rank #${p?.rank_overall ?? ''}`;
-            const why = p?.why_this_fits || '';
-            const highlights = Array.isArray(p?.highlights) && p.highlights.length
-              ? `\nâ€¢ ${p.highlights.slice(0, 3).join('\nâ€¢ ')}`
-              : '';
-            return `${title}\n${why}${highlights}`.trim();
-          });
-          text = lines.join('\n\n');
-        }
-
-        removeTypingMessage();
-        appendMessage({ role: 'ai', content: text });
-        return;
+      if (streamAbortRef.current) {
+        streamAbortRef.current.abort();
       }
+      const abortController = new AbortController();
+      streamAbortRef.current = abortController;
 
-      const slim = buildSlimRankingResponse(rankResponse);
-      const res = await fetch(`${aiBase}/chat`, {
+      const res = await fetch(`${aiBase}/chat/stream`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ question, ranking_response: slim || rankResponse }),
+        body: JSON.stringify({ question, ranking_response: rankResponse }),
+        signal: abortController.signal,
       });
 
       if (!res.ok) {
@@ -206,30 +169,45 @@ export default function AIAssistant({ rankResponse }) {
         throw new Error(payload.detail || 'AI chat request failed.');
       }
 
-      const payload = await res.json();
-      removeTypingMessage();
-      appendMessage({ role: 'ai', content: payload?.response || 'No response returned from AI service.' });
+      const reader = res.body?.getReader?.();
+      if (!reader) {
+        throw new Error('AI chat stream is not available in this environment.');
+      }
+
+      const decoder = new TextDecoder();
+      let result = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        result += decoder.decode(value, { stream: true });
+        updateLastAiMessage({ content: result });
+      }
+
+      result += decoder.decode();
+      updateLastAiMessage({ content: result, streaming: false });
     } catch (err) {
-      removeTypingMessage();
-      appendMessage({ role: 'ai', content: err.message || 'Unable to reach the AI service right now.' });
+      const message = err?.name === 'AbortError'
+        ? 'Request cancelled.'
+        : (err.message || 'Unable to reach the AI service right now.');
+      updateLastAiMessage({ content: message, streaming: false });
     } finally {
       setIsSending(false);
+      if (streamAbortRef.current) {
+        streamAbortRef.current = null;
+      }
     }
   };
 
-  const quickActions = ['Explain top 3', 'Best rates', 'Compare options', 'Tax info'];
-
-  const handleQuickAction = (action) => {
-    setInputValue(action);
-  };
+  const quickActions = ['Best rates', 'Compare options', 'Tax info'];
+  const handleQuickAction = (action) => setInputValue(action);
 
   return (
     <>
-      {/* Floating Action Button */}
       {!isOpen && (
         <button type="button" className="ai-fab" aria-label="Open AI assistant chat" onClick={toggleChat}>
           <div className="ai-fab-icon-wrapper flex items-center justify-center">
-             <SparkleIcon className="ai-fab-icon" />
+            <SparkleIcon className="ai-fab-icon" />
           </div>
           <div className="ai-fab-text flex flex-col items-start">
             <span className="ai-fab-title font-bold text-[0.95rem] leading-[1.2]">AI Assistant</span>
@@ -238,69 +216,72 @@ export default function AIAssistant({ rankResponse }) {
         </button>
       )}
 
-      {/* Chat Window */}
       {isOpen && (
-        <div className="ai-chat-window">
-          <div className="ai-chat-header">
-            <div className="ai-chat-header-info">
-              <h3 className="m-0 text-[1.1rem] font-bold">SmartCD.ai Assistant</h3>
-              <p className="m-0 mt-1 text-[0.85rem] opacity-90">Always here to help</p>
-            </div>
-            <button type="button" className="ai-chat-close-btn" aria-label="Close AI assistant chat" onClick={toggleChat}>
-              <CloseIcon className="ai-chat-close" />
-            </button>
-          </div>
-          
-          <div className="ai-chat-messages">
-            {messages.map((msg, index) => (
-              <div key={index} className={`ai-message-row ${msg.role}`}>
-                {msg.role === 'ai' && (
-                  <div className="ai-avatar">
-                   <SparkleIcon className="ai-avatar-icon w-4 h-4 text-white" />
-                  </div>
-                )}
-                <div className={`ai-message-bubble ${msg.role}`}>
-                  {msg.typing ? (
-                    <span className="ai-typing-dots" aria-label="Thinking">
-                      <span />
-                      <span />
-                      <span />
-                    </span>
-                  ) : (
-                    msg.content
-                  )}
-                </div>
+        <>
+          <div className="ai-chat-overlay" role="presentation" onClick={toggleChat} />
+          <div className="ai-chat-window" role="dialog" aria-modal="true" aria-label="SmartCD.ai Assistant chat">
+            <div className="ai-chat-header">
+              <div className="ai-chat-header-info">
+                <h3 className="m-0 text-[1.1rem] font-bold">SmartCD.ai Assistant</h3>
+                <p className="m-0 mt-1 text-[0.85rem] opacity-90">Always here to help</p>
               </div>
-            ))}
-          </div>
-          
-          <div className="ai-chat-quick-actions">
-            {quickActions.map(action => (
-              <button 
-                type="button"
-                key={action} 
-                className="ai-quick-action-btn"
-                onClick={() => handleQuickAction(action)}
-              >
-                {action}
+              <button type="button" className="ai-chat-close-btn" aria-label="Close AI assistant chat" onClick={toggleChat}>
+                <CloseIcon className="ai-chat-close" />
               </button>
-            ))}
-          </div>
+            </div>
 
-          <form className="ai-chat-input-area" onSubmit={handleSend}>
-            <input 
-              type="text" 
-              className="ai-chat-input placeholder:text-[#6B7280]" 
-              placeholder="Ask about CD rates..."
-              value={inputValue}
-              onChange={(e) => setInputValue(e.target.value)}
-              disabled={isSending}
-            />
-            <button type="submit" className="ai-chat-send-btn" aria-label="Send message" disabled={isSending}>
-              <SendIcon className="ai-send-icon" />
-            </button>
-          </form>
-        </div>
+            <div className="ai-chat-messages">
+              {messages.map((msg, index) => (
+                <div key={index} className={`ai-message-row ${msg.role}`}>
+                  {msg.role === 'ai' && (
+                    <div className="ai-avatar">
+                      <SparkleIcon className="ai-avatar-icon w-4 h-4 text-white" />
+                    </div>
+                  )}
+                  <div className={`ai-message-bubble ${msg.role}`}>
+                    {msg.streaming && !msg.content ? (
+                      <span className="ai-typing-dots" aria-label="Thinking">
+                        <span />
+                        <span />
+                        <span />
+                      </span>
+                    ) : (
+                      msg.content
+                    )}
+                  </div>
+                </div>
+              ))}
+              <div ref={messagesEndRef} />
+            </div>
+
+            <div className="ai-chat-quick-actions">
+              {quickActions.map((action) => (
+                <button
+                  type="button"
+                  key={action}
+                  className="ai-quick-action-btn"
+                  onClick={() => handleQuickAction(action)}
+                >
+                  {action}
+                </button>
+              ))}
+            </div>
+
+            <form className="ai-chat-input-area" onSubmit={handleSend}>
+              <input
+                type="text"
+                className="ai-chat-input placeholder:text-[#6B7280]"
+                placeholder="Ask about CD rates..."
+                value={inputValue}
+                onChange={(e) => setInputValue(e.target.value)}
+                disabled={isSending}
+              />
+              <button type="submit" className="ai-chat-send-btn" aria-label="Send message" disabled={isSending}>
+                <SendIcon className="ai-send-icon" />
+              </button>
+            </form>
+          </div>
+        </>
       )}
     </>
   );

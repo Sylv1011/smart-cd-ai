@@ -183,11 +183,35 @@ const normalizeSavedIncomeLabel = (value) => {
   return map[v] || v;
 };
 
-const formatMoney = (n) => {
-  const x = Number(n);
-  if (!isFinite(x)) return '$0.00';
-  return `$${x.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-};
+  const formatMoney = (n) => {
+    const x = Number(n);
+    if (!isFinite(x)) return '$0.00';
+    return `$${x.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  };
+
+  const splitWhyThisFitsText = (text) => {
+    const normalized = String(text ?? '').replace(/\r\n/g, '\n').trim();
+    if (!normalized) return [];
+
+    const paragraphs = normalized
+      .split(/\n{2,}/g)
+      .map((s) => s.trim())
+      .filter(Boolean);
+
+    if (paragraphs.length > 1) return paragraphs;
+
+    const sentences = (normalized.match(/[^.!?]+[.!?]+(?:\s+|$)|[^.!?]+$/g) || [])
+      .map((s) => s.trim())
+      .filter(Boolean);
+
+    if (sentences.length <= 1) return [normalized];
+
+    const grouped = [];
+    for (let i = 0; i < sentences.length; i += 2) {
+      grouped.push(sentences.slice(i, i + 2).join(' '));
+    }
+    return grouped;
+  };
 
   const adaptRankResponseToUiResults = (rankPayload) => {
   const bank = Array.isArray(rankPayload?.bank_cds) ? rankPayload.bank_cds : [];
@@ -249,6 +273,16 @@ const formatMoney = (n) => {
       provider,
       institutionType: toInstitutionType(productType, o),
       productType,
+      apiProductType: o?.product_type ?? null,
+      institutionName: o?.institution_name || o?.issuing_bank || null,
+      brokerageFirm: o?.brokerage_firm || null,
+      termMonths: Number(o?.term_months ?? 0) || null,
+      apyNominal: o?.apy_nominal ?? null,
+      afterTaxApy: o?.after_tax_apy ?? null,
+      afterTaxInterestUsd: o?.after_tax_interest_usd ?? null,
+      minimumDeposit: o?.minimum_deposit ?? null,
+      fdicInsured: o?.fdic_insured ?? null,
+      rankOverall: Number.isFinite(rankOverall) ? rankOverall : null,
       nominalRate: Number(o?.apy_nominal ?? 0),
       afterTaxYield: Number(o?.after_tax_apy ?? 0),
       minDeposit: Number(o?.minimum_deposit ?? 0),
@@ -291,6 +325,7 @@ export default function App() {
   const [error, setError] = useState(null);
   const [results, setResults] = useState([]);
   const [rankResponse, setRankResponse] = useState(null);
+  const aiBase = import.meta.env.VITE_AI_LAYER_URL;
   const [showPrivacy, setShowPrivacy] = useState(false);
   const [showResults, setShowResults] = useState(window.location.pathname === '/results');
   const [viewMode, setViewMode] = useState('combined');
@@ -301,6 +336,73 @@ export default function App() {
   const latestRequestIdRef = useRef(0);
   const didRestoreRef = useRef(false);
   const [selectedStateCode, setSelectedStateCode] = useState('');
+  const [whyThisFitsOverrides, setWhyThisFitsOverrides] = useState({});
+  const [whyThisFitsLoading, setWhyThisFitsLoading] = useState({});
+  const [whyThisFitsFetched, setWhyThisFitsFetched] = useState({});
+  const [whyThisFitsExpanded, setWhyThisFitsExpanded] = useState({});
+
+  const explainWhyThisFits = async (result) => {
+    const id = result?.id;
+    if (!id) return;
+
+    if (!aiBase) {
+      setWhyThisFitsOverrides((prev) => ({ ...prev, [id]: 'AI is not configured. Set VITE_AI_LAYER_URL to enable this explanation.' }));
+      return;
+    }
+
+    if (whyThisFitsLoading[id]) return;
+    if (whyThisFitsFetched[id]) return;
+
+    const normalizeProductType = () => {
+      const raw = String(result?.apiProductType ?? '').trim().toLowerCase();
+      if (raw) return raw;
+
+      const pretty = String(result?.productType ?? '').trim().toLowerCase();
+      if (pretty === 'bank cds') return 'bank_cd';
+      if (pretty === 'brokerage cds') return 'brokered_cd';
+      if (pretty === 'treasuries') return 'treasury';
+      return 'unknown';
+    };
+
+    const payload = {
+      product_type: normalizeProductType(),
+      institution_name: result?.institutionName ?? result?.brokerageFirm ?? null,
+      term_months: result?.termMonths ?? null,
+      apy_nominal: result?.apyNominal ?? null,
+      after_tax_apy: result?.afterTaxApy ?? null,
+      minimum_deposit: result?.minimumDeposit ?? null,
+      after_tax_interest_usd: result?.afterTaxInterestUsd ?? null,
+      fdic_insured: result?.fdicInsured ?? null,
+      rank_overall: result?.rankOverall ?? null,
+    };
+
+    setWhyThisFitsLoading((prev) => ({ ...prev, [id]: true }));
+    try {
+      const res = await fetch(`${aiBase}/explain-why-this-fits`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      if (!res.ok) {
+        const errPayload = await res.json().catch(() => ({}));
+        throw new Error(errPayload.detail || 'AI explanation request failed.');
+      }
+
+      const data = await res.json().catch(() => ({}));
+      const text = String(data?.why_this_fits ?? '').trim();
+      if (!text) {
+        throw new Error('No explanation returned from AI service.');
+      }
+
+      setWhyThisFitsOverrides((prev) => ({ ...prev, [id]: text }));
+      setWhyThisFitsFetched((prev) => ({ ...prev, [id]: true }));
+    } catch (e) {
+      setWhyThisFitsOverrides((prev) => ({ ...prev, [id]: e?.message || 'Unable to reach the AI service right now.' }));
+    } finally {
+      setWhyThisFitsLoading((prev) => ({ ...prev, [id]: false }));
+    }
+  };
 
   const toggleSort = (column) => {
     if (sortColumn !== column) {
@@ -725,6 +827,12 @@ export default function App() {
     const isExpanded = expandedCardId === result.id;
     const toggleExpand = () => setExpandedCardId(isExpanded ? null : result.id);
     const safeMatch = Math.max(0, Math.min(100, Number(result.matchPercentage) || 0));
+    const isWhyLoading = Boolean(whyThisFitsLoading?.[result.id]);
+    const isWhyExpanded = Boolean(whyThisFitsExpanded?.[result.id]);
+    const whyText = (whyThisFitsOverrides && Object.prototype.hasOwnProperty.call(whyThisFitsOverrides, result.id))
+      ? whyThisFitsOverrides[result.id]
+      : '';
+    const whyChunks = splitWhyThisFitsText(whyText);
 
     const openProviderLink = () => {
       const url = result?.detailsUrl;
@@ -838,31 +946,83 @@ export default function App() {
                 </div>
               </div>
 
-              <div className="rounded-2xl border border-[#1C6FC4] bg-[rgba(2,10,22,0.72)] px-5 py-4 shadow-[0_0_0_1px_rgba(29,141,238,0.18),inset_0_1px_0_rgba(255,255,255,0.03)] max-[768px]:px-4 max-[768px]:py-3">
-                <div className="mb-3 flex min-h-[44px] items-center gap-3 border-b border-[rgba(29,141,238,0.25)] pb-3">
+              <div className="self-start rounded-2xl border border-[#1C6FC4] bg-[rgba(2,10,22,0.72)] px-5 py-0 shadow-[0_0_0_1px_rgba(29,141,238,0.18),inset_0_1px_0_rgba(255,255,255,0.03)] max-[768px]:px-4 max-[768px]:py-0">
+                <div
+                  className={`mb-0 flex min-h-[44px] items-center justify-between gap-3 py-4 ${
+                    isWhyExpanded ? 'border-b border-[rgba(29,141,238,0.25)] pb-3' : ''
+                  }`}
+                >
                   <h4 className="m-0 text-[1.05rem] font-bold text-[#E2E8F0] max-[768px]:text-[0.95rem]">Why this Fits</h4>
-                  <div className="ml-auto flex min-w-[246px] items-center gap-3.5 pt-[1px] max-[768px]:min-w-0 max-[768px]:gap-2">
-                    <span className="text-[0.75rem] font-bold text-[#3C6CA9]">Match Score</span>
-                    <div className="h-[8px] flex-1 overflow-hidden rounded-full bg-[rgba(34,197,94,0.18)]">
-                      <div className="h-full rounded-full bg-[linear-gradient(90deg,#22C55E_0%,#16A34A_100%)]" style={{ width: `${safeMatch}%` }}></div>
+                  <button
+                    type="button"
+                    className="inline-flex items-center gap-2 rounded-full border border-[rgba(29,141,238,0.28)] bg-[rgba(29,141,238,0.08)] px-3 py-2 text-[0.82rem] font-semibold text-[#6FA6DC] transition-colors hover:bg-[rgba(29,141,238,0.12)]"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setWhyThisFitsExpanded((prev) => {
+                        const nextValue = !prev?.[result.id];
+                        if (nextValue) {
+                          explainWhyThisFits(result);
+                        }
+                        return { ...prev, [result.id]: nextValue };
+                      });
+                    }}
+                    aria-expanded={isWhyExpanded}
+                    aria-label="See summary"
+                  >
+                    <span className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-[rgba(29,141,238,0.45)] bg-[rgba(29,141,238,0.10)] text-[#1D8DEE]">
+                      <SparkleIcon className="h-3.5 w-3.5" />
+                    </span>
+                    <span>See summary</span>
+                  </button>
+                </div>
+
+                {isWhyExpanded && (
+                  <div className="pb-4 pt-3">
+                    <div className="rounded-xl border border-[rgba(29,141,238,0.22)] bg-[rgba(2,10,22,0.55)] px-4 py-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] max-[768px]:px-3 max-[768px]:py-3">
+                      <div className="grid grid-cols-[20px_1fr] items-start gap-x-2 gap-y-3 text-left">
+                        <span className="mt-[2px] inline-flex h-5 w-5 items-center justify-center text-[#1D8DEE]">
+                          <SparkleIcon className="h-3.5 w-3.5" />
+                        </span>
+                        <div className="mt-[4px] text-[0.72rem] tracking-[0.005em] text-[#4E76A8]">
+                          {isWhyLoading ? 'Generating summary...' : 'AI analyzed based on your income, tax bracket, investment term'}
+                        </div>
+
+                        {isWhyLoading ? (
+                          <>
+                            <span aria-hidden="true" className="h-5 w-5" />
+                            <p className="m-0 break-words text-[0.86rem] leading-[1.55] tracking-[0.003em] text-[#5C81AF] max-[768px]:text-[0.84rem] max-[768px]:leading-[1.7]">
+                              Generating summary...
+                            </p>
+                          </>
+                        ) : whyChunks.length ? (
+                          whyChunks.map((chunk, idx) => (
+                            <React.Fragment key={`${result.id}-why-${idx}`}>
+                              <span aria-hidden="true" className="h-5 w-5" />
+                              <p className="m-0 break-words text-[0.86rem] leading-[1.55] tracking-[0.003em] text-[#80A4CC] max-[768px]:text-[0.84rem] max-[768px]:leading-[1.7]">
+                                {chunk}
+                              </p>
+                            </React.Fragment>
+                          ))
+                        ) : (
+                          <>
+                            <span aria-hidden="true" className="h-5 w-5" />
+                            <p className="m-0 break-words text-[0.86rem] leading-[1.55] tracking-[0.003em] text-[#5C81AF] max-[768px]:text-[0.84rem] max-[768px]:leading-[1.7]">
+                              Unable to generate summary. Please try again.
+                            </p>
+                          </>
+                        )}
+
+                        <span className="mt-[1px] inline-flex h-5 w-5 items-center justify-center rounded-full border border-[#1D8DEE] text-[0.72rem] font-bold leading-none text-[#1D8DEE]">
+                          i
+                        </span>
+                        <div className="mt-[3.6px] text-[0.74rem] tracking-[0.005em] text-[#5C81AF]">
+                          Generated by <strong className="text-[#9BCBFF]">SmartCD.AI</strong> - Results may vary - Not financial advice
+                        </div>
+                      </div>
                     </div>
-                    <span className="text-[0.78rem] font-extrabold text-[#22C55E]">{safeMatch}%</span>
                   </div>
-                </div>
-
-                <div className="mb-4 flex items-center gap-1.5 text-[0.72rem] tracking-[0.005em] text-[#4E76A8]">
-                  <SparkleIcon className="h-3 w-3 text-[#1D8DEE]" />
-                  <span>AI analyzed based on your income, tax bracket, investment term</span>
-                </div>
-
-                <p className="text-[0.86rem] leading-[1.45] tracking-[0.003em] text-[#80A4CC] max-[768px]:text-[0.84rem]">
-                  {result.whyThisFits}
-                </p>
-
-                <div className="mt-5 flex items-center gap-2 text-[0.74rem] tracking-[0.005em] text-[#5C81AF]">
-                  <span className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-[#1D8DEE] text-[#1D8DEE]">•</span>
-                  <span>Generated by <strong className="text-[#9BCBFF]">SmartCD.AI</strong> · Results may vary · Not financial advice</span>
-                </div>
+                )}
               </div>
             </div>
           </div>
