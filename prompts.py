@@ -10,26 +10,19 @@ Rules:
 - Keep answers short, clear, and natural.
 """
 
-TOP3_TASK_PROMPT = """
-You will receive `overall_top`.
-Return valid JSON only:
-{
-  "products": [
-    {
-      "rank_overall": 1,
-      "title": "Product name",
-      "why_this_fits": "1 short sentence, or 2 if needed"
-    }
-  ]
-}
+WHY_THIS_FITS_TASK_PROMPT = """
+You will receive one product.
+Return JSON only:
+{"why_this_fits": "one short professional sentence"}
 Rules:
-- Return one object per product in rank order.
-- Keep `title` short and clean.
-- `why_this_fits` must be 1 short sentence when possible, max 2.
-- Mention only the most important reason the product ranks well.
-- Summarize instead of restating all fields.
-- Use only the provided ranking data.
-- Do not output anything before or after the JSON.
+- Use only provided data.
+- One concise sentence (max 18 words, max 2 sentences only if needed).
+- Focus on the key metric (e.g., after-tax APY).
+- Do not mention SmartCD, rankings, or position (e.g., #1, top, best).
+- Do not include explanations about ranking.
+- Vary phrasing across responses; avoid repetitive structure.
+- Keep tone professional and product-focused.
+- No extra text.
 """
 
 CHAT_TASK_PREFIX = """
