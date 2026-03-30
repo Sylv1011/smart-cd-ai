@@ -825,7 +825,10 @@ export default function App() {
 
   const renderResultCard = (result, showProductType = false) => {
     const isExpanded = expandedCardId === result.id;
-    const toggleExpand = () => setExpandedCardId(isExpanded ? null : result.id);
+    const toggleExpand = () => {
+      setExpandedCardId(isExpanded ? null : result.id);
+      setWhyThisFitsExpanded((prev) => ({ ...prev, [result.id]: false }));
+    };
     const safeMatch = Math.max(0, Math.min(100, Number(result.matchPercentage) || 0));
     const isWhyLoading = Boolean(whyThisFitsLoading?.[result.id]);
     const isWhyExpanded = Boolean(whyThisFitsExpanded?.[result.id]);
@@ -953,72 +956,96 @@ export default function App() {
                   }`}
                 >
                   <h4 className="m-0 text-[1.05rem] font-bold text-[#E2E8F0] max-[768px]:text-[0.95rem]">Why this Fits</h4>
-                  <button
-                    type="button"
-                    className="inline-flex items-center gap-2 rounded-full border border-[rgba(29,141,238,0.28)] bg-[rgba(29,141,238,0.08)] px-3 py-2 text-[0.82rem] font-semibold text-[#6FA6DC] transition-colors hover:bg-[rgba(29,141,238,0.12)]"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      setWhyThisFitsExpanded((prev) => {
-                        const nextValue = !prev?.[result.id];
-                        if (nextValue) {
-                          explainWhyThisFits(result);
-                        }
-                        return { ...prev, [result.id]: nextValue };
-                      });
-                    }}
-                    aria-expanded={isWhyExpanded}
-                    aria-label="See summary"
-                  >
-                    <span className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-[rgba(29,141,238,0.45)] bg-[rgba(29,141,238,0.10)] text-[#1D8DEE]">
-                      <SparkleIcon className="h-3.5 w-3.5" />
-                    </span>
-                    <span>See summary</span>
-                  </button>
+                  {(isWhyExpanded || isWhyLoading) ? (
+                    <div className="flex flex-1 items-center justify-end">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[0.74rem] font-semibold tracking-[0.005em] text-[#4E76A8] max-[768px]:text-[0.72rem]">Match Score</span>
+                        <div className="h-1.5 w-[110px] overflow-hidden rounded-full bg-[rgba(148,163,184,0.18)] max-[768px]:w-[84px]">
+                          <div className="h-full rounded-full bg-[#22C55E]" style={{ width: `${safeMatch}%` }} />
+                        </div>
+                        <span className="text-[0.78rem] font-bold leading-none text-[#22C55E] max-[768px]:text-[0.74rem]">{safeMatch}%</span>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex flex-1 items-center justify-end gap-3">
+                      <span className="mx-auto text-[0.86rem] font-bold tracking-[-0.01em] text-[#22C55E] max-[768px]:text-[0.82rem]">{safeMatch}% Match</span>
+                      <button
+                        type="button"
+                        className="inline-flex items-center gap-2 rounded-full border border-[rgba(29,141,238,0.28)] bg-[rgba(29,141,238,0.08)] px-3 py-2 text-[0.82rem] font-semibold text-[#6FA6DC] transition-colors hover:bg-[rgba(29,141,238,0.12)]"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          if (isWhyLoading) return;
+                          setWhyThisFitsExpanded((prev) => {
+                            const nextValue = !prev?.[result.id];
+                            if (nextValue && !whyThisFitsFetched?.[result.id]) {
+                              explainWhyThisFits(result);
+                            }
+                            return { ...prev, [result.id]: nextValue };
+                          });
+                        }}
+                        aria-expanded={isWhyExpanded}
+                        aria-label="See summary"
+                      >
+                        <span className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-[rgba(29,141,238,0.45)] bg-[rgba(29,141,238,0.10)] text-[#1D8DEE]">
+                          <SparkleIcon className="h-3.5 w-3.5" />
+                        </span>
+                        <span>See summary</span>
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 {isWhyExpanded && (
                   <div className="pb-4 pt-3">
                     <div className="rounded-xl border border-[rgba(29,141,238,0.22)] bg-[rgba(2,10,22,0.55)] px-4 py-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] max-[768px]:px-3 max-[768px]:py-3">
                       <div className="grid grid-cols-[20px_1fr] items-start gap-x-2 gap-y-3 text-left">
-                        <span className="mt-[2px] inline-flex h-5 w-5 items-center justify-center text-[#1D8DEE]">
-                          <SparkleIcon className="h-3.5 w-3.5" />
-                        </span>
-                        <div className="mt-[4px] text-[0.72rem] tracking-[0.005em] text-[#4E76A8]">
-                          {isWhyLoading ? 'Generating summary...' : 'AI analyzed based on your income, tax bracket, investment term'}
-                        </div>
-
                         {isWhyLoading ? (
                           <>
                             <span aria-hidden="true" className="h-5 w-5" />
-                            <p className="m-0 break-words text-[0.86rem] leading-[1.55] tracking-[0.003em] text-[#5C81AF] max-[768px]:text-[0.84rem] max-[768px]:leading-[1.7]">
-                              Generating summary...
+                            <p className="m-0 break-words pl-28 text-[0.86rem] leading-[1.55] tracking-[0.003em] text-[#80A4CC] max-[768px]:text-[0.84rem] max-[768px]:leading-[1.7]">
+                              ✨ Loading Summary......
                             </p>
                           </>
-                        ) : whyChunks.length ? (
-                          whyChunks.map((chunk, idx) => (
-                            <React.Fragment key={`${result.id}-why-${idx}`}>
-                              <span aria-hidden="true" className="h-5 w-5" />
-                              <p className="m-0 break-words text-[0.86rem] leading-[1.55] tracking-[0.003em] text-[#80A4CC] max-[768px]:text-[0.84rem] max-[768px]:leading-[1.7]">
-                                {chunk}
-                              </p>
-                            </React.Fragment>
-                          ))
                         ) : (
                           <>
-                            <span aria-hidden="true" className="h-5 w-5" />
-                            <p className="m-0 break-words text-[0.86rem] leading-[1.55] tracking-[0.003em] text-[#5C81AF] max-[768px]:text-[0.84rem] max-[768px]:leading-[1.7]">
-                              Unable to generate summary. Please try again.
-                            </p>
+                            <span className="mt-[2px] inline-flex h-5 w-5 items-center justify-center text-[#1D8DEE]">
+                              <SparkleIcon className="h-3.5 w-3.5" />
+                            </span>
+                            <div className="mt-[5px] text-[0.72rem] tracking-[0.005em] text-[#4E76A8]">
+                              AI analyzed based on your income, tax bracket, investment term
+                            </div>
+
+                            {whyChunks.length ? (
+                              whyChunks.map((chunk, idx) => (
+                                <React.Fragment key={`${result.id}-why-${idx}`}>
+                                  <span aria-hidden="true" className="h-5 w-5" />
+                                  <p className="m-0 break-words text-[0.86rem] leading-[1.55] tracking-[0.003em] text-[#80A4CC] max-[768px]:text-[0.84rem] max-[768px]:leading-[1.7]">
+                                    {chunk}
+                                  </p>
+                                </React.Fragment>
+                              ))
+                            ) : (
+                              <>
+                                <span aria-hidden="true" className="h-5 w-5" />
+                                <p className="m-0 break-words text-[0.86rem] leading-[1.55] tracking-[0.003em] text-[#5C81AF] max-[768px]:text-[0.84rem] max-[768px]:leading-[1.7]">
+                                  Unable to generate summary. Please try again.
+                                </p>
+                              </>
+                            )}
                           </>
                         )}
 
-                        <span className="mt-[1px] inline-flex h-5 w-5 items-center justify-center rounded-full border border-[#1D8DEE] text-[0.72rem] font-bold leading-none text-[#1D8DEE]">
-                          i
-                        </span>
-                        <div className="mt-[3.6px] text-[0.74rem] tracking-[0.005em] text-[#5C81AF]">
-                          Generated by <strong className="text-[#9BCBFF]">SmartCD.AI</strong> - Results may vary - Not financial advice
-                        </div>
+                        {!isWhyLoading && (
+                          <>
+                            <span className="mt-[1px] inline-flex h-5 w-5 items-center justify-center rounded-full border border-[#1D8DEE] text-[0.72rem] font-bold leading-none text-[#1D8DEE]">
+                              i
+                            </span>
+                            <div className="mt-[3.6px] text-[0.74rem] tracking-[0.005em] text-[#5C81AF]">
+                              Generated by <strong className="text-[#9BCBFF]">SmartCD.AI</strong> - Results may vary - Not financial advice
+                            </div>
+                          </>
+                        )}
                       </div>
                     </div>
                   </div>
