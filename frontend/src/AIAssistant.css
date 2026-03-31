@@ -340,3 +340,49 @@
     border-radius: 0;
   }
 }
+
+/* Light mode (keeps current dark mode unchanged). */
+.theme-light .ai-chat-overlay {
+  background: rgba(15, 23, 42, 0.32);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.theme-light .ai-chat-window {
+  background-color: #FFFFFF;
+  border-color: rgba(15, 23, 42, 0.12);
+  box-shadow: 0 20px 40px rgba(15, 23, 42, 0.22);
+}
+
+.theme-light .ai-chat-messages,
+.theme-light .ai-chat-quick-actions {
+  background-color: #F5F7FB;
+}
+
+.theme-light .ai-message-bubble.ai {
+  background-color: #E2E8F0;
+  color: #0F172A;
+}
+
+.theme-light .ai-quick-action-btn {
+  background-color: #FFFFFF;
+  border-color: #CBD5E1;
+  color: #0F172A;
+}
+
+.theme-light .ai-quick-action-btn:hover {
+  background-color: #F1F5F9;
+}
+
+.theme-light .ai-chat-input-area {
+  background-color: #FFFFFF;
+  border-top-color: rgba(15, 23, 42, 0.08);
+}
+
+.theme-light .ai-chat-input {
+  color: #0F172A;
+}
+
+.theme-light .ai-typing-dots span {
+  background: rgba(15, 23, 42, 0.55);
+}

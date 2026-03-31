@@ -107,6 +107,26 @@ const ExternalLinkIcon = ({ className }) => (
   </svg>
 );
 
+const SunIcon = ({ className }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="12" cy="12" r="4" />
+    <path d="M12 2v2" />
+    <path d="M12 20v2" />
+    <path d="M4.93 4.93l1.41 1.41" />
+    <path d="M17.66 17.66l1.41 1.41" />
+    <path d="M2 12h2" />
+    <path d="M20 12h2" />
+    <path d="M4.93 19.07l1.41-1.41" />
+    <path d="M17.66 6.34l1.41-1.41" />
+  </svg>
+);
+
+const MoonIcon = ({ className }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M21 12.79A9 9 0 1 1 11.21 3a7 7 0 0 0 9.79 9.79z" />
+  </svg>
+);
+
 const STATES_WITH_LOCAL_TAX = ['New York', 'Maryland', 'Indiana', 'Michigan'];
 
 const normalizeFilingStatusForRanker = (value) => {
@@ -327,6 +347,14 @@ export default function App() {
   const [rankResponse, setRankResponse] = useState(null);
   const aiBase = import.meta.env.VITE_AI_LAYER_URL;
   const [showPrivacy, setShowPrivacy] = useState(false);
+  const THEME_STORAGE_KEY = 'smartcd:theme:v1';
+  const [theme, setTheme] = useState(() => {
+    try {
+      return localStorage.getItem(THEME_STORAGE_KEY) === 'light' ? 'light' : 'dark';
+    } catch {
+      return 'dark';
+    }
+  });
   const [showResults, setShowResults] = useState(window.location.pathname === '/results');
   const [viewMode, setViewMode] = useState('combined');
   const [expandedCardId, setExpandedCardId] = useState(null);
@@ -340,6 +368,16 @@ export default function App() {
   const [whyThisFitsLoading, setWhyThisFitsLoading] = useState({});
   const [whyThisFitsFetched, setWhyThisFitsFetched] = useState({});
   const [whyThisFitsExpanded, setWhyThisFitsExpanded] = useState({});
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(THEME_STORAGE_KEY, theme);
+    } catch {
+      // ignore storage failures
+    }
+    // Keep the privacy overlay visually stable by not applying theme overrides to it.
+    document.documentElement.classList.toggle('theme-light', theme === 'light' && !showPrivacy);
+  }, [theme, showPrivacy]);
 
   useEffect(() => {
     if (!showPrivacy) return;
@@ -885,10 +923,10 @@ export default function App() {
     return (
       <div key={result.id}>
         <div
-          className={`relative transition-colors max-[768px]:flex max-[768px]:flex-col max-[768px]:items-stretch max-[768px]:gap-3 max-[768px]:px-4 max-[768px]:py-3 md:grid md:items-center md:gap-4 md:px-5 md:hover:bg-[rgba(29,141,238,0.05)] ${result.isTopPick ? 'md:pt-8 md:pb-5' : 'md:py-5'} ${showProductType ? 'md:grid-cols-[minmax(220px,2.05fr)_minmax(145px,1.12fr)_minmax(118px,0.9fr)_minmax(150px,1.02fr)_minmax(130px,0.9fr)_220px]' : 'md:grid-cols-[minmax(220px,2.2fr)_minmax(118px,0.95fr)_minmax(150px,1.05fr)_minmax(130px,0.95fr)_220px]'} ${isExpanded ? 'bg-[#0A1E14] border-b-0' : result.isTopPick ? 'bg-[#062314] border-b border-[#1E293B]' : 'bg-[#081329] border-b border-[#1E293B]'}`}
+          className={`smartcd-result-row ${result.isTopPick ? 'smartcd-top-pick' : ''} relative transition-colors max-[768px]:flex max-[768px]:flex-col max-[768px]:items-stretch max-[768px]:gap-3 max-[768px]:px-4 max-[768px]:py-3 md:grid md:items-center md:gap-4 md:px-5 md:hover:bg-[rgba(29,141,238,0.05)] ${result.isTopPick ? 'md:pt-8 md:pb-5' : 'md:py-5'} ${showProductType ? 'md:grid-cols-[minmax(220px,2.05fr)_minmax(145px,1.12fr)_minmax(118px,0.9fr)_minmax(150px,1.02fr)_minmax(130px,0.9fr)_220px]' : 'md:grid-cols-[minmax(220px,2.2fr)_minmax(118px,0.95fr)_minmax(150px,1.05fr)_minmax(130px,0.95fr)_220px]'} ${isExpanded ? 'bg-[#0A1E14] border-b-0' : result.isTopPick ? 'bg-[#062314] border-b border-[#1E293B]' : 'bg-[#081329] border-b border-[#1E293B]'}`}
         >
           <div className="flex items-center max-[768px]:order-1 max-[768px]:flex-col max-[768px]:items-start max-[768px]:gap-2 max-[768px]:border-b max-[768px]:border-[#1E293B] max-[768px]:pb-3">
-            {result.isTopPick && <span className="inline-flex shrink-0 rounded-full bg-[linear-gradient(180deg,#22C55E_0%,#16A34A_100%)] px-3 py-1 text-[0.64rem] font-extrabold uppercase tracking-[0.04em] text-white md:hidden">★ TOP PICK</span>}
+            {result.isTopPick && <span className="theme-keep-white inline-flex shrink-0 rounded-full bg-[linear-gradient(180deg,#22C55E_0%,#16A34A_100%)] px-3 py-1 text-[0.64rem] font-extrabold uppercase tracking-[0.04em] text-white md:hidden">★ TOP PICK</span>}
             <div className="flex w-full min-w-0 items-center gap-3 md:pr-3">
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] bg-white text-[0.9rem] font-bold text-[#1D4ED8] max-[480px]:h-8 max-[480px]:w-8 max-[480px]:text-[0.72rem]">{result.provider.substring(0, 2).toUpperCase()}</div>
               <div className="min-w-0">
@@ -898,7 +936,7 @@ export default function App() {
                 <div className="break-words text-[0.72rem] leading-[1.35] tracking-[0.005em] text-[#5F7EA6]">{result.institutionType}</div>
               </div>
             </div>
-            {result.isTopPick && <span className="absolute left-4 top-2 hidden shrink-0 rounded-full bg-[linear-gradient(180deg,#22C55E_0%,#16A34A_100%)] px-3 py-1 text-[0.66rem] font-extrabold uppercase tracking-[0.04em] text-white md:inline-flex">★ TOP PICK</span>}
+            {result.isTopPick && <span className="theme-keep-white absolute left-4 top-2 hidden shrink-0 rounded-full bg-[linear-gradient(180deg,#22C55E_0%,#16A34A_100%)] px-3 py-1 text-[0.66rem] font-extrabold uppercase tracking-[0.04em] text-white md:inline-flex">★ TOP PICK</span>}
           </div>
 
           {showProductType && (
@@ -928,7 +966,7 @@ export default function App() {
             <div className="mt-1 flex w-full flex-col items-stretch gap-2 md:mt-0 md:w-auto md:flex-row md:items-center md:justify-end">
               <button
                 type="button"
-                className="flex h-11 min-w-[154px] w-full max-w-full items-center justify-center gap-1.5 whitespace-nowrap rounded-[14px] bg-[#1A3050] px-4 text-[0.82rem] font-bold text-[#EEF2FF] transition-all hover:bg-[#2F568F] appearance-none border-none focus:outline-none ring-0 shadow-none md:h-[50px] md:w-[138px] md:min-w-0 md:px-3 md:text-[0.82rem]"
+                className="theme-keep-white flex h-11 min-w-[154px] w-full max-w-full items-center justify-center gap-1.5 whitespace-nowrap rounded-[14px] bg-[#1A3050] px-4 text-[0.82rem] font-bold text-[#EEF2FF] transition-all hover:bg-[#2F568F] appearance-none border-none focus:outline-none ring-0 shadow-none md:h-[50px] md:w-[138px] md:min-w-0 md:px-3 md:text-[0.82rem]"
                 onClick={toggleExpand}
                 aria-expanded={isExpanded}
               >
@@ -941,7 +979,7 @@ export default function App() {
               </button>
               <button
                 type="button"
-                className="flex h-11 min-w-[140px] w-full max-w-full items-center justify-center gap-2 whitespace-nowrap rounded-[14px] bg-[linear-gradient(180deg,#2BC65F_0%,#20B856_100%)] px-5 text-[0.82rem] font-bold text-white transition-all enabled:hover:bg-[linear-gradient(180deg,#29BA5A_0%,#1AA34C_100%)] appearance-none border-none focus:outline-none ring-0 shadow-none md:h-[50px] md:w-[106px] md:min-w-0 md:px-3 md:text-[0.86rem] disabled:cursor-not-allowed disabled:opacity-60"
+                className="theme-keep-white flex h-11 min-w-[140px] w-full max-w-full items-center justify-center gap-2 whitespace-nowrap rounded-[14px] bg-[linear-gradient(180deg,#2BC65F_0%,#20B856_100%)] px-5 text-[0.82rem] font-bold text-white transition-all enabled:hover:bg-[linear-gradient(180deg,#29BA5A_0%,#1AA34C_100%)] appearance-none border-none focus:outline-none ring-0 shadow-none md:h-[50px] md:w-[106px] md:min-w-0 md:px-3 md:text-[0.86rem] disabled:cursor-not-allowed disabled:opacity-60"
                 onClick={openProviderLink}
                 disabled={!result.detailsUrl}
               >
@@ -1224,6 +1262,19 @@ export default function App() {
         }}>
           <img src="/New%20logo.png" alt="SmartCD.ai Logo" className="h-12 w-auto max-[768px]:h-10" />
         </div>
+        <button
+          type="button"
+          aria-label={theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode'}
+          aria-pressed={theme === 'light'}
+          onClick={() => setTheme((prev) => (prev === 'light' ? 'dark' : 'light'))}
+          className={`ml-auto inline-flex h-10 w-10 items-center justify-center rounded-full border transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 ${
+            theme === 'light'
+              ? 'border-[#CBD5E1] bg-[#EFF6FF] text-[#1E2941] focus:ring-[#1557F5] focus:ring-offset-white'
+              : 'border-[rgba(255,255,255,0.22)] bg-[rgba(255,255,255,0.08)] text-white focus:ring-[#92C5F9] focus:ring-offset-[#101b30]'
+          }`}
+        >
+          {theme === 'light' ? <MoonIcon className="h-5 w-5" /> : <SunIcon className="h-5 w-5" />}
+        </button>
       </header>
 
       {/* Main Content - Dark Background */}
@@ -1238,8 +1289,11 @@ export default function App() {
 
               <div className="border-0 outline-none shadow-none px-10 py-[10px] mb-6 relative max-[768px]:px-0 max-[768px]:py-2 max-[768px]:mb-4">
                 <h1 className="text-[3.5rem] font-extrabold leading-[1.15] tracking-[-0.02em] max-[768px]:text-[clamp(1.8rem,8.5vw,2.4rem)] max-[768px]:leading-[1.2] max-[480px]:text-[clamp(1.6rem,9vw,2rem)]">
-                  The Only AI That Calculates Your<br className="max-[768px]:hidden" />
-                  True <span className="text-green">After-Tax Winner.</span>
+                  <span className="text-blue-light">
+                    The Only AI That Calculates Your <br className="max-[768px]:hidden" />
+                    True{' '}
+                  </span>
+                  <span className="text-green">After-Tax Winner.</span>
                 </h1>
               </div>
 
@@ -1383,7 +1437,7 @@ export default function App() {
                   </div>
 
                   <div className="flex justify-center mt-6 max-[768px]:mt-2">
-                    <button type="submit" className="flex items-center justify-center gap-3 w-full max-w-[500px] px-4 py-4 text-base font-bold tracking-[0.02em] text-white bg-[linear-gradient(90deg,#1C74E9_0%,#15B0F8_100%)] border-0 rounded-full cursor-pointer transition-all shadow-[0_10px_20px_-5px_rgba(29,141,238,0.4)] [&:not(:disabled):hover]:-translate-y-0.5 [&:not(:disabled):hover]:shadow-[0_14px_24px_-5px_rgba(29,141,238,0.5)] [&:not(:disabled):active]:translate-y-0 disabled:opacity-70 disabled:cursor-not-allowed max-[768px]:max-w-full" disabled={loading || !isFormValid}>
+                    <button type="submit" className="theme-keep-white flex items-center justify-center gap-3 w-full max-w-[500px] px-4 py-4 text-base font-bold tracking-[0.02em] text-white bg-[linear-gradient(90deg,#1C74E9_0%,#15B0F8_100%)] border-0 rounded-full cursor-pointer transition-all shadow-[0_10px_20px_-5px_rgba(29,141,238,0.4)] [&:not(:disabled):hover]:-translate-y-0.5 [&:not(:disabled):hover]:shadow-[0_14px_24px_-5px_rgba(29,141,238,0.5)] [&:not(:disabled):active]:translate-y-0 disabled:opacity-70 disabled:cursor-not-allowed max-[768px]:max-w-full" disabled={loading || !isFormValid}>
                       <SparkleIcon className="w-4 h-4" />
                       {loading ? "Submitting..." : "FIND BEST YIELDS"}
                     </button>
@@ -1400,8 +1454,8 @@ export default function App() {
                 <h2 className="m-0 text-base font-medium text-[#6B7280] max-[768px]:text-[0.9rem] max-[768px]:leading-[1.4]">Compare all CDs with the best after-tax yields for your situation</h2>
               </div>
               <div className="grid overflow-hidden rounded-[8px] bg-[#0F172A] max-[768px]:w-full max-[768px]:grid-cols-2 md:flex">
-                <button className={`cursor-pointer border-none px-4 py-2 text-[0.85rem] font-semibold transition-all max-[768px]:min-h-11 max-[768px]:py-3 ${viewMode === 'combined' ? 'bg-[#22C55E] text-white' : 'bg-transparent text-[#9CA3AF]'}`} onClick={() => setViewMode('combined')}>Combined View</button>
-                <button className={`cursor-pointer border-none px-4 py-2 text-[0.85rem] font-semibold transition-all max-[768px]:min-h-11 max-[768px]:py-3 ${viewMode === 'grouped' ? 'bg-[#22C55E] text-white' : 'bg-transparent text-[#9CA3AF]'}`} onClick={() => setViewMode('grouped')}>Group By Type</button>
+                <button className={`theme-keep-white cursor-pointer border-none px-4 py-2 text-[0.85rem] font-semibold transition-all max-[768px]:min-h-11 max-[768px]:py-3 ${viewMode === 'combined' ? 'bg-[#1557F5] text-white' : 'bg-transparent text-[#9CA3AF]'}`} onClick={() => setViewMode('combined')}>Combined View</button>
+                <button className={`theme-keep-white cursor-pointer border-none px-4 py-2 text-[0.85rem] font-semibold transition-all max-[768px]:min-h-11 max-[768px]:py-3 ${viewMode === 'grouped' ? 'bg-[#1557F5] text-white' : 'bg-transparent text-[#9CA3AF]'}`} onClick={() => setViewMode('grouped')}>Group By Type</button>
               </div>
             </div>
 

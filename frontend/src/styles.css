@@ -17,6 +17,15 @@
   --accent-green: #00E676;
 }
 
+:root.theme-light {
+  --bg-main: #F5F7FB;
+  --bg-card: #FFFFFF;
+  --text-main: #0F172A;
+  --primary-blue: #1557F5;
+  --accent-green: #16A34A;
+  color-scheme: light;
+}
+
 * {
   box-sizing: border-box;
   margin: 0;
@@ -29,6 +38,128 @@ body {
   color: var(--text-main);
   min-height: 100vh;
   -webkit-font-smoothing: antialiased;
+}
+
+/* Light mode overrides for Tailwind arbitrary color utilities used in the app. */
+.theme-light .bg-\[\#101b30\],
+.theme-light .bg-\[\#1E2941\] {
+  background-color: #FFFFFF !important;
+}
+
+.theme-light .bg-\[\#061124\] {
+  background-color: #F5F7FB !important;
+}
+
+.theme-light .bg-\[\#081329\],
+.theme-light .bg-\[\#0A1429\],
+.theme-light .bg-\[\#0D1B2D\] {
+  background-color: #FFFFFF !important;
+}
+
+.theme-light .bg-\[\#0F172A\] {
+  background-color: #E2E8F0 !important;
+}
+
+.theme-light .bg-\[\#0A1E14\],
+.theme-light .bg-\[\#062314\] {
+  background-color: #F8FAFC !important;
+}
+
+.theme-light .bg-\[\#1A3050\] {
+  background-color: #1557F5 !important;
+}
+
+.theme-light .border-\[\#1A3050\] {
+  border-color: #CBD5E1 !important;
+}
+
+.theme-light .border-\[\#1E293B\],
+.theme-light .border-\[\#123B2F\],
+.theme-light .border-\[\#1C6FC4\] {
+  border-color: #E2E8F0 !important;
+}
+
+.theme-light .bg-\[rgba\(2\,10\,22\,0\.84\)\],
+.theme-light .bg-\[rgba\(2\,10\,22\,0\.72\)\],
+.theme-light .bg-\[rgba\(2\,10\,22\,0\.55\)\] {
+  background-color: #FFFFFF !important;
+}
+
+.theme-light .bg-\[rgba\(255\,255\,255\,0\.05\)\] {
+  background-color: rgba(15, 23, 42, 0.04) !important;
+}
+
+.theme-light .bg-\[rgba\(255\,255\,255\,0\.08\)\] {
+  background-color: rgba(15, 23, 42, 0.06) !important;
+}
+
+.theme-light .border-\[rgba\(255\,255\,255\,0\.05\)\] {
+  border-color: rgba(15, 23, 42, 0.08) !important;
+}
+
+.theme-light .border-\[rgba\(255\,255\,255\,0\.1\)\] {
+  border-color: rgba(15, 23, 42, 0.12) !important;
+}
+
+.theme-light .border-\[rgba\(255\,255\,255\,0\.22\)\] {
+  border-color: rgba(15, 23, 42, 0.18) !important;
+}
+
+.theme-light .text-\[\#F8FAFC\],
+.theme-light .text-\[\#E2E8F0\] {
+  color: #0F172A !important;
+}
+
+.theme-light .text-white:not(.theme-keep-white) {
+  color: #0F172A !important;
+}
+
+.theme-light .text-\[\#92C5F9\],
+.theme-light .text-\[\#9BCBFF\],
+.theme-light .text-\[\#6FA6DC\] {
+  color: #1557F5 !important;
+}
+
+.theme-light .text-\[\#9CA3AF\] {
+  color: #64748B !important;
+}
+
+.theme-light .text-\[\#94A3B8\],
+.theme-light .text-\[\#5F7EA6\],
+.theme-light .text-\[\#80A4CC\],
+.theme-light .text-\[\#8B9BB4\],
+.theme-light .text-\[\#5C81AF\] {
+  color: #64748B !important;
+}
+
+.theme-light .text-\[rgba\(255\,255\,255\,0\.52\)\],
+.theme-light .text-\[rgba\(255\,255\,255\,0\.55\)\],
+.theme-light .text-\[rgba\(255\,255\,255\,0\.6\)\],
+.theme-light .text-\[rgba\(255\,255\,255\,0\.65\)\] {
+  color: #64748B !important;
+}
+
+.theme-light .text-\[rgba\(255\,255\,255\,0\.85\)\] {
+  color: #334155 !important;
+}
+
+/* Light mode: make top picks subtly blue with a blue hover tint. */
+.theme-light .smartcd-result-row.smartcd-top-pick {
+  background-color: rgba(21, 88, 245, 0.1) !important;
+  border-bottom-color: rgba(21, 87, 245, 0.18) !important;
+}
+
+@media (hover: hover) and (min-width: 768px) {
+  .theme-light .smartcd-result-row.smartcd-top-pick:hover {
+    background-color: rgba(21, 87, 245, 0.17) !important;
+  }
+}
+
+/* Convert white text used on dark surfaces to dark text in light mode. */
+.theme-light .bg-\[\#081329\] .text-white:not(button):not(.theme-keep-white),
+.theme-light .bg-\[\#0A1E14\] .text-white:not(button):not(.theme-keep-white),
+.theme-light .bg-\[\#062314\] .text-white:not(button):not(.theme-keep-white) {
+  color: #0F172A !important;
 }
 
 html,
@@ -66,6 +197,14 @@ body,
   color: var(--primary-blue);
 }
 
+.text-blue-light {
+  color: inherit;
+}
+
+.theme-light .text-blue-light {
+  color: #3280e0;
+}
+
 /* Dashboard Grid Layout */
 .dashboard-grid {
   display: flex;
@@ -96,6 +235,11 @@ body,
   box-shadow: 0 10px 40px -10px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
 
+.theme-light .main-card {
+  background-color: #EAF3FF;
+  box-shadow: 0 14px 34px -18px rgba(15, 23, 42, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.7);
+}
+
 .card-title {
   display: flex;
   align-items: center;
@@ -106,6 +250,11 @@ body,
   margin-bottom: 32px;
   padding-bottom: 24px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.theme-light .card-title {
+  color: #0B3D91;
+  border-bottom-color: rgba(15, 23, 42, 0.08);
 }
 
 .title-icon-wrapper {

@@ -235,7 +235,7 @@ export default function AIAssistant({ rankResponse }) {
                 <div key={index} className={`ai-message-row ${msg.role}`}>
                   {msg.role === 'ai' && (
                     <div className="ai-avatar">
-                      <SparkleIcon className="ai-avatar-icon w-4 h-4 text-white" />
+                      <SparkleIcon className="ai-avatar-icon w-4 h-4 text-white theme-keep-white" />
                     </div>
                   )}
                   <div className={`ai-message-bubble ${msg.role}`}>
