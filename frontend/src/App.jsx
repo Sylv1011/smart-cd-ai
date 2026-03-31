@@ -341,6 +341,16 @@ export default function App() {
   const [whyThisFitsFetched, setWhyThisFitsFetched] = useState({});
   const [whyThisFitsExpanded, setWhyThisFitsExpanded] = useState({});
 
+  useEffect(() => {
+    if (!showPrivacy) return;
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [showPrivacy]);
+
   const explainWhyThisFits = async (result) => {
     const id = result?.id;
     if (!id) return;
@@ -1090,15 +1100,14 @@ export default function App() {
         </div>
       )}
       {showPrivacy && (
-        <div className="fixed inset-0 z-[1000] flex flex-col overflow-hidden bg-white text-[#374151]">
+        <div className="fixed inset-0 z-[2000] flex h-screen w-screen flex-col overflow-hidden bg-white text-[#374151]">
           <div className="relative flex h-full flex-col bg-white">
 
             <div className="flex flex-1 flex-col overflow-y-auto max-[768px]:w-full max-[768px]:overflow-x-hidden">
               <div className="mx-auto max-w-[900px] flex-1 bg-white px-6 py-10 max-[768px]:px-4 max-[768px]:py-6">
                 {/* Logo Section */}
                 <div className="mb-8 flex flex-col items-start">
-                  <img src="/logo.png" alt="SmartCD.AI Logo" className="h-14 w-auto max-w-full object-contain" />
-                  <button type="button" className="mt-4 flex items-center gap-1 border-none bg-transparent p-0 py-2 cursor-pointer font-sans text-[14px] font-[600] leading-[20px] tracking-normal text-[#1557F5] transition-opacity hover:opacity-70" onClick={() => setShowPrivacy(false)}>
+                  <button type="button" className="flex items-center gap-1 border-none bg-transparent p-0 py-2 cursor-pointer font-sans text-[14px] font-[600] leading-[20px] tracking-normal text-[#111827] transition-opacity hover:opacity-70" onClick={() => setShowPrivacy(false)}>
                     <ChevronLeftIcon className="h-5 w-5" />
                     Back
                   </button>
@@ -1168,14 +1177,14 @@ export default function App() {
                 </div>
               </div>
               
-              <footer className="mt-auto flex w-full flex-col items-center justify-center bg-[radial-gradient(circle,#243C6B_0%,#1E2941_100%)] px-16 pt-8 pb-6 max-[768px]:px-[14px] max-[768px]:pt-[22px] max-[768px]:pb-[22px]">
-                <div className="mb-8 max-w-[1200px] text-center text-[0.75rem] font-medium leading-[1.5] text-[rgba(255,255,255,0.8)]">
+              <footer className="mt-auto flex w-full flex-col items-center justify-center bg-[#1E2941] px-16 pt-8 pb-6 max-[768px]:px-[14px] max-[768px]:pt-[22px] max-[768px]:pb-[22px]">
+                <div className="mb-8 max-w-[1200px] text-center text-[0.75rem] font-medium leading-[1.5] text-[rgba(255,255,255,0.55)]">
                   SmartCD.AI is an AI-powered aggregator of publicly available information. Annual Percentage Yields (APY) are subject to change without notice. Minimum deposit requirements and regional availability may apply. This tool provides information for educational purposes only and does not constitute investment, financial, tax, or legal advice. Always verify rates directly with the financial institution before making investment decisions.
                 </div>
                 <div className="flex w-full max-w-[1200px] items-center justify-between border-t border-[rgba(255,255,255,0.1)] pt-6 max-[768px]:flex-col max-[768px]:items-start max-[768px]:gap-[10px] max-[768px]:pt-[14px]">
-                  <div className="text-[0.8rem] font-medium text-white">Last updated: January 2026</div>
-                  <div className="text-[0.8rem] font-medium text-white">© 2026 SmartCD.ai - All Rights Reserved</div>
-                  <div className="text-[0.8rem] font-medium text-white transition-opacity hover:opacity-80">
+                  <div className="text-[0.8rem] font-medium text-[rgba(255,255,255,0.52)]">Last updated: March 2026</div>
+                  <div className="text-[0.8rem] font-medium text-[rgba(255,255,255,0.85)]">© 2026 SmartCD.ai - All Rights Reserved</div>
+                  <div className="text-[0.8rem] font-medium text-[rgba(255,255,255,0.52)] transition-opacity hover:opacity-80">
                     Privacy Policy · Terms of Service
                   </div>
                 </div>
@@ -1185,15 +1194,15 @@ export default function App() {
         </div>
       )}
 
-      {/* Header - Light Background */}
-      <header className="bg-white px-10 py-4 flex items-center max-[768px]:px-4 max-[768px]:py-3">
+      {/* Header - Dark Background */}
+      <header className="bg-[#101b30] px-10 py-4 flex items-center max-[768px]:px-4 max-[768px]:py-3">
         <div className="flex items-center gap-3 cursor-pointer" onClick={() => {
           if (showResults) {
             window.history.pushState({ page: 'home' }, '', '/');
             setShowResults(false);
           }
         }}>
-          <img src="/logo.png" alt="SmartCD.ai Logo" className="h-12 w-auto max-[768px]:h-10" />
+          <img src="/New%20logo.png" alt="SmartCD.ai Logo" className="h-12 w-auto max-[768px]:h-10" />
         </div>
       </header>
 
@@ -1517,12 +1526,12 @@ export default function App() {
       </main>
 
       {/* Footer */}
-      <footer className={`mt-auto flex w-full flex-col items-center justify-center gap-2 ${showResults ? 'bg-[radial-gradient(circle,#243C6B_0%,#1E2941_100%)] px-5 py-10 max-[768px]:px-[14px] max-[768px]:py-[22px]' : 'border-t border-[#E5E7EB] bg-white px-16 pt-8 pb-6 max-[768px]:px-[14px] max-[768px]:pt-[22px] max-[768px]:pb-[22px]'}`}>
-        <div className={`text-[0.8rem] font-medium ${showResults ? 'text-[rgba(255,255,255,0.8)]' : 'text-[#717182]'}`}>Last updated: January 2026</div>
-        <div className={`mb-2 text-[0.85rem] font-semibold ${showResults ? 'text-[rgba(255,255,255,0.8)]' : 'text-[#717182]'}`}>
+      <footer className={`mt-auto flex w-full flex-col items-center justify-center gap-2 ${showResults ? 'bg-[#1E2941] px-5 py-10 max-[768px]:px-[14px] max-[768px]:py-[22px]' : 'border-t border-[#E5E7EB] bg-[#1E2941] px-16 pt-8 pb-6 max-[768px]:px-[14px] max-[768px]:pt-[22px] max-[768px]:pb-[22px]'}`}>
+        <div className="text-[0.8rem] font-medium text-[rgba(255,255,255,0.52)]">Last updated: March 2026</div>
+        <div className="mb-2 text-[0.85rem] font-semibold text-[rgba(255,255,255,0.85)]">
           © 2026 SmartCD.ai - All Rights Reserved
         </div>
-        <div className={`max-w-[1000px] text-center text-[0.75rem] font-medium leading-[1.5] ${showResults ? 'text-[rgba(255,255,255,0.8)]' : 'text-[#717182] opacity-80'}`}>
+        <div className="max-w-[1000px] text-center text-[0.75rem] font-medium leading-[1.5] text-[rgba(255,255,255,0.55)]">
           SmartCD.AI is an AI-powered aggregator of publicly available information. Annual Percentage Yields (APY) are subject to change without notice. Minimum deposit requirements and regional availability may apply. This tool provides information for educational purposes only and does not constitute investment, financial, tax, or legal advice. Always verify rates directly with the financial institution before making investment decisions.
         </div>
       </footer>
