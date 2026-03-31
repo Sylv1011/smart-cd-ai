@@ -1454,8 +1454,26 @@ export default function App() {
                 <h2 className="m-0 text-base font-medium text-[#6B7280] max-[768px]:text-[0.9rem] max-[768px]:leading-[1.4]">Compare all CDs with the best after-tax yields for your situation</h2>
               </div>
               <div className="grid overflow-hidden rounded-[8px] bg-[#0F172A] max-[768px]:w-full max-[768px]:grid-cols-2 md:flex">
-                <button className={`theme-keep-white cursor-pointer border-none px-4 py-2 text-[0.85rem] font-semibold transition-all max-[768px]:min-h-11 max-[768px]:py-3 ${viewMode === 'combined' ? 'bg-[#1557F5] text-white' : 'bg-transparent text-[#9CA3AF]'}`} onClick={() => setViewMode('combined')}>Combined View</button>
-                <button className={`theme-keep-white cursor-pointer border-none px-4 py-2 text-[0.85rem] font-semibold transition-all max-[768px]:min-h-11 max-[768px]:py-3 ${viewMode === 'grouped' ? 'bg-[#1557F5] text-white' : 'bg-transparent text-[#9CA3AF]'}`} onClick={() => setViewMode('grouped')}>Group By Type</button>
+                <button
+                  className={`theme-keep-white cursor-pointer border-none px-4 py-2 text-[0.85rem] font-semibold transition-all max-[768px]:min-h-11 max-[768px]:py-3 ${
+                    viewMode === 'combined'
+                      ? (theme === 'light' ? 'bg-[#1557F5] text-white' : 'bg-[#22C55E] text-white')
+                      : 'bg-transparent text-[#9CA3AF]'
+                  }`}
+                  onClick={() => setViewMode('combined')}
+                >
+                  Combined View
+                </button>
+                <button
+                  className={`theme-keep-white cursor-pointer border-none px-4 py-2 text-[0.85rem] font-semibold transition-all max-[768px]:min-h-11 max-[768px]:py-3 ${
+                    viewMode === 'grouped'
+                      ? (theme === 'light' ? 'bg-[#1557F5] text-white' : 'bg-[#22C55E] text-white')
+                      : 'bg-transparent text-[#9CA3AF]'
+                  }`}
+                  onClick={() => setViewMode('grouped')}
+                >
+                  Group By Type
+                </button>
               </div>
             </div>
 
