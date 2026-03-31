@@ -1,0 +1,63 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+
+# Python build artifacts
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+.env*
+!.env.example
+!.env.*.example
+
+# Node
+node_modules/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Logs
+*.log
+
+# Testing
+coverage/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Supabase local configs
+.supabase/
+
+# Temporary files
+*.tmp
+*.temp
+
+# Render / deployment artifacts
+.render/
+
+# Misc
+*.sqlite3
+*.db
+*.db-shm
+*.db-wal
+
+# Legacy pre-monorepo folders
+smartcd-backend/
+smartcd-frontend/
