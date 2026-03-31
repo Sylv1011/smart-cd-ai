@@ -344,10 +344,30 @@ export default function App() {
   useEffect(() => {
     if (!showPrivacy) return;
 
-    const previousOverflow = document.body.style.overflow;
+    const scrollY = window.scrollY || 0;
+    const previous = {
+      overflow: document.body.style.overflow,
+      position: document.body.style.position,
+      top: document.body.style.top,
+      left: document.body.style.left,
+      right: document.body.style.right,
+      width: document.body.style.width,
+    };
+
     document.body.style.overflow = 'hidden';
+    document.body.style.position = 'fixed';
+    document.body.style.top = `-${scrollY}px`;
+    document.body.style.left = '0';
+    document.body.style.right = '0';
+    document.body.style.width = '100%';
     return () => {
-      document.body.style.overflow = previousOverflow;
+      document.body.style.overflow = previous.overflow;
+      document.body.style.position = previous.position;
+      document.body.style.top = previous.top;
+      document.body.style.left = previous.left;
+      document.body.style.right = previous.right;
+      document.body.style.width = previous.width;
+      window.scrollTo(0, scrollY);
     };
   }, [showPrivacy]);
 
@@ -1100,10 +1120,10 @@ export default function App() {
         </div>
       )}
       {showPrivacy && (
-        <div className="fixed inset-0 z-[2000] flex h-screen w-screen flex-col overflow-hidden bg-white text-[#374151]">
+        <div className="fixed inset-0 z-[2000] flex h-screen w-screen flex-col overflow-hidden overscroll-none bg-white text-[#374151]">
           <div className="relative flex h-full flex-col bg-white">
 
-            <div className="flex flex-1 flex-col overflow-y-auto max-[768px]:w-full max-[768px]:overflow-x-hidden">
+            <div className="flex flex-1 flex-col overflow-y-auto overscroll-contain max-[768px]:w-full max-[768px]:overflow-x-hidden">
               <div className="mx-auto max-w-[900px] flex-1 bg-white px-6 py-10 max-[768px]:px-4 max-[768px]:py-6">
                 {/* Logo Section */}
                 <div className="mb-8 flex flex-col items-start">
