@@ -1367,7 +1367,7 @@ export default function App() {
                         onChange={handleChange}
                         onBlur={handleFieldBlur}
                         options={usStates}
-                        placeholder="Select or type State"
+                        placeholder="Select State"
                         hasError={Boolean(stateSelectionError)}
                       />
                       {stateSelectionError && <p className="text-[0.75rem] font-medium text-[#FF5252]">{stateSelectionError}</p>}
