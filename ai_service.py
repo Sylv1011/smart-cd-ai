@@ -8,7 +8,7 @@ from typing import Any, Dict, Iterator, Tuple
 from dotenv import load_dotenv
 from openai import OpenAI
 
-from prompts import SYSTEM_PROMPT, WHY_THIS_FITS_TASK_PROMPT, CHAT_TASK_PREFIX
+from prompts import SYSTEM_PROMPT, WHY_THIS_FITS_TASK_PROMPT, CHAT_TASK_PREFIX, BROKERED_CD_GENERATION_PROMPT
 
 load_dotenv()
 
@@ -100,7 +100,7 @@ def _extract_json_array_or_object(text: str) -> Any:
     raise ValueError(f"Model did not return valid JSON. Raw output: {text[:500]}")
 
 
-def _call_llm(payload: Dict[str, Any]) -> str:
+def _call_llm(payload: Dict[str, Any], system_prompt: str = SYSTEM_PROMPT) -> str:
     user_payload = json.dumps(payload)
     approx_payload_chars = len(user_payload)
     start_time = time.perf_counter()
@@ -110,7 +110,7 @@ def _call_llm(payload: Dict[str, Any]) -> str:
     response = client.responses.create(
         model=MODEL_NAME,
         input=[
-            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_payload},
         ],
     )
@@ -223,7 +223,7 @@ def generate_brokered_cds_multi_term() -> Dict[str, Any]:
     Generate brokered CDs across multiple terms with guaranteed distribution.
     """
 
-    terms = [3, 6, 12, 24]
+    terms = [3, 6, 12, 24, 60]
     per_term = 4
 
     allowed_brokerages = [
@@ -244,31 +244,7 @@ def generate_brokered_cds_multi_term() -> Dict[str, Any]:
         "Bank of America",
     ]
 
-    prompt = f"""
-Generate brokered CD products.
-
-Return ONLY valid JSON.
-
-Requirements:
-- Generate EXACTLY {per_term} products for EACH term: 3, 6, 12, 24, 60 months
-- Total products = {per_term * len(terms)}
-- Do NOT skip any term
-- Do NOT mix counts
-
-Rules:
-- brokerage_firm must be one of: {", ".join(allowed_brokerages)}
-- issuing_bank must be one of: {", ".join(allowed_banks)}
-- fdic_insured must always be true
-- product_type must be brokered_cd
-- source_name must equal brokerage_firm
-- minimum_deposit must be: 500, 1000, 5000, or 10000
-- apy must be between 4.0 and 6.0
-
-Return format:
-{{
-  "products": [ ... ]
-}}
-"""
+    prompt = BROKERED_CD_GENERATION_PROMPT
 
     payload = {
         "task": "generate_brokered_cds",
@@ -276,7 +252,7 @@ Return format:
     }
 
     start_time = time.perf_counter()
-    raw = _call_llm(payload)
+    raw = _call_llm(payload, system_prompt=BROKERED_CD_GENERATION_PROMPT)
     parsed = _extract_json_array_or_object(raw)
 
     products = parsed if isinstance(parsed, list) else parsed.get("products", [])
@@ -294,12 +270,29 @@ Return format:
             if term not in grouped:
                 continue
 
-            if (
-                p.get("brokerage_firm") in allowed_brokerages
-                and p.get("issuing_bank") in allowed_banks
-                and p.get("fdic_insured") is True
-            ):
-                grouped[term].append(p)
+            brokerage = p.get("brokerage_firm")
+            bank = p.get("issuing_bank")
+            fdic_insured = p.get("fdic_insured") is True
+            apy = float(p.get("apy", 0))
+            minimum_deposit = int(p.get("minimum_deposit", 0))
+
+            if brokerage not in allowed_brokerages:
+                continue
+            if bank not in allowed_banks:
+                continue
+            if not fdic_insured:
+                continue
+            if minimum_deposit not in {500, 1000, 5000, 10000}:
+                continue
+
+            if term in {3, 6} and not (3.0 <= apy <= 5.2):
+                continue
+            if term == 12 and not (3.2 <= apy <= 5.4):
+                continue
+            if term in {24, 60} and not (3.0 <= apy <= 5.6):
+                continue
+
+            grouped[term].append(p)
 
         except:
             continue

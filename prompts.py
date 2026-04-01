@@ -45,54 +45,72 @@ Response:
 BROKERED_CD_GENERATION_PROMPT = """
 Generate brokered CD products.
 
-Return ONLY a valid JSON array. No text before or after.
+Return ONLY valid JSON. No markdown. No explanation.
+Return a JSON object with a single key: "products".
 
-Rules:
+Requirements:
 - Generate EXACTLY 20 total products
-- Ensure products are evenly distributed across the required terms (no term should have more or less than 4 products)
-- Allowed terms: 3, 6, 12, 24, 60 months
-- Allowed brokerages only (must match EXACTLY):
-  Fidelity
-  Schwab
-  Vanguard
-  Morgan Stanley
-  E*Trade
+- Generate EXACTLY 4 products for EACH of these terms:
+  3, 6, 12, 24, 60 months
+- Do NOT skip any term
+- Do NOT generate extra terms
+- Ensure even distribution (4 per term)
 
-- Issuing banks must be real major US banks:
-  Goldman Sachs, JPMorgan Chase, Wells Fargo, Citi, Barclays, Capital One, Bank of America
+Allowed brokerages (must match EXACTLY):
+- Fidelity
+- Schwab
+- Vanguard
+- Morgan Stanley
+- E*Trade
 
-- APY must be realistic:
-  - 3–6 month: 3.0–5.2
-  - 12 month: 3.2–5.4
-  - 24–60 month: 3.0–5.6
+Allowed issuing banks:
+- Goldman Sachs
+- JPMorgan Chase
+- Wells Fargo
+- Citi
+- Barclays
+- Capital One
+- Bank of America
 
-- minimum_deposit:
-  500, 1000, 5000, or 10000
+APY rules:
+- 3–6 month: 3.0–5.2
+- 12 month: 3.2–5.4
+- 24–60 month: 3.0–5.6
 
-- fdic_insured must always be true
-- source_name must EXACTLY match brokerage_firm
-- retrieved_at must be today's date in YYYY-MM-DD format
+Minimum deposit:
+- 500
+- 1000
+- 5000
+- 10000
 
-- Do NOT hallucinate unknown institutions
-- Do NOT skip required fields
-- Do NOT duplicate identical products (each product must be unique by combination of brokerage_firm + issuing_bank + term_months)
+Other rules:
+- product_type = "brokered_cd"
+- institution_name = null
+- fdic_insured = true
+- source_name must match brokerage_firm
+- source_url = null
+- destination_url = null
+- retrieved_at = today's date (YYYY-MM-DD)
+- No duplicates
+- Each product must be unique (brokerage + bank + term)
 
 Schema:
-[
-  {
-    "product_type": "brokered_cd",
-    "institution_name": null,
-    // These will be populated downstream if missing
-    "source_url": null,
-    "destination_url": null,
-    "brokerage_firm": "string",
-    "issuing_bank": "string",
-    "term_months": number,
-    "apy": number,
-    "minimum_deposit": number,
-    "fdic_insured": true,
-    "source_name": "string",
-    "retrieved_at": "YYYY-MM-DD"
-  }
-]
+{
+  "products": [
+    {
+      "product_type": "brokered_cd",
+      "institution_name": null,
+      "brokerage_firm": "Fidelity",
+      "issuing_bank": "Barclays",
+      "term_months": 60,
+      "apy": 4.85,
+      "minimum_deposit": 1000,
+      "fdic_insured": true,
+      "source_name": "Fidelity",
+      "source_url": null,
+      "destination_url": null,
+      "retrieved_at": "YYYY-MM-DD"
+    }
+  ]
+}
 """
