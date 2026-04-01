@@ -1,4 +1,8 @@
 #!/usr/bin/env bash
+mkdir -p data/raw
+mkdir -p data/clean
+mkdir -p data/rejects
+
 set -e
 
 echo "Clearing file contents..."
