@@ -6,6 +6,7 @@ from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
+import ai_service
 from ai_service import explain_why_this_fits, stream_chat_about_results
 
 app = FastAPI(title="SmartCD AI Layer", version="1.0.0")
@@ -49,13 +50,29 @@ class WhyThisFitsResponse(BaseModel):
     why_this_fits: str = Field(..., description="Short user-facing explanation")
 
 
+class GenerateBrokeredCDsRequest(BaseModel):
+    trigger: Optional[str] = Field(default=None, description="Optional trigger field for manual generation")
+
+
+class GenerateBrokeredCDsResponse(BaseModel):
+    products: list[Dict[str, Any]] = Field(..., description="Generated brokered CD products")
+
+
 @app.get("/health")
 def health() -> Dict[str, str]:
     return {"status": "ok"}
 
 @app.get("/")
 def root():
-    return {"message": "SmartCD AI Layer is running"}
+    return {
+        "message": "SmartCD AI Layer is running",
+        "endpoints": {
+            "health": "/health",
+            "explain_why_this_fits": "/explain-why-this-fits",
+            "generate_brokered_cds": "/generate-brokered-cds (generates 16 brokered CDs across 3, 6, 12, 24 month terms)",
+            "chat_stream": "/chat/stream",
+        },
+    }
 
 
 @app.post("/explain-why-this-fits", response_model=WhyThisFitsResponse)
@@ -65,6 +82,22 @@ def explain_why_this_fits_endpoint(req: WhyThisFitsRequest) -> WhyThisFitsRespon
         return WhyThisFitsResponse(why_this_fits=result.get("why_this_fits", ""))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Why this fits failed: {str(e)}")
+
+
+@app.post("/generate-brokered-cds", response_model=GenerateBrokeredCDsResponse)
+def generate_brokered_cds_endpoint(req: GenerateBrokeredCDsRequest) -> GenerateBrokeredCDsResponse:
+    try:
+        generator = getattr(ai_service, "generate_brokered_cds", None)
+        if generator is None:
+            generator = getattr(ai_service, "generate_brokered_cds_multi_term", None)
+
+        if generator is None:
+            raise RuntimeError("No brokered CD generator found in ai_service")
+
+        result = generator()
+        return GenerateBrokeredCDsResponse(products=result.get("products", []))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Brokered CD generation failed: {str(e)}")
 
 @app.post("/chat/stream")
 def stream_chat(req: ChatRequest):

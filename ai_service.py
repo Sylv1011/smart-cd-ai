@@ -61,6 +61,45 @@ def _extract_json_object(text: str) -> Dict[str, Any]:
     return json.loads(match.group(0))
 
 
+def _extract_json_array_or_object(text: str) -> Any:
+    text = (text or "").strip()
+
+    # remove fenced code blocks if present
+    if text.startswith("```"):
+        lines = text.splitlines()
+        if lines and lines[0].startswith("```"):
+            lines = lines[1:]
+        if lines and lines[-1].startswith("```"):
+            lines = lines[:-1]
+        text = "\n".join(lines).strip()
+
+    # try direct parse
+    try:
+        return json.loads(text)
+    except Exception:
+        pass
+
+    # try object slice
+    try:
+        start = text.find("{")
+        end = text.rfind("}")
+        if start != -1 and end != -1 and end > start:
+            return json.loads(text[start:end + 1])
+    except Exception:
+        pass
+
+    # try array slice
+    try:
+        start = text.find("[")
+        end = text.rfind("]")
+        if start != -1 and end != -1 and end > start:
+            return json.loads(text[start:end + 1])
+    except Exception:
+        pass
+
+    raise ValueError(f"Model did not return valid JSON. Raw output: {text[:500]}")
+
+
 def _call_llm(payload: Dict[str, Any]) -> str:
     user_payload = json.dumps(payload)
     approx_payload_chars = len(user_payload)
@@ -177,3 +216,125 @@ def stream_chat_about_results(question: str, ranking_response: Dict[str, Any]) -
         yield chunk
 
     logger.info("Streaming chat pipeline completed | question=%r | duration_sec=%.2f", question, time.perf_counter() - start_time)
+
+
+def generate_brokered_cds_multi_term() -> Dict[str, Any]:
+    """
+    Generate brokered CDs across multiple terms with guaranteed distribution.
+    """
+
+    terms = [3, 6, 12, 24]
+    per_term = 4
+
+    allowed_brokerages = [
+        "Fidelity",
+        "Schwab",
+        "Vanguard",
+        "Morgan Stanley",
+        "E*Trade",
+    ]
+
+    allowed_banks = [
+        "Goldman Sachs",
+        "JPMorgan Chase",
+        "Wells Fargo",
+        "Citi",
+        "Barclays",
+        "Capital One",
+        "Bank of America",
+    ]
+
+    prompt = f"""
+Generate brokered CD products.
+
+Return ONLY valid JSON.
+
+Requirements:
+- Generate EXACTLY {per_term} products for EACH term: 3, 6, 12, 24, 60 months
+- Total products = {per_term * len(terms)}
+- Do NOT skip any term
+- Do NOT mix counts
+
+Rules:
+- brokerage_firm must be one of: {", ".join(allowed_brokerages)}
+- issuing_bank must be one of: {", ".join(allowed_banks)}
+- fdic_insured must always be true
+- product_type must be brokered_cd
+- source_name must equal brokerage_firm
+- minimum_deposit must be: 500, 1000, 5000, or 10000
+- apy must be between 4.0 and 6.0
+
+Return format:
+{{
+  "products": [ ... ]
+}}
+"""
+
+    payload = {
+        "task": "generate_brokered_cds",
+        "prompt": prompt,
+    }
+
+    start_time = time.perf_counter()
+    raw = _call_llm(payload)
+    parsed = _extract_json_array_or_object(raw)
+
+    products = parsed if isinstance(parsed, list) else parsed.get("products", [])
+
+    if not isinstance(products, list):
+        raise ValueError("Invalid brokered CD response format")
+
+    # ---------------- VALIDATION + ENFORCEMENT ----------------
+    grouped = {3: [], 6: [], 12: [], 24: [], 60: []}
+
+    for p in products:
+        try:
+            term = int(p.get("term_months"))
+
+            if term not in grouped:
+                continue
+
+            if (
+                p.get("brokerage_firm") in allowed_brokerages
+                and p.get("issuing_bank") in allowed_banks
+                and p.get("fdic_insured") is True
+            ):
+                grouped[term].append(p)
+
+        except:
+            continue
+
+    #  HARD ENFORCEMENT (this is key)
+    final_products = []
+
+    for term in terms:
+        grouped[term].sort(key=lambda x: float(x.get("apy", 0)), reverse=True)
+        valid = grouped[term][:per_term]
+
+        if len(valid) < per_term:
+            raise ValueError(f"Not enough valid products for term {term}")
+
+        for p in valid:
+            normalized = {
+                "product_type": "brokered_cd",
+                "institution_name": None,
+                "brokerage_firm": p["brokerage_firm"],
+                "issuing_bank": p["issuing_bank"],
+                "term_months": term,
+                "apy": round(float(p["apy"]), 2),
+                "minimum_deposit": int(p["minimum_deposit"]),
+                "fdic_insured": True,
+                "source_name": p["brokerage_firm"],
+                "source_url": None,
+                "destination_url": None,
+                "retrieved_at": time.strftime("%Y-%m-%d"),
+            }
+            final_products.append(normalized)
+
+    logger.info(
+        "Brokered CD multi-term generation completed | total=%s | duration_sec=%.2f",
+        len(final_products),
+        time.perf_counter() - start_time,
+    )
+
+    return {"products": final_products}

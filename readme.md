@@ -13,8 +13,8 @@ This AI layer only explains ranking results and answers user questions using the
 
 The AI layer provides two main capabilities:
 
-1. Top product explanations
-   It generates "Why this Fits" explanations for the top-ranked products returned by the ranking engine.
+1. Product-level explanations
+   Generates a short "Why this fits" explanation for a selected product.
 
 2. Chatbot responses
    It answers user questions about ranked products using the ranking response as context.
@@ -37,7 +37,7 @@ Ranking Engine
 ↓
 ranking_response
 ↓
-POST /explain-top-3 or /chat
+POST /explain-why-this-fits or /chat/stream
 ↓
 SmartCD AI Layer
 ↓
@@ -107,40 +107,35 @@ Example response:{
   "status": "ok"
 }
 
-POST /explain-top-3
+POST /explain-why-this-fits
 
-Generates structured “Why this Fits” explanations for the top-ranked products.
+Generates a short "Why this fits" explanation for a selected product.
 
 Request body:
 {
-  "ranking_response": {
-    "overall_top": []
-  }
+  "product_type": "bank_cd",
+  "institution_name": "Ally Bank",
+  "term_months": 12,
+  "apy_nominal": 4.5,
+  "after_tax_apy": 3.2,
+  "minimum_deposit": 0,
+  "after_tax_interest_usd": 1600,
+  "fdic_insured": true,
+  "rank_overall": 1
 }
 
 Response example:
 {
-  "products": [
-    {
-      "rank_overall": 1,
-      "title": "E*TRADE 12-Month CD",
-      "why_this_fits": "This CD ranks first because it delivers the strongest after-tax return in the current results.",
-      "highlights": [
-        "Top after-tax return",
-        "FDIC insured",
-        "No minimum deposit"
-      ]
-    }
-  ]
+  "why_this_fits": "Highest after-tax APY at 3.2% for this term."
 }
 
-POST /chat
+POST /chat/stream
 
-Answers a user question using the full ranking response as context.
+Streams a chatbot response using the ranking response as context.
 
 Request body:
 {
-  "question": "Why is E*TRADE ranked first?",
+  "question": "Why is Ally Bank ranked first?",
   "ranking_response": {
     "bank_cds": [],
     "brokered_cds": [],
@@ -149,10 +144,8 @@ Request body:
   }
 }
 
-Response example:
-{
-  "response": "E*TRADE is ranked first because it delivers the highest after-tax return among the products in the current results."
-}
+Response:
+Plain text streamed progressively (chunked response).
 
 Prompt design
 

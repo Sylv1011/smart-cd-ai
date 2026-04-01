@@ -41,3 +41,58 @@ Response:
 - Usually 2 to 3 sentences, up to 5 only if necessary.
 - Keep sentences short and mention only the most relevant values.
 """
+
+BROKERED_CD_GENERATION_PROMPT = """
+Generate brokered CD products.
+
+Return ONLY a valid JSON array. No text before or after.
+
+Rules:
+- Generate EXACTLY 20 total products
+- Ensure products are evenly distributed across the required terms (no term should have more or less than 4 products)
+- Allowed terms: 3, 6, 12, 24, 60 months
+- Allowed brokerages only (must match EXACTLY):
+  Fidelity
+  Schwab
+  Vanguard
+  Morgan Stanley
+  E*Trade
+
+- Issuing banks must be real major US banks:
+  Goldman Sachs, JPMorgan Chase, Wells Fargo, Citi, Barclays, Capital One, Bank of America
+
+- APY must be realistic:
+  - 3–6 month: 3.0–5.2
+  - 12 month: 3.2–5.4
+  - 24–60 month: 3.0–5.6
+
+- minimum_deposit:
+  500, 1000, 5000, or 10000
+
+- fdic_insured must always be true
+- source_name must EXACTLY match brokerage_firm
+- retrieved_at must be today's date in YYYY-MM-DD format
+
+- Do NOT hallucinate unknown institutions
+- Do NOT skip required fields
+- Do NOT duplicate identical products (each product must be unique by combination of brokerage_firm + issuing_bank + term_months)
+
+Schema:
+[
+  {
+    "product_type": "brokered_cd",
+    "institution_name": null,
+    // These will be populated downstream if missing
+    "source_url": null,
+    "destination_url": null,
+    "brokerage_firm": "string",
+    "issuing_bank": "string",
+    "term_months": number,
+    "apy": number,
+    "minimum_deposit": number,
+    "fdic_insured": true,
+    "source_name": "string",
+    "retrieved_at": "YYYY-MM-DD"
+  }
+]
+"""
