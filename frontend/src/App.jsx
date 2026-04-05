@@ -610,11 +610,24 @@ export default function App() {
     return getFieldError(fieldName);
   };
 
-  const persistLastSearch = (nextFormData) => {
+  const persistLastSearch = (nextFormData, options = {}) => {
     try {
+      let existing = null;
+      try {
+        existing = JSON.parse(window.localStorage.getItem(LAST_SEARCH_STORAGE_KEY) || 'null');
+      } catch {
+        existing = null;
+      }
+
+      const existingTermsAgreed = Boolean(existing?.termsAgreed);
+      const nextTermsAgreed =
+        typeof options.termsAgreed === 'boolean'
+          ? options.termsAgreed
+          : Boolean(termsAgreed || existingTermsAgreed);
+
       const payload = {
         formData: nextFormData,
-        termsAgreed: Boolean(termsAgreed),
+        termsAgreed: nextTermsAgreed,
         savedAt: Date.now(),
       };
       window.localStorage.setItem(LAST_SEARCH_STORAGE_KEY, JSON.stringify(payload));
@@ -624,11 +637,11 @@ export default function App() {
   };
 
   const fetchRankResults = async (nextFormData, options = {}) => {
-    const { navigateToResults = false, scrollToTop = false } = options;
+    const { navigateToResults = false, scrollToTop = false, persistTermsAgreed } = options;
     const amt = parseFloat(nextFormData.investment_amount);
     const requestId = ++latestRequestIdRef.current;
 
-    persistLastSearch(nextFormData);
+    persistLastSearch(nextFormData, { termsAgreed: persistTermsAgreed });
     setLoading(true);
     setError(null);
 
@@ -786,7 +799,7 @@ export default function App() {
     didRestoreRef.current = true;
 
     if (canAutoRefreshRank(normalized)) {
-      fetchRankResults(normalized, { navigateToResults: false, scrollToTop: true });
+      fetchRankResults(normalized, { navigateToResults: false, scrollToTop: true, persistTermsAgreed: true });
     } else {
       setError('Please review your inputs to refresh results.');
     }
