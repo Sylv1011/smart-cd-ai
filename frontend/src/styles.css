@@ -15,6 +15,7 @@
   --primary-blue: #1D8DEE;
   /* Bright light blue */
   --accent-green: #00E676;
+  --ai-chat-overlay-bg: rgba(0, 0, 0, 0.55);
 }
 
 :root.theme-light {
@@ -23,6 +24,7 @@
   --text-main: #0F172A;
   --primary-blue: #1557F5;
   --accent-green: #16A34A;
+  --ai-chat-overlay-bg: rgba(15, 23, 42, 0.22);
   color-scheme: light;
 }
 
