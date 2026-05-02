@@ -762,6 +762,13 @@ export default function App() {
     if (didRestoreRef.current) return;
     if (rankResponse) return;
 
+    const redirectToSearch = (message) => {
+      window.history.replaceState({ page: 'home' }, '', '/?error=missing_inputs');
+      setShowResults(false);
+      setError(message || 'No results available. Please enter your criteria first.');
+      didRestoreRef.current = true;
+    };
+
     let saved = null;
     try {
       saved = JSON.parse(window.localStorage.getItem(LAST_SEARCH_STORAGE_KEY) || 'null');
@@ -771,7 +778,7 @@ export default function App() {
 
     const savedFormData = saved?.formData;
     if (!savedFormData || saved?.termsAgreed === false) {
-      didRestoreRef.current = true;
+      redirectToSearch('No results available. Please enter your criteria first.');
       return;
     }
 
@@ -801,7 +808,7 @@ export default function App() {
     if (canAutoRefreshRank(normalized)) {
       fetchRankResults(normalized, { navigateToResults: false, scrollToTop: true, persistTermsAgreed: true });
     } else {
-      setError('Please review your inputs to refresh results.');
+      redirectToSearch('No results available. Please enter your criteria first.');
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showResults, rankResponse]);
