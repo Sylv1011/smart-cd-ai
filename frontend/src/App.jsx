@@ -127,6 +127,80 @@ const MoonIcon = ({ className }) => (
   </svg>
 );
 
+// Map of normalized provider name -> public URL of bank logo asset.
+// Add an entry per provider variant the API may return (e.g. "Marcus", "Marcus by Goldman Sachs").
+// Filenames in /public/bank-logos/ may contain spaces, so we URL-encode them once here.
+const BANK_LOGO_MAP = {
+  'bank of america': '/bank-logos/BoA.svg',
+  'bank of america corporation': '/bank-logos/BoA.svg',
+  'bofa': '/bank-logos/BoA.svg',
+  'boa': '/bank-logos/BoA.svg',
+
+  'chase': '/bank-logos/Chase.svg',
+  'chase bank': '/bank-logos/Chase.svg',
+  'jpmorgan': '/bank-logos/Chase.svg',
+  'jpmorgan chase': '/bank-logos/Chase.svg',
+  'jpmorgan chase bank': '/bank-logos/Chase.svg',
+  'jp morgan chase': '/bank-logos/Chase.svg',
+  'jp morgan': '/bank-logos/Chase.svg',
+
+  'citi': '/bank-logos/CitiBank.svg',
+  'citi bank': '/bank-logos/CitiBank.svg',
+  'citibank': '/bank-logos/CitiBank.svg',
+  'citigroup': '/bank-logos/CitiBank.svg',
+
+  'goldman sachs': '/bank-logos/GoldmanSachs.svg',
+  'goldman sachs bank usa': '/bank-logos/GoldmanSachs.svg',
+  'marcus': '/bank-logos/GoldmanSachs.svg',
+  'marcus by goldman sachs': '/bank-logos/GoldmanSachs.svg',
+
+  'wells fargo': '/bank-logos/WellsFargo.svg',
+  'wells fargo bank': '/bank-logos/WellsFargo.svg',
+  'wells fargo & company': '/bank-logos/WellsFargo.svg',
+};
+
+const normalizeProviderForLogo = (s) =>
+  String(s || '')
+    .toLowerCase()
+    .replace(/[.,'"`]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+const getBankLogoUrl = (result) => {
+  // All Treasury products share a single icon regardless of "provider" string.
+  if (result?.productType === 'Treasuries') return '/bank-logos/Treasury.svg';
+  const key = normalizeProviderForLogo(result?.provider);
+  if (!key) return null;
+  if (BANK_LOGO_MAP[key]) return BANK_LOGO_MAP[key];
+  // Fall back to a substring match so e.g. "Goldman Sachs Bank USA, N.A." still matches "goldman sachs".
+  for (const [k, url] of Object.entries(BANK_LOGO_MAP)) {
+    if (key.includes(k)) return url;
+  }
+  return null;
+};
+
+const BankBadge = ({ result }) => {
+  const logoUrl = getBankLogoUrl(result);
+  const [failed, setFailed] = useState(false);
+  const showLogo = Boolean(logoUrl) && !failed;
+  return (
+    <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-[10px] bg-white max-[480px]:h-8 max-[480px]:w-8">
+      {showLogo ? (
+        <img
+          src={logoUrl}
+          alt={`${result.provider} logo`}
+          className="h-full w-full object-contain p-1"
+          onError={() => setFailed(true)}
+        />
+      ) : (
+        <span className="text-[0.9rem] font-bold text-[#1D4ED8] max-[480px]:text-[0.72rem]">
+          {String(result?.provider || '').substring(0, 2).toUpperCase()}
+        </span>
+      )}
+    </div>
+  );
+};
+
 const STATES_WITH_LOCAL_TAX = ['New York', 'Maryland', 'Indiana', 'Michigan'];
 
 const normalizeFilingStatusForRanker = (value) => {
@@ -948,7 +1022,7 @@ export default function App() {
           <div className="flex items-center max-[768px]:order-1 max-[768px]:flex-col max-[768px]:items-start max-[768px]:gap-2 max-[768px]:border-b max-[768px]:border-[#1E293B] max-[768px]:pb-3">
             {result.isTopPick && <span className="theme-keep-white inline-flex shrink-0 rounded-full bg-[linear-gradient(180deg,#22C55E_0%,#16A34A_100%)] px-3 py-1 text-[0.64rem] font-extrabold uppercase tracking-[0.04em] text-white md:hidden">★ TOP PICK</span>}
             <div className="flex w-full min-w-0 items-center gap-3 md:pr-3">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] bg-white text-[0.9rem] font-bold text-[#1D4ED8] max-[480px]:h-8 max-[480px]:w-8 max-[480px]:text-[0.72rem]">{result.provider.substring(0, 2).toUpperCase()}</div>
+              <BankBadge result={result} />
               <div className="min-w-0">
                 <div className="mb-0.5 flex flex-wrap items-center gap-2">
                   <span className="break-words text-[1.02rem] font-bold tracking-[-0.01em] text-[#F8FAFC] max-[480px]:text-[0.95rem]">{result.provider}</span>
