@@ -7,6 +7,7 @@ import AIAssistant from './AIAssistant';
 import SearchableSelect from './components/SearchableSelect';
 import StrictSelect from './components/StrictSelect';
 import StateAutocomplete from './components/StateAutocomplete';
+import BankBadge from './components/BankBadge';
 
 const SparkleIcon = ({ className, style }) => (
   <svg className={className} style={style} width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -127,79 +128,6 @@ const MoonIcon = ({ className }) => (
   </svg>
 );
 
-// Map of normalized provider name -> public URL of bank logo asset.
-// Add an entry per provider variant the API may return (e.g. "Marcus", "Marcus by Goldman Sachs").
-// Filenames in /public/bank-logos/ may contain spaces, so we URL-encode them once here.
-const BANK_LOGO_MAP = {
-  'bank of america': '/bank-logos/BoA.svg',
-  'bank of america corporation': '/bank-logos/BoA.svg',
-  'bofa': '/bank-logos/BoA.svg',
-  'boa': '/bank-logos/BoA.svg',
-
-  'chase': '/bank-logos/Chase.svg',
-  'chase bank': '/bank-logos/Chase.svg',
-  'jpmorgan': '/bank-logos/Chase.svg',
-  'jpmorgan chase': '/bank-logos/Chase.svg',
-  'jpmorgan chase bank': '/bank-logos/Chase.svg',
-  'jp morgan chase': '/bank-logos/Chase.svg',
-  'jp morgan': '/bank-logos/Chase.svg',
-
-  'citi': '/bank-logos/CitiBank.svg',
-  'citi bank': '/bank-logos/CitiBank.svg',
-  'citibank': '/bank-logos/CitiBank.svg',
-  'citigroup': '/bank-logos/CitiBank.svg',
-
-  'goldman sachs': '/bank-logos/GoldmanSachs.svg',
-  'goldman sachs bank usa': '/bank-logos/GoldmanSachs.svg',
-  'marcus': '/bank-logos/GoldmanSachs.svg',
-  'marcus by goldman sachs': '/bank-logos/GoldmanSachs.svg',
-
-  'wells fargo': '/bank-logos/WellsFargo.svg',
-  'wells fargo bank': '/bank-logos/WellsFargo.svg',
-  'wells fargo & company': '/bank-logos/WellsFargo.svg',
-};
-
-const normalizeProviderForLogo = (s) =>
-  String(s || '')
-    .toLowerCase()
-    .replace(/[.,'"`]/g, '')
-    .replace(/\s+/g, ' ')
-    .trim();
-
-const getBankLogoUrl = (result) => {
-  // All Treasury products share a single icon regardless of "provider" string.
-  if (result?.productType === 'Treasuries') return '/bank-logos/Treasury.svg';
-  const key = normalizeProviderForLogo(result?.provider);
-  if (!key) return null;
-  if (BANK_LOGO_MAP[key]) return BANK_LOGO_MAP[key];
-  // Fall back to a substring match so e.g. "Goldman Sachs Bank USA, N.A." still matches "goldman sachs".
-  for (const [k, url] of Object.entries(BANK_LOGO_MAP)) {
-    if (key.includes(k)) return url;
-  }
-  return null;
-};
-
-const BankBadge = ({ result }) => {
-  const logoUrl = getBankLogoUrl(result);
-  const [failed, setFailed] = useState(false);
-  const showLogo = Boolean(logoUrl) && !failed;
-  return (
-    <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-[10px] bg-white max-[480px]:h-8 max-[480px]:w-8">
-      {showLogo ? (
-        <img
-          src={logoUrl}
-          alt={`${result.provider} logo`}
-          className="h-full w-full object-contain p-1"
-          onError={() => setFailed(true)}
-        />
-      ) : (
-        <span className="text-[0.9rem] font-bold text-[#1D4ED8] max-[480px]:text-[0.72rem]">
-          {String(result?.provider || '').substring(0, 2).toUpperCase()}
-        </span>
-      )}
-    </div>
-  );
-};
 
 const STATES_WITH_LOCAL_TAX = ['New York', 'Maryland', 'Indiana', 'Michigan'];
 
