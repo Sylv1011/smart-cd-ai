@@ -52,6 +52,9 @@ coverage/
 # Render / deployment artifacts
 .render/
 
+# Claude Code
+.claude/settings.local.json
+
 # Misc
 *.sqlite3
 *.db

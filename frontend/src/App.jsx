@@ -7,6 +7,7 @@ import AIAssistant from './AIAssistant';
 import SearchableSelect from './components/SearchableSelect';
 import StrictSelect from './components/StrictSelect';
 import StateAutocomplete from './components/StateAutocomplete';
+import BankBadge from './components/BankBadge';
 
 const SparkleIcon = ({ className, style }) => (
   <svg className={className} style={style} width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -126,6 +127,7 @@ const MoonIcon = ({ className }) => (
     <path d="M21 12.79A9 9 0 1 1 11.21 3a7 7 0 0 0 9.79 9.79z" />
   </svg>
 );
+
 
 const STATES_WITH_LOCAL_TAX = ['New York', 'Maryland', 'Indiana', 'Michigan'];
 
@@ -948,7 +950,7 @@ export default function App() {
           <div className="flex items-center max-[768px]:order-1 max-[768px]:flex-col max-[768px]:items-start max-[768px]:gap-2 max-[768px]:border-b max-[768px]:border-[#1E293B] max-[768px]:pb-3">
             {result.isTopPick && <span className="theme-keep-white inline-flex shrink-0 rounded-full bg-[linear-gradient(180deg,#22C55E_0%,#16A34A_100%)] px-3 py-1 text-[0.64rem] font-extrabold uppercase tracking-[0.04em] text-white md:hidden">★ TOP PICK</span>}
             <div className="flex w-full min-w-0 items-center gap-3 md:pr-3">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] bg-white text-[0.9rem] font-bold text-[#1D4ED8] max-[480px]:h-8 max-[480px]:w-8 max-[480px]:text-[0.72rem]">{result.provider.substring(0, 2).toUpperCase()}</div>
+              <BankBadge result={result} />
               <div className="min-w-0">
                 <div className="mb-0.5 flex flex-wrap items-center gap-2">
                   <span className="break-words text-[1.02rem] font-bold tracking-[-0.01em] text-[#F8FAFC] max-[480px]:text-[0.95rem]">{result.provider}</span>
