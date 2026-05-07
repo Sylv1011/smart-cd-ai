@@ -7,7 +7,7 @@ load_dotenv(dotenv_path=Path(__file__).resolve().parent / ".env", override=False
 
 import os
 import logging
-from typing import Optional, Any, Dict
+from typing import Optional, Any, Dict, Literal
 from functools import lru_cache
 
 from fastapi import FastAPI, HTTPException, Request
@@ -16,6 +16,7 @@ from pydantic import BaseModel, Field
 
 from data import DataClient, RankingInput, StaticDataClient
 from engine import rank_offers
+from strategies import simulate_barbell, simulate_ladder, simulate_bullet
 
 # ---------------- Logging ----------------
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
@@ -192,6 +193,18 @@ class RankResponse(BaseModel):
     overall_top: list[RankedOfferResponse]
 
 
+class StrategySimulateRequest(BaseModel):
+    strategy_type: Literal["barbell", "ladder", "bullet"]
+    investment_amount: float = Field(gt=0)
+    state: str = Field(min_length=2, max_length=32)
+    income_range: str
+    filing_status: str
+    local_area: Optional[str] = None
+    time_horizon: Optional[str] = None
+    liquidity_preference: Optional[Literal["low", "medium", "high"]] = None
+    rate_outlook: Optional[Literal["rising", "stable", "falling"]] = None
+
+
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
     logger.info("%s %s", request.method, request.url.path)
@@ -309,5 +322,52 @@ def rank(req: RankRequest) -> Dict[str, Any]:
     except Exception:
         logger.exception("Ranking failed")
         raise HTTPException(status_code=500, detail="Ranking engine failed")
-        logger.exception("Ranking failed")
-        raise HTTPException(status_code=500, detail="Ranking engine failed")
+
+
+@app.post("/strategies/simulate")
+def simulate_strategy(req: StrategySimulateRequest) -> Dict[str, Any]:
+    try:
+        normalized_state = normalize_state_to_code(req.state)
+        if normalized_state not in VALID_STATE_CODES:
+            raise HTTPException(status_code=422, detail="Invalid state provided")
+
+        normalized_local_area = (req.local_area or "").strip().lower() or None
+        if normalized_state not in LOCAL_TAX_STATES:
+            normalized_local_area = None
+
+        data_client = get_data_client()
+
+        strategy_type = req.strategy_type.lower()
+        if strategy_type == "barbell":
+            if req.liquidity_preference is None:
+                raise HTTPException(status_code=422, detail="liquidity_preference is required for barbell")
+
+            return simulate_barbell(
+                data_client=data_client,
+                investment_amount=req.investment_amount,
+                state=normalized_state,
+                income_range=req.income_range,
+                filing_status=req.filing_status.lower(),
+                local_area=normalized_local_area,
+                liquidity_preference=req.liquidity_preference,
+                rate_outlook=req.rate_outlook,
+                time_horizon=req.time_horizon,
+            )
+
+        if strategy_type == "ladder":
+            simulate_ladder()
+        if strategy_type == "bullet":
+            simulate_bullet()
+
+        raise HTTPException(status_code=400, detail="Invalid strategy_type")
+
+    except NotImplementedError as e:
+        raise HTTPException(status_code=501, detail=str(e))
+    except RuntimeError as e:
+        logger.exception("Server configuration error")
+        raise HTTPException(status_code=503, detail=str(e))
+    except HTTPException:
+        raise
+    except Exception:
+        logger.exception("Strategy simulation failed")
+        raise HTTPException(status_code=500, detail="Strategy simulation failed")
