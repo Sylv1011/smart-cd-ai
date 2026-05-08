@@ -1,0 +1,53 @@
+<svg version="1.2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1551 1723" width="1551" height="1723">
+	<title>FCNCA_BIG</title>
+	<defs>
+		<linearGradient id="g1" x2="1" gradientUnits="userSpaceOnUse" gradientTransform="matrix(1450.394,1450.394,-1450.394,1450.394,49.991,223.915)">
+			<stop offset="0" stop-color="#00203f"/>
+			<stop offset=".28" stop-color="#00498d"/>
+			<stop offset=".51" stop-color="#188fd0"/>
+			<stop offset=".73" stop-color="#00498d"/>
+			<stop offset="1" stop-color="#00203f"/>
+		</linearGradient>
+		<linearGradient id="g2" x2="1" gradientUnits="userSpaceOnUse" gradientTransform="matrix(1604.517,0,0,1775.765,-55.297,843.255)">
+			<stop offset="0" stop-color="#d0d1d3"/>
+			<stop offset=".23" stop-color="#f2f2f2"/>
+			<stop offset=".37" stop-color="#e4e4e5"/>
+			<stop offset=".43" stop-color="#e8e9e9"/>
+			<stop offset=".49" stop-color="#aeafb2"/>
+			<stop offset=".56" stop-color="#ffffff"/>
+			<stop offset=".62" stop-color="#e4e4e5"/>
+			<stop offset=".7" stop-color="#f2f2f2"/>
+			<stop offset=".77" stop-color="#fbfbfb"/>
+			<stop offset="1" stop-color="#d8d9da"/>
+		</linearGradient>
+		<linearGradient id="g3" x2="1" gradientUnits="userSpaceOnUse" gradientTransform="matrix(1419.329,0,0,1537.21,44.167,907.966)">
+			<stop offset="0" stop-color="#a6172a"/>
+			<stop offset=".18" stop-color="#e5273c"/>
+			<stop offset=".37" stop-color="#e5273c"/>
+			<stop offset=".43" stop-color="#e5273c"/>
+			<stop offset=".49" stop-color="#8e1023"/>
+			<stop offset=".56" stop-color="#ff3a4b"/>
+			<stop offset=".63" stop-color="#d52338"/>
+			<stop offset=".88" stop-color="#e5273c"/>
+			<stop offset=".98" stop-color="#d52338"/>
+			<stop offset="1" stop-color="#d52338"/>
+		</linearGradient>
+	</defs>
+	<style>
+		.s0 { fill: url(#g1) } 
+		.s1 { fill: #78a2ca } 
+		.s2 { fill: #4171a4 } 
+		.s3 { fill: url(#g2) } 
+		.s4 { fill: url(#g3) } 
+		.s5 { fill: #043b7f } 
+		.s6 { fill: #ffffff } 
+	</style>
+	<path fill-rule="evenodd" class="s0" d="m1500.6 224.5v1449.2h-1451v-1449.2z"/>
+	<path fill-rule="evenodd" class="s1" d="m1500.6 224.5h-1451l-49.2-49.6h1549.8m0 1548h-1549.8l49.2-49.2h1451z"/>
+	<path class="s2" d="m49.6 1673.7v-1449.2l-49.2-49.6v1548"/>
+	<path class="s3" d="m818.8 306c-79.8 28.7-126.1 74.4-147 123.9-6.5 15.5-11.8 34.5-12.6 59.3l-0.3 20.1v105.6c0 12.9-6.8 21.5-18.3 29.1-5.8 3.6-12.3 6.8-18.7 9.3l-17.3 6.5-555 216.9v797h367.1v-75.8l268.8-108.1 21.2-9c13.3-6.4 31.9-16.8 51-31.2 36.3-27.3 87.3-72.9 87.3-149.4v-131.8l705.2-291v-864.5z"/>
+	<path class="s4" d="m858.3 385c-73.7 28.4-99.9 59.3-99.9 117.1v121.8c0 81.5-116 115.6-116 115.6l-592.8 231.7v702.5h270.9v-140.4l326.5-131.5c0 0 98.8-34.5 98.8-114.5 0 0 0.4-72.6 1.5-121.8 1-44.9 25.8-77.9 79.7-99.9l636.6-256.8v-258.6l-616.1 245c-77.6 31.6-89.8 65-89.8 65v-116.4c0-10.4-4.3-52 105.6-96.9l600.3-240.3v-264.4zm-533.8 743.9c127.5-49.2 251.8-98.4 379-152.7 19.7-9.3 33-23.7 42-36.3v111.4c0.7 24.8-17.9 54.9-56.4 72.5-116 53.2-240.7 97-364.6 144.8z"/>
+	<path class="s2" d="m1500.6 897.6v776.1l49.2 49.2v-845.5"/>
+	<path class="s5" d="m1550.2 892.2v-14.8l-705.2 291v136.5c0 63.9-46 113.4-85.5 143.3-18.7 14.3-37 25.1-48.9 30.8l-293.9 118.9v75.5h13.7v-66.1l264.4-106.7 21.2-9.3c12.9-6.1 32.7-16.9 52.1-31.6 38.8-29.1 90.2-77.3 90.5-154.8l-0.3-127.6"/>
+	<path class="s6" d="m1549.8 0.4l-733.2 295.9c-75.4 27-127.5 71.1-151.3 127.5-7.9 19.1-12.2 39.2-12.9 61.8l-0.3 125.7c0 9.3-4.4 16.5-15.1 23.3-4.7 3.3-10.5 6.2-17.6 8.7l-569.8 222.7v14.7l557.5-218 17.3-6.9c7.9-2.8 14.4-6.4 20.1-10 14.4-9.4 21.2-20.1 21.2-34.5v-105.6l0.4-19.7c0.7-20.9 4.6-39.6 11.8-57.2 22.3-52.4 71.5-94.1 143.4-119.9l728.5-293.5"/>
+</svg>

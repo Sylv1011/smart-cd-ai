@@ -1,0 +1,88 @@
+<svg version="1.1" id="Layer_1" xmlns:x="ns_extend;" xmlns:i="ns_ai;" xmlns:graph="ns_graphs;" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px" viewBox="0 0 2252.8 373.9" style="enable-background:new 0 0 2252.8 373.9;" xml:space="preserve">
+ <style type="text/css">
+  .st0{fill:url(#Oval_2_);}
+	.st1{opacity:0.65;fill:url(#Oval_3_);enable-background:new    ;}
+ </style>
+ <metadata>
+  <sfw xmlns="ns_sfw;">
+   <slices>
+   </slices>
+   <sliceSourceBounds bottomLeftOrigin="true" height="373.9" width="2252.8" x="0" y="0">
+   </sliceSourceBounds>
+  </sfw>
+ </metadata>
+ <desc>
+  Created with Sketch.
+ </desc>
+ <g id="Page-1">
+  <g id="Artboard-Copy">
+   <g id="Discover-Card">
+    <path id="Shape" d="M101.7,8.3H0v353.2h100.3c53.6,0,92.1-12.4,126.5-41.2c39.9-33,64.6-83.8,64.6-136.1
+				C291.4,81.1,213.1,8.3,101.7,8.3L101.7,8.3z M181.5,273.6c-22,19.2-49.5,27.5-94.8,27.5H68.8V67.4h17.9c44,0,71.5,8.2,94.8,28.9
+				c24.7,22,38.5,55,38.5,88C219.9,218.6,206.2,252.9,181.5,273.6L181.5,273.6z">
+    </path>
+    <rect id="Rectangle-path" x="323" y="8.3" width="68.7" height="353.2">
+    </rect>
+    <path id="Shape_1_" d="M560.8,143c-41.2-15.1-53.6-24.7-53.6-44c0-22,22-38.5,50.9-38.5c20.6,0,37.1,8.2,56.4,28.9l35.7-48.1
+				C620,15.2,585.6,1.4,545.7,1.4c-63.2,0-110,44-110,101.7c0,49.5,22,74.2,86.6,97.6c27.5,9.6,41.2,16.5,48.1,20.6
+				c13.7,8.2,20.6,22,20.6,37.1c0,28.9-23.4,49.5-53.6,49.5c-33,0-59.1-16.5-75.6-46.7l-44,41.2c31.6,46.7,70.1,67.3,122.3,67.3
+				c71.5,0,122.3-48.1,122.3-116.8C662.5,198,639.2,171.9,560.8,143L560.8,143z">
+    </path>
+    <path id="Shape_2_" d="M684.5,185.6c0,104.5,81.1,184.2,186.9,184.2c30.2,0,55-5.5,86.6-20.6v-81.1
+				c-27.5,27.5-52.2,38.5-83.8,38.5c-70.1,0-118.2-50.9-118.2-122.3c0-67.3,50.9-121,115.5-121c33,0,57.7,11,86.6,39.9V22.1
+				c-30.2-15.1-55-22-85.2-22C768.4,0,684.5,82.5,684.5,185.6L684.5,185.6z">
+    </path>
+    <polygon id="Shape_3_" points="1516.1,246.1 1422.6,8.3 1347,8.3 1496.8,371.2 1534,371.2 1686.5,8.3 1612.3,8.3 			">
+    </polygon>
+    <polygon id="Shape_4_" points="1718.1,361.5 1913.3,361.5 1913.3,302.4 1786.9,302.4 1786.9,206.2 1909.2,206.2 1909.2,145.7 
+				1786.9,145.7 1786.9,67.4 1913.3,67.4 1913.3,8.3 1718.1,8.3 			">
+    </polygon>
+    <path id="Shape_5_" d="M2186.8,112.7c0-66-45.4-104.5-125.1-104.5h-103v353.2h68.7V220h9.6l94.8,141.6h85.2l-111.3-148.5
+				C2158,202.1,2186.8,166.4,2186.8,112.7L2186.8,112.7z M2048,170.5h-20.6V63.3h20.6c42.6,0,66,17.9,66,52.2
+				C2115.4,151.2,2092,170.5,2048,170.5L2048,170.5z">
+    </path>
+    <g id="Group" transform="translate(90.984375, 0.140625)">
+     <linearGradient id="Oval_2_" gradientUnits="userSpaceOnUse" x1="-93.3213" y1="-682.9014" x2="-97.0807" y2="-688.7875" gradientTransform="matrix(34.425 0 0 34.425 4392.4883 23845.5234)">
+      <stop offset="0" style="stop-color:#F9A020">
+      </stop>
+      <stop offset="0.2041" style="stop-color:#F99D20">
+      </stop>
+      <stop offset="0.4348" style="stop-color:#F79320">
+      </stop>
+      <stop offset="0.6196" style="stop-color:#F68820">
+      </stop>
+      <stop offset="0.7969" style="stop-color:#F57E20">
+      </stop>
+      <stop offset="1" style="stop-color:#F47521">
+      </stop>
+     </linearGradient>
+     <circle id="Oval" class="st0" cx="1084.2" cy="186.8" r="186.9">
+     </circle>
+     <radialGradient id="Oval_3_" cx="-147.6908" cy="-661.715" r="9.5611" gradientTransform="matrix(-16.0595 -30.4495 23.6175 -12.4562 14414.8877 -12417.1299)" gradientUnits="userSpaceOnUse">
+      <stop offset="0" style="stop-color:#FF932C">
+      </stop>
+      <stop offset="0.5677" style="stop-color:#E86D20">
+      </stop>
+      <stop offset="0.8604" style="stop-color:#E85718;stop-opacity:0.8653">
+      </stop>
+      <stop offset="1" style="stop-color:#640000">
+      </stop>
+     </radialGradient>
+     <path id="Oval_1_" class="st1" d="M1084.2,373.8c103.2,0,186.9-83.7,186.9-186.9s-83.6-187-186.9-187S897.3,83.6,897.3,186.8
+					S981,373.8,1084.2,373.8z">
+     </path>
+    </g>
+    <g id="Group_1_" transform="translate(201.234375, 0.140625)">
+     <path id="Shape_6_" d="M2033.7,23.3c0-6.9-4.1-9.6-12.4-9.6h-11v33h8.2V32.9l9.6,12.4h9.6l-11-13.7
+					C2031,31.5,2033.7,27.4,2033.7,23.3L2033.7,23.3z M2020,27.4L2020,27.4l-1.4-8.2h1.4c4.1,0,5.5,1.4,5.5,4.1
+					S2022.7,27.4,2020,27.4L2020,27.4z">
+     </path>
+     <path id="Shape_7_" d="M2022.7-0.1c-16.5,0-28.9,12.4-28.9,28.9s12.4,28.9,28.9,28.9c15.1,0,28.9-12.4,28.9-28.9
+					C2050.2,13.6,2037.8-0.1,2022.7-0.1L2022.7-0.1z M2022.7,52.1c-12.4,0-23.4-11-23.4-23.4c0-13.7,9.6-23.4,23.4-23.4
+					c12.4,0,22,11,22,23.4C2044.7,42.5,2035.1,52.1,2022.7,52.1L2022.7,52.1z">
+     </path>
+    </g>
+   </g>
+  </g>
+ </g>
+</svg>

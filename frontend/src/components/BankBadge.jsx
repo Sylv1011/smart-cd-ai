@@ -1,55 +1,219 @@
 import React, { useState } from 'react';
 
-// Map of normalized provider name -> public URL of bank logo asset.
-// Add an entry per provider variant the API may return (e.g. "Marcus", "Marcus by Goldman Sachs").
-// Filenames in /public/bank-logos/ may contain spaces — URL-encode paths here if needed (e.g. 'Goldman Sachs.svg' → 'Goldman%20Sachs.svg').
-const BANK_LOGO_MAP = {
-  'bank of america': '/bank-logos/BoA.wine.svg',
-  'bank of america corporation': '/bank-logos/BoA.wine.svg',
-  'bofa': '/bank-logos/BoA.wine.svg',
-  'boa': '/bank-logos/BoA.wine.svg',
+const nameToSlug = (name) =>
+  String(name || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '');
 
-  'chase': '/bank-logos/Chase.wine.svg',
-  'chase bank': '/bank-logos/Chase.wine.svg',
-  'jpmorgan': '/bank-logos/Chase.wine.svg',
-  'jpmorgan chase': '/bank-logos/Chase.wine.svg',
-  'jpmorgan chase bank': '/bank-logos/Chase.wine.svg',
-  'jp morgan chase': '/bank-logos/Chase.wine.svg',
-  'jp morgan': '/bank-logos/Chase.wine.svg',
+// Maps slugified API name variants → canonical filename slug.
+// Only needed when the API string doesn't naturally slug to the filename.
+const SLUG_ALIASES = {
+  // JPMorgan Chase
+  'chase':                      'jpmorgan-chase',
+  'chase-bank':                 'jpmorgan-chase',
+  'jpmorgan':                   'jpmorgan-chase',
+  'jpmorgan-chase-bank':        'jpmorgan-chase',
+  'jp-morgan':                  'jpmorgan-chase',
+  'jp-morgan-chase':            'jpmorgan-chase',
+  'jp-morgan-chase-bank':       'jpmorgan-chase',
 
-  'citi': '/bank-logos/CitiBank.wine.svg',
-  'citi bank': '/bank-logos/CitiBank.wine.svg',
-  'citibank': '/bank-logos/CitiBank.wine.svg',
-  'citigroup': '/bank-logos/CitiBank.wine.svg',
+  // Bank of America
+  'bank-of-america-corporation': 'bank-of-america',
+  'bofa':                        'bank-of-america',
+  'boa':                         'bank-of-america',
 
-  'goldman sachs': '/bank-logos/GoldmanSachs.wine.svg',
-  'goldman sachs bank usa': '/bank-logos/GoldmanSachs.wine.svg',
-  'marcus': '/bank-logos/GoldmanSachs.wine.svg',
-  'marcus by goldman sachs': '/bank-logos/GoldmanSachs.wine.svg',
+  // Citibank
+  'citi':                       'citibank',
+  'citi-bank':                  'citibank',
+  'citigroup':                  'citibank',
 
-  'wells fargo': '/bank-logos/WellsFargo.wine.svg',
-  'wells fargo bank': '/bank-logos/WellsFargo.wine.svg',
-  'wells fargo & company': '/bank-logos/WellsFargo.wine.svg',
+  // Goldman Sachs
+  'goldman-sachs-bank-usa':     'goldman-sachs',
+  'marcus':                     'goldman-sachs',
+  'marcus-by-goldman-sachs':    'goldman-sachs',
+
+  // Wells Fargo
+  'wells-fargo-bank':           'wells-fargo',
+  'wells-fargo-company':        'wells-fargo',
+
+  // U.S. Bank — "US Bank" (no periods) slugs to "us-bank", not "u-s-bank"
+  'us-bank':                    'u-s-bank',
+  'us-bancorp':                 'u-s-bank',
+  'u-s-bancorp':                'u-s-bank',
+
+  // BNY Mellon
+  'bank-of-new-york-mellon':              'bny-mellon',
+  'the-bank-of-new-york-mellon':          'bny-mellon',
+  'bank-of-new-york-mellon-corporation':  'bny-mellon',
+
+  // BMO
+  'bank-of-montreal':           'bmo',
+  'bmo-bank':                   'bmo',
+  'bmo-harris':                 'bmo',
+  'bmo-harris-bank':            'bmo',
+
+  // TIAA Bank (rebranded back to EverBank in 2023)
+  'everbank':                   'tiaa-bank',
+  'tiaa-bank-everbank':         'tiaa-bank',
+  'tiaa':                       'tiaa-bank',
+
+  // Huntington
+  'huntington':                 'huntington-national-bank',
+  'huntington-bancshares':      'huntington-national-bank',
+  'huntington-bank':            'huntington-national-bank',
+
+  // PNC
+  'pnc':                        'pnc-bank',
+  'pnc-financial':              'pnc-bank',
+  'pnc-financial-services':     'pnc-bank',
+
+  // TD Bank
+  'td-bank-n-a':                'td-bank',
+
+  // Discover
+  'discover':                   'discover-bank',
+  'discover-financial':         'discover-bank',
+  'discover-financial-services': 'discover-bank',
+
+  // Charles Schwab
+  'charles-schwab':             'charles-schwab-bank',
+  'charles-schwab-corporation': 'charles-schwab-bank',
+
+  // E*TRADE
+  'e-trade':                    'e-trade-bank',
+  'etrade':                     'e-trade-bank',
+  'etrade-bank':                'e-trade-bank',
+
+  // Regions
+  'regions':                    'regions-bank',
+  'regions-financial':          'regions-bank',
+  'regions-financial-corporation': 'regions-bank',
+
+  // KeyBank
+  'keycorp':                    'keybank',
+  'key-bank':                   'keybank',
+
+  // Ally
+  'ally':                       'ally-financial',
+  'ally-bank':                  'ally-financial',
+
+  // Truist
+  'truist':                     'truist-bank',
+  'truist-financial':           'truist-bank',
+
+  // State Street
+  'state-street':               'state-street-corporation',
+
+  // American Express
+  'amex':                       'american-express',
+  'american-express-company':   'american-express',
+
+  // Santander
+  'santander':                  'santander-bank',
+  'santander-bank-n-a':         'santander-bank',
+
+  // HSBC
+  'hsbc':                       'hsbc-bank-usa',
+  'hsbc-usa':                   'hsbc-bank-usa',
+
+  // Comerica
+  'comerica':                   'comerica-bank',
+  'comerica-incorporated':      'comerica-bank',
+
+  // Zions
+  'zions':                      'zions-bank',
+  'zions-bancorporation':       'zions-bank',
+
+  // Western Alliance
+  'western-alliance':                  'western-alliance-bank',
+  'western-alliance-bancorporation':   'western-alliance-bank',
+
+  // NYCB
+  'new-york-community-bancorp': 'new-york-community-bank',
+  'nycb':                       'new-york-community-bank',
+
+  // Flagstar
+  'flagstar':                   'flagstar-bank',
+  'flagstar-bancorp':           'flagstar-bank',
+
+  // Popular Bank
+  'popular-inc':                'popular-bank',
+  'banco-popular':              'popular-bank',
+
+  // East West Bank
+  'east-west-bancorp':          'east-west-bank',
+
+  // Wintrust
+  'wintrust':                   'wintrust-financial',
+  'wintrust-bank':              'wintrust-financial',
+
+  // Synovus
+  'synovus-bank':               'synovus',
+  'synovus-financial':          'synovus',
+
+  // City National
+  'city-national':              'city-national-bank',
+  'city-national-corporation':  'city-national-bank',
+
+  // M&T Bank
+  'm-t-bank-corporation':       'm-t-bank',
+  'manufacturers-and-traders':  'm-t-bank',
+
+  // Webster
+  'webster':                    'webster-bank',
+  'webster-financial':          'webster-bank',
+
+  // Northern Trust
+  'northern-trust-corporation': 'northern-trust',
+
+  // Citizens Financial Group
+  'citizens-bank':              'citizens-financial-group',
+  'citizens-financial':         'citizens-financial-group',
+
+  // First Citizens Bank
+  'first-citizens-bancshares':  'first-citizens-bank',
+
+  // Capital One
+  'capital-one-financial':             'capital-one',
+  'capital-one-financial-corporation': 'capital-one',
+
+  // Raymond James
+  'raymond-james-bank':         'raymond-james',
+  'raymond-james-financial':    'raymond-james',
+
+  // Pacific Western
+  'pacwest':                    'pacific-western-bank',
+  'pacwest-bancorp':            'pacific-western-bank',
+
+  // Valley National
+  'valley-national-bancorp':    'valley-national-bank',
+  'valley-bank':                'valley-national-bank',
+
+  // First National Bank (FNBO)
+  'fnbo':                       'first-national-bank',
+  'first-national-bank-of-omaha': 'first-national-bank',
+
+  // Associated Bank
+  'associated-banc-corp':       'associated-bank',
+
+  // Fulton Bank
+  'fulton-financial':           'fulton-bank',
+  'fulton-financial-corporation': 'fulton-bank',
+
+  // Capital City Bank
+  'capital-city-bank-group':    'capital-city-bank',
+
+  // Banc of California
+  'banc-of-california-inc':     'banc-of-california',
 };
 
-const normalizeProviderForLogo = (s) =>
-  String(s || '')
-    .toLowerCase()
-    .replace(/[.,'"`]/g, '')
-    .replace(/\s+/g, ' ')
-    .trim();
-
 export const getBankLogoUrl = (result) => {
-  // All Treasury products share a single icon regardless of "provider" string.
-  if (result?.productType === 'Treasuries') return '/bank-logos/Treasury.svg';
-  const key = normalizeProviderForLogo(result?.provider);
-  if (!key) return null;
-  if (BANK_LOGO_MAP[key]) return BANK_LOGO_MAP[key];
-  // Fall back to a substring match so e.g. "Goldman Sachs Bank USA, N.A." still matches "goldman sachs".
-  for (const [k, url] of Object.entries(BANK_LOGO_MAP)) {
-    if (key.includes(k)) return url;
-  }
-  return null;
+  if (result?.productType === 'Treasuries') return '/bank-logos/us-treasury.svg';
+  const slug = nameToSlug(result?.provider);
+  if (!slug) return null;
+  const canonical = SLUG_ALIASES[slug] ?? slug;
+  return `/bank-logos/${canonical}.svg`;
 };
 
 const BankBadge = ({ result }) => {
