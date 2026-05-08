@@ -57,12 +57,12 @@ const BankBadge = ({ result }) => {
   const [failed, setFailed] = useState(false);
   const showLogo = Boolean(logoUrl) && !failed;
   return (
-    <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-[10px] bg-white max-[480px]:h-8 max-[480px]:w-8">
+    <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-[5px] bg-white max-[480px]:h-8 max-[480px]:w-8">
       {showLogo ? (
         <img
           src={logoUrl}
           alt={result.provider ? `${result.provider} logo` : 'Bank logo'}
-          className="h-full w-full object-contain p-1"
+          className="h-full w-full object-contain"
           onError={() => setFailed(true)}
         />
       ) : (
