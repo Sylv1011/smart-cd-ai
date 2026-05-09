@@ -102,6 +102,14 @@ const SLUG_ALIASES = {
   'truist':                     'truist-bank',
   'truist-financial':           'truist-bank',
 
+  // Barclays
+  'barclays-bank':              'barclays',
+  'barclays-bank-delaware':     'barclays',
+
+  // Bread Savings
+  'bread-financial':            'bread-savings',
+  'bread-financial-holdings':   'bread-savings',
+
   // State Street
   'state-street':               'state-street-corporation',
 
