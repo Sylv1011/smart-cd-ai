@@ -89,3 +89,16 @@ def fetch_best_offer_for_term(db: Session, term_months: int) -> Optional[Offer]:
         .first()
     )
     return offer
+
+
+def compute_blended_apy(rungs: List[LadderRung]) -> Tuple[float, float]:
+    """
+    Weighted average APY across all rungs, weighted by dollar amount.
+    Returns (blended_nominal_apy, blended_after_tax_apy).
+    """
+    total = sum(r.amount for r in rungs)
+    if total == 0:
+        return 0.0, 0.0
+    nominal = sum(r.amount * r.nominal_apy for r in rungs) / total
+    after_tax = sum(r.amount * r.after_tax_apy for r in rungs) / total
+    return round(nominal, 2), round(after_tax, 2)

@@ -119,3 +119,52 @@ def test_fetch_best_offer_returns_none_when_no_data(db):
     # Query a term far outside the ±3 month window with no nearby offers
     offer = fetch_best_offer_for_term(db, term_months=120)
     assert offer is None
+
+
+from api.ladder import compute_blended_apy
+from api.schemas import LadderRung
+
+
+def _make_rung(term_months, amount, nominal_apy, after_tax_apy):
+    return LadderRung(
+        term_months=term_months,
+        amount=amount,
+        allocation_pct=amount / 10000,
+        provider="Test Bank",
+        product_type="Bank CDs",
+        nominal_apy=nominal_apy,
+        after_tax_apy=after_tax_apy,
+        nominal_interest=amount * nominal_apy / 100 * term_months / 12,
+        after_tax_interest=amount * after_tax_apy / 100 * term_months / 12,
+        min_deposit=1000.0,
+        maturity_date="2027-05-11",
+    )
+
+
+def test_blended_apy_equal_weights():
+    rungs = [
+        _make_rung(12, 2000, 4.0, 3.0),
+        _make_rung(24, 2000, 5.0, 3.75),
+        _make_rung(36, 2000, 6.0, 4.5),
+    ]
+    nominal, after_tax = compute_blended_apy(rungs)
+    assert abs(nominal - 5.0) < 0.01
+    assert abs(after_tax - 3.75) < 0.01
+
+
+def test_blended_apy_unequal_weights():
+    rungs = [
+        _make_rung(12, 3000, 4.0, 3.0),   # 30%
+        _make_rung(60, 7000, 5.0, 3.75),   # 70%
+    ]
+    nominal, after_tax = compute_blended_apy(rungs)
+    # nominal = (3000*4 + 7000*5) / 10000 = 4.7
+    assert abs(nominal - 4.70) < 0.01
+    # after_tax = (3000*3 + 7000*3.75) / 10000 = 3.525
+    assert abs(after_tax - 3.525) < 0.01
+
+
+def test_blended_apy_empty_rungs():
+    nominal, after_tax = compute_blended_apy([])
+    assert nominal == 0.0
+    assert after_tax == 0.0
