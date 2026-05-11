@@ -17,6 +17,11 @@ data/clean/
 data/rejects/
 data/raw/*.json
 
+# Frontend build artifacts
+frontend/node_modules/
+frontend/dist/
+frontend/.env.production
+
 # OS
 .DS_Store
 
