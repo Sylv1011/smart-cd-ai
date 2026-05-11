@@ -31,7 +31,7 @@ def test_ladder_amounts_sum_to_investment(client, ladder_payload):
     resp = client.post("/api/v1/strategy/ladder", json=ladder_payload)
     rungs = resp.json()["rungs"]
     total = sum(r["amount"] for r in rungs)
-    assert abs(total - ladder_payload["investment_amount"]) < 1.0
+    assert abs(total - ladder_payload["investment_amount"]) < 0.10
 
 
 def test_ladder_short_horizon_warning(client, ladder_payload):
@@ -91,3 +91,8 @@ def test_low_liquidity_weights_tilt_correctly(client, ladder_payload):
     resp = client.post("/api/v1/strategy/ladder", json=ladder_payload)
     rungs = resp.json()["rungs"]
     assert rungs[-1]["amount"] > rungs[0]["amount"]
+
+
+def test_alternate_path_returns_200(client, ladder_payload):
+    resp = client.post("/v1/strategy/ladder", json=ladder_payload)
+    assert resp.status_code == 200

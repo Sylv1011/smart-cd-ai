@@ -116,7 +116,7 @@ def test_fetch_best_offer_fallback_nearest_term(db):
 
 
 def test_fetch_best_offer_returns_none_when_no_data(db):
-    # Query a term far outside the ±3 month window with no nearby offers
+    # Query a term far outside the ±6 month window with no nearby offers
     offer = fetch_best_offer_for_term(db, term_months=120)
     assert offer is None
 

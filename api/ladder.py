@@ -2,6 +2,8 @@ from __future__ import annotations
 from datetime import date, timedelta
 from typing import List, Optional, Tuple
 
+from dateutil.relativedelta import relativedelta
+
 from sqlalchemy import desc, func
 from sqlalchemy.orm import Session
 
@@ -156,9 +158,9 @@ def build_ladder(
         after_tax_apy = round(nominal_apy * (1.0 - total_tax), 2)
 
         gross_interest = round(amount * (nominal_apy / 100.0) * (actual_term / 12.0), 2)
-        after_tax_interest = round(gross_interest * (1.0 - total_tax), 2)
+        after_tax_interest = round(amount * (after_tax_apy / 100.0) * (actual_term / 12.0), 2)
 
-        maturity_date = (today + timedelta(days=actual_term * 30)).isoformat()
+        maturity_date = (today + relativedelta(months=actual_term)).isoformat()
 
         provider = offer.institution_name or offer.issuing_bank or offer.brokerage_firm or "Unknown"
 
@@ -166,7 +168,7 @@ def build_ladder(
             LadderRung(
                 term_months=actual_term,
                 amount=amount,
-                allocation_pct=round(weight, 4),
+                allocation_pct=round(weight, 6),
                 provider=provider,
                 product_type=product_type,
                 nominal_apy=round(nominal_apy, 2),

@@ -219,19 +219,22 @@ def ladder_strategy(request: LadderRequest, db: Session = Depends(get_db)):
     state_candidates = state_id_candidates(request.user_state)
     locality = normalize_locality(request.user_locality)
 
-    fed_rate = get_federal_rate(db, filing_key, income, request.income_range, request.filing_status)
-    state_rate = get_state_tax_rate(db, state_candidates, filing_key, income)
-    local_rate = get_local_tax_rate(db, state_candidates, locality)
+    try:
+        fed_rate = get_federal_rate(db, filing_key, income, request.income_range, request.filing_status)
+        state_rate = get_state_tax_rate(db, state_candidates, filing_key, income)
+        local_rate = get_local_tax_rate(db, state_candidates, locality)
 
-    rungs, warnings = build_ladder(
-        db=db,
-        investment_amount=request.investment_amount,
-        time_horizon_years=request.time_horizon_years,
-        liquidity_preference=request.liquidity_preference,
-        fed_rate=fed_rate,
-        state_rate=state_rate,
-        local_rate=local_rate,
-    )
+        rungs, warnings = build_ladder(
+            db=db,
+            investment_amount=request.investment_amount,
+            time_horizon_years=request.time_horizon_years,
+            liquidity_preference=request.liquidity_preference,
+            fed_rate=fed_rate,
+            state_rate=state_rate,
+            local_rate=local_rate,
+        )
+    except SQLAlchemyError:
+        raise HTTPException(status_code=503, detail="Database is not reachable")
 
     blended_nominal, blended_after_tax = compute_blended_apy(rungs)
     total_nominal = round(sum(r.nominal_interest for r in rungs), 2)
