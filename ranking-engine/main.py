@@ -357,7 +357,16 @@ def simulate_strategy(req: StrategySimulateRequest) -> Dict[str, Any]:
         if strategy_type == "ladder":
             simulate_ladder()
         if strategy_type == "bullet":
-            simulate_bullet()
+            return simulate_bullet(data_client=data_client,
+                investment_amount=req.investment_amount,
+                state=normalized_state,
+                income_range=req.income_range,
+                filing_status=req.filing_status.lower(),
+                local_area=normalized_local_area,
+                liquidity_preference=req.liquidity_preference,
+                rate_outlook=req.rate_outlook,
+                time_horizon=req.time_horizon,
+                )
 
         raise HTTPException(status_code=400, detail="Invalid strategy_type")
 
