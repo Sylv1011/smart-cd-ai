@@ -65,3 +65,29 @@ def test_ladder_no_auth_required(client, ladder_payload):
     resp = client.post("/api/v1/strategy/ladder", json=ladder_payload)
     assert resp.status_code != 401
     assert resp.status_code != 403
+
+
+def test_small_investment_reduces_rung_count(client, ladder_payload):
+    ladder_payload["investment_amount"] = 1000
+    ladder_payload["time_horizon_years"] = 5
+    resp = client.post("/api/v1/strategy/ladder", json=ladder_payload)
+    assert resp.status_code == 200
+    rungs = resp.json()["rungs"]
+    # With $1,000 / 5 rungs = $200 < $500 threshold → expect fewer than 5 rungs
+    assert len(rungs) < 5
+
+
+def test_high_liquidity_weights_tilt_correctly(client, ladder_payload):
+    ladder_payload["liquidity_preference"] = "high"
+    ladder_payload["time_horizon_years"] = 5
+    resp = client.post("/api/v1/strategy/ladder", json=ladder_payload)
+    rungs = resp.json()["rungs"]
+    assert rungs[0]["amount"] > rungs[-1]["amount"]
+
+
+def test_low_liquidity_weights_tilt_correctly(client, ladder_payload):
+    ladder_payload["liquidity_preference"] = "low"
+    ladder_payload["time_horizon_years"] = 5
+    resp = client.post("/api/v1/strategy/ladder", json=ladder_payload)
+    rungs = resp.json()["rungs"]
+    assert rungs[-1]["amount"] > rungs[0]["amount"]

@@ -246,3 +246,25 @@ def test_build_ladder_picks_best_apy_per_rung(db):
     rung_12 = next(r for r in rungs if r.term_months == 12)
     assert rung_12.nominal_apy == 4.80  # not 3.00 (Worse Bank)
     assert rung_12.provider == "Gamma Bank"
+
+
+from api.ladder import _select_terms
+
+
+def test_small_investment_reduces_rungs():
+    # $1,000 / 5 rungs = $200 per rung < MIN_RUNG_AMOUNT ($500)
+    # Should reduce to 2 rungs ($500 each)
+    terms = _select_terms(investment_amount=1000, time_horizon_years=5)
+    assert len(terms) <= 2
+    assert 1000 / len(terms) >= 500
+
+
+def test_large_investment_keeps_all_rungs():
+    terms = _select_terms(investment_amount=50000, time_horizon_years=5)
+    assert len(terms) == 5
+
+
+def test_min_rung_floor_is_2():
+    # Even if investment is tiny, never reduce below 2 rungs
+    terms = _select_terms(investment_amount=100, time_horizon_years=5)
+    assert len(terms) >= 2
