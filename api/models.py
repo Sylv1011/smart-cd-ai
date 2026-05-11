@@ -45,6 +45,7 @@ class Offer(Base):
     apy: Mapped[float] = mapped_column(Float, nullable=False)
     minimum_deposit: Mapped[float] = mapped_column(Float, nullable=False)
     fdic_insured: Mapped[bool] = mapped_column(Boolean, nullable=True)
+    status: Mapped[str] = mapped_column(String, nullable=True, default="active")  # active | limited | inactive
     source_name: Mapped[str] = mapped_column(String, nullable=True)
     source_url: Mapped[str] = mapped_column(String, nullable=True)
     destination_url: Mapped[str] = mapped_column(String, nullable=True)
