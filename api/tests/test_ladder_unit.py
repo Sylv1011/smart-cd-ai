@@ -90,3 +90,32 @@ def test_weights_all_positive():
         for liquidity in ("low", "medium", "high"):
             weights = calculate_weights(n, liquidity)
             assert all(w > 0 for w in weights), f"n={n} liquidity={liquidity} has non-positive weight"
+
+
+from api.ladder import fetch_best_offer_for_term
+
+
+def test_fetch_best_offer_exact_term(db):
+    offer = fetch_best_offer_for_term(db, term_months=12)
+    assert offer is not None
+    assert offer.term_months == 12
+    assert offer.apy == 4.80  # Gamma Bank (highest at 12mo in fixtures)
+
+
+def test_fetch_best_offer_picks_highest_apy(db):
+    # Fixtures have two 12mo offers: 4.80 and 3.00
+    offer = fetch_best_offer_for_term(db, term_months=12)
+    assert offer.apy == 4.80
+
+
+def test_fetch_best_offer_fallback_nearest_term(db):
+    # No 18-month offer in fixtures; should fall back to nearest (12 or 24)
+    offer = fetch_best_offer_for_term(db, term_months=18)
+    assert offer is not None
+    assert offer.term_months in (12, 24)
+
+
+def test_fetch_best_offer_returns_none_when_no_data(db):
+    # Query a term far outside the ±3 month window with no nearby offers
+    offer = fetch_best_offer_for_term(db, term_months=120)
+    assert offer is None

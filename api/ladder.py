@@ -61,3 +61,31 @@ def calculate_weights(n_rungs: int, liquidity: str) -> List[float]:
     # Fix last element to ensure exact sum of 1.0
     rounded[-1] = round(1.0 - sum(rounded[:-1]), 6)
     return rounded
+
+
+TERM_FALLBACK_WINDOW = 6  # months — how far to search if exact term unavailable
+
+
+def fetch_best_offer_for_term(db: Session, term_months: int) -> Optional[Offer]:
+    """
+    Return the highest-APY offer at exactly term_months.
+    If none found, return the highest-APY offer within ±TERM_FALLBACK_WINDOW months.
+    Returns None if no offer exists within the fallback window.
+    """
+    offer = (
+        db.query(Offer)
+        .filter(Offer.term_months == term_months)
+        .order_by(desc(Offer.apy))
+        .first()
+    )
+    if offer:
+        return offer
+
+    offer = (
+        db.query(Offer)
+        .filter(Offer.term_months >= term_months - TERM_FALLBACK_WINDOW)
+        .filter(Offer.term_months <= term_months + TERM_FALLBACK_WINDOW)
+        .order_by(func.abs(Offer.term_months - term_months), desc(Offer.apy))
+        .first()
+    )
+    return offer
