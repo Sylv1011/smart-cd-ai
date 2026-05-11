@@ -168,3 +168,81 @@ def test_blended_apy_empty_rungs():
     nominal, after_tax = compute_blended_apy([])
     assert nominal == 0.0
     assert after_tax == 0.0
+
+
+from api.ladder import build_ladder
+
+
+def test_build_ladder_5yr_medium(db):
+    rungs, warnings = build_ladder(
+        db=db,
+        investment_amount=10000,
+        time_horizon_years=5,
+        liquidity_preference="medium",
+        fed_rate=0.22,
+        state_rate=0.0685,
+        local_rate=0.0,
+    )
+    assert len(rungs) == 5
+    for rung in rungs:
+        assert abs(rung.amount - 2000.0) < 0.01
+    for rung in rungs:
+        assert rung.after_tax_apy > 0
+
+
+def test_build_ladder_rung_terms_match_horizon(db):
+    from api.ladder import RUNG_TERMS
+    for horizon in range(1, 6):
+        rungs, _ = build_ladder(
+            db=db,
+            investment_amount=10000,
+            time_horizon_years=horizon,
+            liquidity_preference="medium",
+            fed_rate=0.22,
+            state_rate=0.05,
+            local_rate=0.0,
+        )
+        expected_terms = RUNG_TERMS[horizon]
+        assert len(rungs) == len(expected_terms)
+
+
+def test_build_ladder_high_liquidity_short_heavier(db):
+    rungs, _ = build_ladder(
+        db=db,
+        investment_amount=10000,
+        time_horizon_years=5,
+        liquidity_preference="high",
+        fed_rate=0.22,
+        state_rate=0.05,
+        local_rate=0.0,
+    )
+    assert rungs[0].amount > rungs[-1].amount
+
+
+def test_build_ladder_maturity_dates_ordered(db):
+    rungs, _ = build_ladder(
+        db=db,
+        investment_amount=10000,
+        time_horizon_years=5,
+        liquidity_preference="medium",
+        fed_rate=0.22,
+        state_rate=0.0,
+        local_rate=0.0,
+    )
+    dates = [r.maturity_date for r in rungs]
+    assert dates == sorted(dates)
+
+
+def test_build_ladder_picks_best_apy_per_rung(db):
+    rungs, _ = build_ladder(
+        db=db,
+        investment_amount=10000,
+        time_horizon_years=5,
+        liquidity_preference="medium",
+        fed_rate=0.0,
+        state_rate=0.0,
+        local_rate=0.0,
+    )
+    rung_12 = next(r for r in rungs if r.term_months == 12)
+    assert rung_12.nominal_apy == 4.80  # not 3.00 (Worse Bank)
+    assert rung_12.provider == "Gamma Bank"

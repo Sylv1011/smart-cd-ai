@@ -102,3 +102,99 @@ def compute_blended_apy(rungs: List[LadderRung]) -> Tuple[float, float]:
     nominal = sum(r.amount * r.nominal_apy for r in rungs) / total
     after_tax = sum(r.amount * r.after_tax_apy for r in rungs) / total
     return round(nominal, 2), round(after_tax, 2)
+
+
+def build_ladder(
+    db: Session,
+    investment_amount: float,
+    time_horizon_years: int,
+    liquidity_preference: str,
+    fed_rate: float,
+    state_rate: float,
+    local_rate: float,
+) -> Tuple[List[LadderRung], List[str]]:
+    """
+    Build a CD ladder for the given inputs.
+    Returns (rungs, warnings).
+    """
+    terms = _select_terms(investment_amount, time_horizon_years)
+    weights = calculate_weights(len(terms), liquidity_preference)
+    warnings: List[str] = []
+
+    if time_horizon_years == 1:
+        warnings.append(
+            "Short time horizon: a 1-year ladder provides limited diversification benefits."
+        )
+
+    today = date.today()
+    rungs: List[LadderRung] = []
+
+    for term, weight in zip(terms, weights):
+        amount = round(investment_amount * weight, 2)
+        offer = fetch_best_offer_for_term(db, term)
+
+        if offer is None:
+            warnings.append(f"No CD found near {term}-month term — rung skipped.")
+            continue
+
+        actual_term = offer.term_months
+        if actual_term != term:
+            warnings.append(
+                f"No exact {term}-month CD found; using {actual_term}-month CD instead."
+            )
+
+        if offer.minimum_deposit and amount < offer.minimum_deposit:
+            warnings.append(
+                f"{actual_term}-month rung: allocated ${amount:,.0f} is below "
+                f"the ${offer.minimum_deposit:,.0f} minimum deposit."
+            )
+
+        product_type = _map_product_type(offer.product_type)
+        total_tax = fed_rate if product_type == "Treasuries" else (fed_rate + state_rate + local_rate)
+
+        nominal_apy = offer.apy
+        after_tax_apy = round(nominal_apy * (1.0 - total_tax), 2)
+
+        gross_interest = round(amount * (nominal_apy / 100.0) * (actual_term / 12.0), 2)
+        after_tax_interest = round(gross_interest * (1.0 - total_tax), 2)
+
+        maturity_date = (today + timedelta(days=actual_term * 30)).isoformat()
+
+        provider = offer.institution_name or offer.issuing_bank or offer.brokerage_firm or "Unknown"
+
+        rungs.append(
+            LadderRung(
+                term_months=actual_term,
+                amount=amount,
+                allocation_pct=round(weight, 4),
+                provider=provider,
+                product_type=product_type,
+                nominal_apy=round(nominal_apy, 2),
+                after_tax_apy=after_tax_apy,
+                nominal_interest=gross_interest,
+                after_tax_interest=after_tax_interest,
+                min_deposit=offer.minimum_deposit or 0.0,
+                maturity_date=maturity_date,
+                source_url=offer.source_url,
+            )
+        )
+
+    return rungs, warnings
+
+
+def _select_terms(investment_amount: float, time_horizon_years: int) -> List[int]:
+    """Return rung terms for the horizon, reducing count if investment is too small."""
+    terms = list(RUNG_TERMS[time_horizon_years])
+    while len(terms) > 2 and investment_amount / len(terms) < MIN_RUNG_AMOUNT:
+        terms = terms[1:]  # drop shortest rung
+    return terms
+
+
+def _map_product_type(raw: str) -> str:
+    mapping = {
+        "bank cds": "Bank CDs",
+        "brokerage cds": "Brokerage CDs",
+        "treasuries": "Treasuries",
+        "treasury": "Treasuries",
+    }
+    return mapping.get(raw.lower(), raw)
