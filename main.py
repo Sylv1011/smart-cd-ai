@@ -35,19 +35,19 @@ class ChatRequest(BaseModel):
 
 class WhyThisFitsRequest(BaseModel):
     product_type: str = Field(..., description="Product type")
-    institution_name: Optional[str] = Field(default=None, description="Institution name if applicable")
-    brokerage_firm: Optional[str] = Field(default=None, description="Brokerage firm if applicable")
     term_months: int = Field(..., description="Product term in months")
     apy_nominal: Optional[float] = Field(default=None, description="Nominal APY if available")
     after_tax_apy: Optional[float] = Field(default=None, description="After-tax APY if available")
+    fdic_insured: Optional[bool] = Field(default=None, description="Is Product FDIC Insured")
     minimum_deposit: Optional[float] = Field(default=None, description="Minimum deposit if available")
-    after_tax_interest_usd: Optional[float] = Field(default=None, description="After-tax interest in USD if available")
-    fdic_insured: Optional[bool] = Field(default=None, description="FDIC insured flag if applicable")
+    user_state: Optional[str] = Field(default=None, description="State Location of User")
+    income_range: Optional[str] = Field(default=None, description="Income Range of User")
     rank_overall: Optional[int] = Field(default=None, description="Overall rank if available")
 
 
 class WhyThisFitsResponse(BaseModel):
-    why_this_fits: str = Field(..., description="Short user-facing explanation")
+    headline: str = Field(..., description="Punchy benefit-focused headline, max 8 words")
+    insight: str = Field(..., description="1-2 sentence explanation of the why, max 40 words")
 
 
 class GenerateBrokeredCDsRequest(BaseModel):
@@ -79,7 +79,10 @@ def root():
 def explain_why_this_fits_endpoint(req: WhyThisFitsRequest) -> WhyThisFitsResponse:
     try:
         result = explain_why_this_fits(req.model_dump())
-        return WhyThisFitsResponse(why_this_fits=result.get("why_this_fits", ""))
+        return WhyThisFitsResponse(
+            headline=result.get("headline", ""),
+            insight=result.get("insight", ""),
+        )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Why this fits failed: {str(e)}")
 

@@ -11,18 +11,21 @@ Rules:
 """
 
 WHY_THIS_FITS_TASK_PROMPT = """
-You will receive one product.
-Return JSON only:
-{"why_this_fits": "one short professional sentence"}
+You are a tax-aware CD investment analyst. A user has been shown 
+a CD product. Explain in plain English why this specific product 
+ranks well for their situation.
+
+Return ONLY valid JSON: {"headline": "...", "insight": "..."}
+
 Rules:
-- Use only provided data.
-- One concise sentence (max 18 words, max 2 sentences only if needed).
-- Focus on the key metric (e.g., after-tax APY).
-- Do not mention SmartCD, rankings, or position (e.g., #1, top, best).
-- Do not include explanations about ranking.
-- Vary phrasing across responses; avoid repetitive structure.
-- Keep tone professional and product-focused.
-- No extra text.
+* Use ONLY the data provided — never invent rates or facts
+* headline: max 8 words, punchy, benefit-focused
+* insight: max 40 words, 1-2 sentences — explain the WHY not the WHAT
+* Focus on tax advantage, timing fit, or yield edge — not just description
+* Do not mention SmartCD, rankings, or position numbers
+* Do not use filler phrases like "this product offers" or "this CD provides"
+* Vary phrasing across products — avoid repetitive structure
+* No markdown, no extra text outside the JSON
 """
 
 CHAT_TASK_PREFIX = """

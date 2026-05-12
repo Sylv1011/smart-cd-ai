@@ -32,16 +32,10 @@ _WHY_THIS_FITS_CACHE: Dict[str, Tuple[float, Dict[str, Any]]] = {}
 
 def _build_why_this_fits_cache_key(selected_product: Dict[str, Any]) -> str:
     normalized_product = {
-        "rank_overall": selected_product.get("rank_overall"),
         "product_type": selected_product.get("product_type"),
-        "institution_name": selected_product.get("institution_name"),
-        "brokerage_firm": selected_product.get("brokerage_firm"),
         "term_months": selected_product.get("term_months"),
-        "apy_nominal": selected_product.get("apy_nominal"),
-        "after_tax_apy": selected_product.get("after_tax_apy"),
-        "after_tax_interest_usd": selected_product.get("after_tax_interest_usd"),
-        "minimum_deposit": selected_product.get("minimum_deposit"),
-        "fdic_insured": selected_product.get("fdic_insured"),
+        "user_state": selected_product.get("user_state"),
+        "income_range": selected_product.get("income_range")
     }
     return json.dumps(normalized_product, sort_keys=True)
 
@@ -192,12 +186,12 @@ def explain_why_this_fits(selected_product: Dict[str, Any]) -> Dict[str, Any]:
     raw_text = _call_llm(payload)
     parsed = _extract_json_object(raw_text)
     logger.info("Why-this-fits pipeline completed | duration_sec=%.2f", time.perf_counter() - start_time)
-
-    why_this_fits = parsed.get("why_this_fits", "")
-    if not isinstance(why_this_fits, str):
+    logger.info("Raw text=%s",raw_text)
+    headline = parsed.get("headline")
+    if not isinstance(headline, str):
         raise ValueError("Why-this-fits response is missing a valid 'why_this_fits' string")
 
-    result = {"why_this_fits": why_this_fits.strip()}
+    result = parsed
     _WHY_THIS_FITS_CACHE[cache_key] = (now, result)
     return result
 
