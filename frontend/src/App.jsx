@@ -8,6 +8,7 @@ import SearchableSelect from './components/SearchableSelect';
 import StrictSelect from './components/StrictSelect';
 import StateAutocomplete from './components/StateAutocomplete';
 import BankBadge from './components/BankBadge';
+import BulletStrategyMockup from './components/BulletStrategyMockup';
 
 const SparkleIcon = ({ className, style }) => (
   <svg className={className} style={style} width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -93,6 +94,13 @@ const FilterIcon = ({ className }) => (
   </svg>
 );
 
+const HeaderSearchIcon = ({ className }) => (
+  <svg className={className} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="11" cy="11" r="7"></circle>
+    <line x1="20" y1="20" x2="16.6" y2="16.6"></line>
+  </svg>
+);
+
 const ClockIcon = ({ className }) => (
   <svg className={className} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <circle cx="12" cy="12" r="10"></circle>
@@ -107,6 +115,37 @@ const ExternalLinkIcon = ({ className }) => (
     <line x1="10" y1="14" x2="21" y2="3"></line>
   </svg>
 );
+
+const StrategyTabIcon = ({ id, active }) => {
+  const color = active ? '#FFFFFF' : id === 'ladder' ? '#FACC15' : '#FFFFFF';
+  if (id === 'best-rate') {
+    return (
+      <svg className="h-5 w-5" viewBox="0 0 24 24" fill={color} aria-hidden="true">
+        <path d="m12 2.4 2.92 5.92 6.54.95-4.73 4.61 1.12 6.51L12 17.31l-5.85 3.08 1.12-6.51-4.73-4.61 6.54-.95L12 2.4Z" />
+      </svg>
+    );
+  }
+  if (id === 'ladder') {
+    return (
+      <svg className="h-5 w-5" viewBox="0 0 24 24" fill={color} aria-hidden="true">
+        <path d="M13 2 4 14h7l-1 8 10-13h-7V2Z" />
+      </svg>
+    );
+  }
+  if (id === 'barbell') {
+    return (
+      <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" aria-hidden="true">
+        <path d="m12 3 9 9-9 9-9-9 9-9Z" />
+        <path d="m12 7 5 5-5 5-5-5 5-5Z" />
+      </svg>
+    );
+  }
+  return (
+    <svg className="h-5 w-5" viewBox="0 0 24 24" fill={color} aria-hidden="true">
+      <path d="M8 5v14l11-7L8 5Z" />
+    </svg>
+  );
+};
 
 const SunIcon = ({ className }) => (
   <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -359,6 +398,7 @@ export default function App() {
   });
   const [showResults, setShowResults] = useState(window.location.pathname === '/results');
   const [viewMode, setViewMode] = useState('combined');
+  const [strategyView, setStrategyView] = useState('best-rate');
   const [expandedCardId, setExpandedCardId] = useState(null);
   const [productTypeFilter, setProductTypeFilter] = useState('All products');
   const [sortColumn, setSortColumn] = useState(null); // 'nominalRate' | 'afterTaxYield' | 'minDeposit' | null
@@ -690,6 +730,7 @@ export default function App() {
       if (navigateToResults) {
         window.history.pushState({ page: 'results' }, '', '/results');
         setShowResults(true);
+        setStrategyView('best-rate');
       }
       if (scrollToTop) {
         window.scrollTo(0, 0);
@@ -1012,132 +1053,100 @@ export default function App() {
         </div>
 
         {isExpanded && (
-          <div className="bg-[#0A1E14] px-8 pb-7 pt-1 max-[768px]:px-[14px] max-[768px]:pb-[14px]">
-            <div className="mt-4 grid grid-cols-2 gap-6 max-[768px]:grid-cols-1 max-[768px]:gap-[16px]">
-              <div className="rounded-2xl border border-[#123B2F] bg-[rgba(2,10,22,0.84)] px-5 py-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] max-[768px]:px-4 max-[768px]:py-3">
-                <div className="mb-4 flex min-h-[44px] items-center justify-between border-b border-[rgba(29,141,238,0.16)] pb-3">
-                  <h4 className="m-0 text-[1.05rem] font-bold text-[#E2E8F0] max-[768px]:text-[0.95rem]">Read Tax Break down</h4>
+          <div className="bg-[#050d1f] px-0 pb-0 pt-0">
+            <div className="grid grid-cols-2 gap-4 border-t border-[rgba(255,255,255,0.2)] px-6 py-5 max-[768px]:grid-cols-1 max-[768px]:px-3 max-[768px]:py-3">
+              <div className="rounded-[10px] border border-[#0B5C2A] bg-[linear-gradient(105deg,rgba(6,50,31,0.88)_0%,rgba(2,14,22,0.95)_68%)] p-4">
+                <div className="mb-3 border-b border-[rgba(34,197,94,0.14)] pb-3 text-[13px] font-bold leading-none text-[#F8FAFC]">
+                  Read Tax Break down
                 </div>
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between gap-3 text-[0.8rem]">
-                    <span className="text-[#9CA3AF]">Interest Earned :</span>
-                    <span className="text-right font-bold text-[#22C55E]">{result.taxBreakdown.interestEarned}</span>
+                <div className="space-y-4 text-[12.5px]">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[#8FB3C4]">Interest Earned :</span>
+                    <span className="font-bold text-[#22C55E]">{result.taxBreakdown.interestEarned}</span>
                   </div>
-                  <div className="flex items-center justify-between gap-3 text-[0.8rem]">
-                    <span className="text-[#9CA3AF]">Total Tax :</span>
-                    <span className="text-right font-bold text-[#FF5C5C]">{result.taxBreakdown.totalTax}</span>
+                  <div className="flex items-center justify-between">
+                    <span className="text-[#8FB3C4]">Total Tax :</span>
+                    <span className="font-bold text-[#FF3B3B]">{result.taxBreakdown.totalTax}</span>
                   </div>
-                  <div className="flex items-center justify-between gap-3 text-[0.8rem]">
-                    <span className="text-[#9CA3AF]">Total Savings :</span>
-                    <span className="text-right font-bold text-[#22C55E]">{result.taxBreakdown.totalSavings}</span>
+                  <div className="flex items-center justify-between">
+                    <span className="text-[#8FB3C4]">Total Savings :</span>
+                    <span className="font-bold text-[#22C55E]">{result.taxBreakdown.totalSavings}</span>
                   </div>
                 </div>
-                <div className="my-4 border-t border-[rgba(255,255,255,0.1)]"></div>
-                <div className="mt-2 flex items-center justify-between rounded-xl border border-[rgba(34,197,94,0.28)] bg-[rgba(34,197,94,0.12)] px-4 py-3 text-[1rem] font-bold">
+                <div className="my-4 border-t border-[rgba(34,197,94,0.12)]"></div>
+                <div className="flex items-center justify-between rounded-[10px] border border-[#0B5C2A] bg-[linear-gradient(92deg,rgba(8,58,36,0.85)_0%,rgba(3,36,23,0.9)_100%)] px-3 py-2 text-[13px] font-bold">
                   <span className="text-[#E2E8F0]">Net Return :</span>
-                  <span className="text-[1.03rem] leading-none text-[#22C55E] max-[768px]:text-[0.8rem]">{result.netReturn}</span>
+                  <span className="text-[17px] text-[#22C55E]">{result.netReturn}</span>
                 </div>
               </div>
 
-              <div className="self-start rounded-2xl border border-[#1C6FC4] bg-[rgba(2,10,22,0.72)] px-5 py-0 shadow-[0_0_0_1px_rgba(29,141,238,0.18),inset_0_1px_0_rgba(255,255,255,0.03)] max-[768px]:px-4 max-[768px]:py-0">
+              <div
+                className={`overflow-hidden rounded-[12px] ${
+                  isWhyExpanded
+                    ? 'h-[231px] border border-[#1557F5] bg-[linear-gradient(180deg,#07170F_0%,#06120D_100%)] shadow-[inset_0_0_0_1px_rgba(140,194,255,0.18)]'
+                    : 'h-[52px] border border-[#1557F5] bg-[#07170F] shadow-[inset_0_0_0_1px_rgba(140,194,255,0.26)]'
+                }`}
+              >
                 <div
-                  className={`mb-0 flex min-h-[44px] items-center justify-between gap-3 py-4 ${
-                    isWhyExpanded ? 'border-b border-[rgba(29,141,238,0.25)] pb-3' : ''
+                  className={`flex items-center ${
+                    isWhyExpanded
+                      ? 'relative mt-[6px] h-[52px] rounded-[12px] border border-[rgba(21,87,245,0.45)] bg-[#07170F]'
+                      : 'relative h-full'
                   }`}
                 >
-                  <h4 className="m-0 text-[1.05rem] font-bold text-[#E2E8F0] max-[768px]:text-[0.95rem]">Why this Fits</h4>
-                  {(isWhyExpanded || isWhyLoading) ? (
-                    <div className="flex flex-1 items-center justify-end">
-                      <div className="flex items-center gap-2">
-                        <span className="text-[0.74rem] font-semibold tracking-[0.005em] text-[#4E76A8] max-[768px]:text-[0.72rem]">Match Score</span>
-                        <div className="h-1.5 w-[110px] overflow-hidden rounded-full bg-[rgba(148,163,184,0.18)] max-[768px]:w-[84px]">
-                          <div className="h-full rounded-full bg-[#22C55E]" style={{ width: `${safeMatch}%` }} />
-                        </div>
-                        <span className="text-[0.78rem] font-bold leading-none text-[#22C55E] max-[768px]:text-[0.74rem]">{safeMatch}%</span>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="flex flex-1 items-center justify-end gap-3">
-                      <span className="mx-auto text-[0.86rem] font-bold tracking-[-0.01em] text-[#22C55E] max-[768px]:text-[0.82rem]">{safeMatch}% Match</span>
+                  {!isWhyExpanded ? (
+                    <>
+                      <div className="absolute left-[16px] top-1/2 -translate-y-1/2 text-[14px] font-bold leading-none text-white">Why this Fits</div>
+                      <div className="absolute left-[212px] top-1/2 -translate-y-1/2 text-[14px] font-bold leading-none text-[#22C55E]">{safeMatch}% Match</div>
                       <button
                         type="button"
-                        className="inline-flex items-center gap-2 rounded-full border border-[rgba(29,141,238,0.28)] bg-[rgba(29,141,238,0.08)] px-3 py-2 text-[0.82rem] font-semibold text-[#6FA6DC] transition-colors hover:bg-[rgba(29,141,238,0.12)]"
+                        className="absolute left-[411px] top-1/2 inline-flex h-[28px] w-[155px] -translate-y-1/2 items-center justify-center gap-1 rounded-[8px] border border-[#6A9ABE] bg-transparent px-[6px] py-[5px] text-[12px] font-bold leading-none text-[#6A9ABE] shadow-[inset_0_0_0_1px_rgba(106,154,190,0.35)] hover:bg-[#0f2a1f]"
                         onClick={(e) => {
                           e.preventDefault();
                           e.stopPropagation();
                           if (isWhyLoading) return;
-                          setWhyThisFitsExpanded((prev) => {
-                            const nextValue = !prev?.[result.id];
-                            if (nextValue && !whyThisFitsFetched?.[result.id]) {
-                              explainWhyThisFits(result);
-                            }
-                            return { ...prev, [result.id]: nextValue };
-                          });
+                          setWhyThisFitsExpanded((prev) => ({ ...prev, [result.id]: true }));
+                          if (!whyThisFitsFetched?.[result.id]) explainWhyThisFits(result);
                         }}
-                        aria-expanded={isWhyExpanded}
-                        aria-label="See summary"
                       >
-                        <span className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-[rgba(29,141,238,0.45)] bg-[rgba(29,141,238,0.10)] text-[#1D8DEE]">
-                          <SparkleIcon className="h-3.5 w-3.5" />
-                        </span>
-                        <span>See summary</span>
+                        <SparkleIcon className="h-[11px] w-[11px] text-[#6A9ABE]" />
+                        Generate Summary
                       </button>
-                    </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="absolute left-[16px] top-1/2 -translate-y-1/2 whitespace-nowrap text-[14px] font-bold leading-none text-white">Why this Fits</div>
+                      <div className="absolute left-[244px] top-1/2 -translate-y-1/2 text-[12px] font-bold leading-none text-[#3A6090]">Match Score</div>
+                      <div className="absolute left-[352px] top-1/2 h-[6px] w-[180px] -translate-y-1/2 rounded-full bg-[#0D2A1F]">
+                        <div className="h-[6px] rounded-full bg-[#22C55E]" style={{ width: `${Math.max(0, Math.min(100, safeMatch))}%` }} />
+                      </div>
+                      <div className="absolute right-[18px] top-1/2 -translate-y-1/2 text-[18px] font-bold leading-none text-[#22C55E]">{safeMatch}%</div>
+                    </>
                   )}
                 </div>
 
                 {isWhyExpanded && (
-                  <div className="pb-4 pt-3">
-                    <div className="rounded-xl border border-[rgba(29,141,238,0.22)] bg-[rgba(2,10,22,0.55)] px-4 py-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] max-[768px]:px-3 max-[768px]:py-3">
-                      <div className="grid grid-cols-[20px_1fr] items-start gap-x-2 gap-y-3 text-left">
-                        {isWhyLoading ? (
-                          <>
-                            <span aria-hidden="true" className="h-5 w-5" />
-                            <p className="m-0 break-words pl-28 text-[0.86rem] leading-[1.55] tracking-[0.003em] text-[#80A4CC] max-[768px]:text-[0.84rem] max-[768px]:leading-[1.7]">
-                              ✨ Loading Summary......
-                            </p>
-                          </>
-                        ) : (
-                          <>
-                            <span className="mt-[2px] inline-flex h-5 w-5 items-center justify-center text-[#1D8DEE]">
-                              <SparkleIcon className="h-3.5 w-3.5" />
-                            </span>
-                            <div className="mt-[5px] text-[0.72rem] tracking-[0.005em] text-[#4E76A8]">
-                              AI analyzed based on your income, tax bracket, investment term
-                            </div>
-
-                            {whyChunks.length ? (
-                              whyChunks.map((chunk, idx) => (
-                                <React.Fragment key={`${result.id}-why-${idx}`}>
-                                  <span aria-hidden="true" className="h-5 w-5" />
-                                  <p className="m-0 break-words text-[0.86rem] leading-[1.55] tracking-[0.003em] text-[#80A4CC] max-[768px]:text-[0.84rem] max-[768px]:leading-[1.7]">
-                                    {chunk}
-                                  </p>
-                                </React.Fragment>
-                              ))
-                            ) : (
-                              <>
-                                <span aria-hidden="true" className="h-5 w-5" />
-                                <p className="m-0 break-words text-[0.86rem] leading-[1.55] tracking-[0.003em] text-[#5C81AF] max-[768px]:text-[0.84rem] max-[768px]:leading-[1.7]">
-                                  Unable to generate summary. Please try again.
-                                </p>
-                              </>
-                            )}
-                          </>
-                        )}
-
-                        {!isWhyLoading && (
-                          <>
-                            <span className="mt-[1px] inline-flex h-5 w-5 items-center justify-center rounded-full border border-[#1D8DEE] text-[0.72rem] font-bold leading-none text-[#1D8DEE]">
-                              i
-                            </span>
-                            <div className="mt-[3.6px] text-[0.74rem] tracking-[0.005em] text-[#5C81AF]">
-                              Generated by <strong className="text-[#9BCBFF]">SmartCD.AI</strong> - Results may vary - Not financial advice
-                            </div>
-                          </>
-                        )}
+                  <div className="min-h-[198px] px-5 py-4">
+                    {isWhyLoading ? (
+                      <div className="flex h-[150px] items-center justify-center gap-2 text-[24px] font-bold text-[#73AFD9]">
+                        <SparkleIcon className="h-4 w-4" />
+                        Loading Summary.....
                       </div>
-                    </div>
+                    ) : (
+                      <div>
+                        <h5 className="m-0 mb-2 text-[16px] font-medium leading-[28px] text-white">Best after-tax yield</h5>
+                        <p className="m-0 text-[14px] font-normal leading-[22.75px] text-[#99A1AF]">
+                          {whyChunks.length ? whyChunks.join(' ') : whyText}
+                        </p>
+                        <div className="mt-3 flex items-start gap-2 text-[12px] font-normal leading-[16px] text-[#4A5565]">
+                          <span className="mt-[2px] inline-flex h-4 w-4 items-center justify-center rounded-full border border-[#4A5565] text-[10px] text-[#4A5565]">i</span>
+                          <span>
+                            AI analyzed based on your inputs.
+                            <em> All results for informational purposes only. Not financial advice.</em>
+                          </span>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -1167,6 +1176,20 @@ export default function App() {
   const isFormValid = !hasAnyValidationError && termsAgreed;
 
   const safeResults = Array.isArray(results) ? results : [];
+  const strategyTabs = [
+    { id: 'best-rate', title: 'Best Rate', subtitle: 'Highest single after-tax yield' },
+    { id: 'ladder', title: 'CD Ladder', subtitle: 'Rolling liquidity every quarter' },
+    { id: 'barbell', title: 'Barbell', subtitle: 'Short + long, skip the middle' },
+    { id: 'bullet', title: 'Bullet', subtitle: 'All mature on your target date' },
+  ];
+  const showBulletStrategyMockup = false;
+
+  const navigateToHome = () => {
+    window.history.pushState({ page: 'home' }, '', '/');
+    setShowResults(false);
+  };
+
+  const isBulletResultsView = showResults && strategyView === 'bullet';
 
   return (
     <div className="layout">
@@ -1275,33 +1298,77 @@ export default function App() {
       )}
 
       {/* Header - Dark Background */}
-      <header className="bg-[#101b30] px-10 py-4 flex items-center max-[768px]:px-4 max-[768px]:py-3">
-        <div className="flex items-center gap-3 cursor-pointer" onClick={() => {
-          if (showResults) {
-            window.history.pushState({ page: 'home' }, '', '/');
-            setShowResults(false);
-          }
-        }}>
-          <img src="/New%20logo.png" alt="SmartCD.ai Logo" className="h-12 w-auto max-[768px]:h-10" />
-        </div>
-        <button
-          type="button"
-          aria-label={theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode'}
-          aria-pressed={theme === 'light'}
-          onClick={() => setTheme((prev) => (prev === 'light' ? 'dark' : 'light'))}
-          className={`ml-auto inline-flex h-10 w-10 items-center justify-center rounded-full border transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 ${
-            theme === 'light'
-              ? 'border-[#CBD5E1] bg-[#EFF6FF] text-[#1E2941] focus:ring-[#1557F5] focus:ring-offset-white'
-              : 'border-[rgba(255,255,255,0.22)] bg-[rgba(255,255,255,0.08)] text-white focus:ring-[#92C5F9] focus:ring-offset-[#101b30]'
-          }`}
-        >
-          {theme === 'light' ? <MoonIcon className="h-5 w-5" /> : <SunIcon className="h-5 w-5" />}
-        </button>
+      <header
+        className={`${
+          showBulletStrategyMockup
+            ? 'h-[80px] w-full overflow-hidden bg-[radial-gradient(ellipse_50%_50%_at_50%_50%,rgba(30,41,65,0.40)_0%,rgba(36,60,107,0.40)_100%)]'
+            : 'flex items-center bg-[#101b30] px-4 py-3 max-[768px]:px-3 max-[768px]:py-2.5'
+        }`}
+      >
+        {showBulletStrategyMockup ? (
+          <div className="mx-auto flex h-[67px] w-full max-w-[1397px] items-center justify-between px-[31px] pt-[6px]">
+            <button type="button" className="inline-flex items-center border-0 bg-transparent p-0 cursor-pointer" onClick={navigateToHome}>
+              <img src="/logo-new.png" alt="SmartCD.ai" className="h-[46px] w-auto" />
+            </button>
+
+            <div className="flex items-center gap-[13px]">
+              <label className="hidden h-[46px] w-[294px] items-center gap-2 rounded-[8px] border border-[#1E3A5A] bg-[rgba(11,27,53,0.25)] px-3 text-[#94A3B8] shadow-[inset_0_0_0_1px_rgba(30,58,90,0.2)] md:inline-flex">
+                <HeaderSearchIcon className="h-4 w-4 shrink-0 text-[#94A3B8]" />
+                <span style={{ color: '#94A3B8', fontSize: 14, fontFamily: 'Inter, sans-serif', fontWeight: 400, lineHeight: '20px' }}>
+                  Search Institution like Citi Bank
+                </span>
+              </label>
+
+              <button
+                type="button"
+                aria-label={theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode'}
+                aria-pressed={theme === 'light'}
+                onClick={() => setTheme((prev) => (prev === 'light' ? 'dark' : 'light'))}
+                className="inline-flex h-[35px] w-[35px] items-center justify-center rounded-full border border-white bg-transparent text-white transition-colors focus:outline-none focus:ring-2 focus:ring-[#92C5F9] focus:ring-offset-2 focus:ring-offset-[#101b30]"
+              >
+                {theme === 'light' ? <MoonIcon className="h-4 w-4" /> : <SunIcon className="h-4 w-4" />}
+              </button>
+            </div>
+          </div>
+        ) : (
+          <>
+            <div className="flex items-center gap-3 cursor-pointer" onClick={navigateToHome}>
+              <img
+                src="/logo-new.png"
+                alt="SmartCD.ai Logo"
+                className="h-11 w-auto max-[768px]:h-9"
+              />
+            </div>
+            <div className="ml-auto flex items-center gap-3">
+              <label className="hidden h-[38px] w-[294px] items-center gap-2 rounded-[8px] border border-[#1E3A5A] bg-[rgba(11,27,53,0.25)] px-3 text-[#94A3B8] shadow-[inset_0_0_0_1px_rgba(30,58,90,0.2)] lg:inline-flex">
+                <HeaderSearchIcon className="h-4 w-4 shrink-0 text-[#94A3B8]" />
+                <span style={{ color: '#94A3B8', fontSize: 14, fontFamily: 'Inter, sans-serif', fontWeight: 400, lineHeight: '20px' }}>
+                  Search Institution like Citi Bank
+                </span>
+              </label>
+            </div>
+            <button
+              type="button"
+              aria-label={theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode'}
+              aria-pressed={theme === 'light'}
+              onClick={() => setTheme((prev) => (prev === 'light' ? 'dark' : 'light'))}
+              className={`inline-flex items-center justify-center rounded-full border transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 ${
+                theme === 'light'
+                  ? 'h-10 w-10 border-[#CBD5E1] bg-[#EFF6FF] text-[#1E2941] focus:ring-[#1557F5] focus:ring-offset-white'
+                  : 'h-10 w-10 border-[rgba(255,255,255,0.22)] bg-[rgba(255,255,255,0.08)] text-white focus:ring-[#92C5F9] focus:ring-offset-[#101b30]'
+              }`}
+            >
+              {theme === 'light' ? <MoonIcon className="h-5 w-5" /> : <SunIcon className="h-5 w-5" />}
+            </button>
+          </>
+        )}
       </header>
 
       {/* Main Content - Dark Background */}
       <main className="main-content">
-        {!showResults ? (
+        {showBulletStrategyMockup ? (
+          <BulletStrategyMockup />
+        ) : !showResults ? (
           <>
             <div className="text-center max-w-[900px] mb-[60px] flex flex-col items-center max-[768px]:mb-7">
               <div className="inline-flex items-center gap-2 bg-[rgba(29,141,238,0.1)] border border-[rgba(29,141,238,0.3)] text-[#92C5F9] px-4 py-1.5 rounded-full text-xs font-semibold tracking-[0.05em] mb-8 normal-case max-[768px]:mb-[18px]">
@@ -1469,7 +1536,47 @@ export default function App() {
             </div>
           </>
         ) : (
-          <div className="mx-auto w-full max-w-[1100px]">
+          <div className="mx-auto w-full max-w-[1288px]">
+            {strategyView === 'bullet' && (
+              <div className="mb-4">
+                <h1 className="text-[20px] font-bold leading-[28px] text-white">Bullet Strategy</h1>
+                <p className="text-[14px] leading-[20px] text-[#4A6A8A]">Compare all CDs with the best after-tax yields for your situation</p>
+              </div>
+            )}
+            <section className="mb-6 w-full min-h-[114px] rounded-[10px] border border-[#23446A] bg-[#0D1B2D] p-[20px] shadow-[inset_0_0_0_1px_rgba(35,68,106,0.35)] md:p-[30px]">
+              <div className="mx-auto flex w-full max-w-[1226px] flex-wrap items-center gap-x-[30px] gap-y-3 lg:flex-nowrap">
+                {strategyTabs.map((tab) => {
+                  const active = strategyView === tab.id;
+                  return (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      onClick={() => setStrategyView(tab.id)}
+                      className={`w-[273px] flex h-[67px] shrink-0 items-center gap-3 border-0 bg-transparent text-left transition-all duration-300 ease-out ${
+                        active
+                          ? 'rounded-[12px] border border-[#F59E0C] bg-[#0D1B2E] px-6 shadow-[inset_0_0_0_1px_rgba(245,158,11,0.28),0_0_0_1px_rgba(245,158,11,0.2)]'
+                          : 'px-0 hover:opacity-90'
+                      }`}
+                    >
+                      <span className="inline-flex h-5 w-5 items-center justify-center">
+                        <StrategyTabIcon id={tab.id} active={active} />
+                      </span>
+                      <span className="relative h-[42px] w-[204px]">
+                        <span className={`absolute left-0 top-0 text-[18px] font-semibold leading-[20px] ${active ? 'text-[#F59E0C]' : 'text-[#94A3B8]'}`}>{tab.title}</span>
+                        <span className={`absolute left-0 top-6 w-[200px] text-[14px] font-normal leading-[20px] ${active ? 'text-[#F59E0C]' : 'text-[#94A3B8]'}`}>{tab.subtitle}</span>
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </section>
+            {strategyView === 'bullet' ? (
+              <>
+                <BulletStrategyMockup embedded hideTitle />
+                <AIAssistant rankResponse={rankResponse} />
+              </>
+            ) : (
+              <>
             <div className="mb-6 flex items-start justify-between max-[768px]:mb-4 max-[768px]:flex-col max-[768px]:items-stretch max-[768px]:gap-3">
               <div>
                 <h1 className="mb-1.5 text-2xl font-bold text-white max-[768px]:text-[1.2rem] max-[768px]:leading-[1.3]">All Products - Ranked by After-Tax Yield</h1>
@@ -1635,20 +1742,33 @@ export default function App() {
               </div>
             </div>
             <AIAssistant rankResponse={rankResponse} />
+              </>
+            )}
           </div>
         )}
       </main>
 
       {/* Footer */}
-      <footer className={`mt-auto flex w-full flex-col items-center justify-center gap-2 ${showResults ? 'bg-[#1E2941] px-5 py-10 max-[768px]:px-[14px] max-[768px]:py-[22px]' : 'border-t border-[#E5E7EB] bg-[#1E2941] px-16 pt-8 pb-6 max-[768px]:px-[14px] max-[768px]:pt-[22px] max-[768px]:pb-[22px]'}`}>
-        <div className="text-[0.8rem] font-medium text-[rgba(255,255,255,0.52)]">Last updated: March 2026</div>
-        <div className="mb-2 text-[0.85rem] font-semibold text-[rgba(255,255,255,0.85)]">
-          © 2026 SmartCD.ai - All Rights Reserved
-        </div>
-        <div className="max-w-[1000px] text-center text-[0.75rem] font-medium leading-[1.5] text-[rgba(255,255,255,0.55)]">
-          SmartCD.AI is an AI-powered aggregator of publicly available information. Annual Percentage Yields (APY) are subject to change without notice. Minimum deposit requirements and regional availability may apply. This tool provides information for educational purposes only and does not constitute investment, financial, tax, or legal advice. Always verify rates directly with the financial institution before making investment decisions.
-        </div>
-      </footer>
+      {showBulletStrategyMockup || isBulletResultsView ? (
+        <footer className="mt-auto w-full overflow-hidden bg-[radial-gradient(ellipse_50%_50%_at_50%_50%,#1E2941_0%,#243C6B_0%)] pb-[max(18px,env(safe-area-inset-bottom))]">
+          <div className="mx-auto h-full w-full max-w-[1440px] px-4">
+            <div className="pt-[11px] text-center text-[12px] font-bold leading-none text-[#FBFBFB]">© 2026 SmartCD.AI</div>
+            <div className="mx-auto mt-[8px] max-w-[1320px] text-center text-[12px] font-normal leading-[14px] text-[#9E9E9E]">
+              SmartCD.AI is an AI-powered aggregator of publicly available information. Annual Percentage Yields (APY) are subject to change without notice. Minimum deposit requirements and regional availability may apply. This tool provides information for educational purposes only and does not constitute investment, financial, tax, or legal advice. Always verify rates directly with the financial institution before making investment decisions.
+            </div>
+          </div>
+        </footer>
+      ) : (
+        <footer className={`mt-auto flex w-full flex-col items-center justify-center gap-2 ${showResults ? 'bg-[#1E2941] px-5 py-10 max-[768px]:px-[14px] max-[768px]:py-[22px]' : 'border-t border-[#E5E7EB] bg-[#1E2941] px-16 pt-8 pb-6 max-[768px]:px-[14px] max-[768px]:pt-[22px] max-[768px]:pb-[22px]'}`}>
+          <div className="text-[0.8rem] font-medium text-[rgba(255,255,255,0.52)]">Last updated: March 2026</div>
+          <div className="mb-2 text-[0.85rem] font-semibold text-[rgba(255,255,255,0.85)]">
+            © 2026 SmartCD.ai - All Rights Reserved
+          </div>
+          <div className="max-w-[1000px] text-center text-[0.75rem] font-medium leading-[1.5] text-[rgba(255,255,255,0.55)]">
+            SmartCD.AI is an AI-powered aggregator of publicly available information. Annual Percentage Yields (APY) are subject to change without notice. Minimum deposit requirements and regional availability may apply. This tool provides information for educational purposes only and does not constitute investment, financial, tax, or legal advice. Always verify rates directly with the financial institution before making investment decisions.
+          </div>
+        </footer>
+      )}
     </div>
   );
 }
