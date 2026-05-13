@@ -257,7 +257,6 @@ def simulate_bullet(*,
     tranches_with_products: list[dict] = []
     for tranche in windows:
         target_months = tranche["target_maturity_months"]
-        logger.info("Getting offer for tranch=%s",tranche["target_maturity_months"])
 
         input = RankingInput(
         investment_amount=distributed_amount,
@@ -271,10 +270,10 @@ def simulate_bullet(*,
         offers = rank_offers(
             data_client=data_client,
             inp=input,
-            top_n_bank_cds=10,
-            top_n_brokered_cds=10,
+            top_n_bank_cds=2,
+            top_n_brokered_cds=2,
             top_n_treasuries=1,
-            top_n_overall=10,
+            top_n_overall=2,
             include_all_ranked=False,
         )
 
@@ -290,7 +289,7 @@ def simulate_bullet(*,
     # 4. Compute allocation split
     allocated_tranches = _allocate_tranches(tranches_with_products, investment_amount)
 
-    # Validate that minimum deposits are satisfied; warn or swap if not
+    # Validate that minimum deposits are satisfied; warn or swap if not and update the tranch allocation amount
     for tranche in allocated_tranches:
         product = tranche["product"]
         min_deposit = product.get("minimum_deposit", 0.0) or 0.0
@@ -301,7 +300,14 @@ def simulate_bullet(*,
                 f"(${min_deposit:,.2f}). Consider increasing total investment "
                 "or removing this tranche."
             )
+        tranche["product"]["investment_amount"] = tranche["allocation_amount"]
+        tranche["product"]["nominal_interest_usd"] = round(_interest_simple(tranche["allocation_amount"], product.get("apy_nominal"), product.get("term_months")),2)
+        tranche["product"]["after_tax_interest_usd"] = round(_interest_simple(tranche["allocation_amount"], product.get("after_tax_apy"), product.get("term_months")),2)
+
+
     
+
+
     # 5. Calculate Portfolio Data
     blended_apy = _compute_blended_yield(allocated_tranches, investment_amount)
 
@@ -317,12 +323,9 @@ def simulate_bullet(*,
             {
                 "tranche": t["tranche"],
                 "target_maturity_months": t["target_maturity_months"],
-                "actual_term_months": t["product"]["term_months"],
-                "nominal_APY" : t["product"]["apy_nominal"],
-                "after_tax_APY" : t["product"]["after_tax_apy"],
-                "nominal_interest_usd": (t["product"]["apy_nominal"]/100) * t["allocation_amount"],
                 "allocation_amount": t["allocation_amount"],
                 "allocation_pct": t["allocation_pct"],
+                "product": t["product"]
             }
             for t in allocated_tranches
         ],
