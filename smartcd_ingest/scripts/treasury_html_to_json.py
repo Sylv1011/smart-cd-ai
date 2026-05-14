@@ -75,7 +75,9 @@ def parse_treasury_html():
         logger.error("No valid treasury rows found")
         return []
 
-    retrieved_at, data_map = max(parsed_rows, key=lambda x: x[0])
+    # Use the newest Treasury data row, but stamp it with the current fetch date.
+    _, data_map = max(parsed_rows, key=lambda x: x[0])
+    retrieved_at = date.today().isoformat()
     output = []
 
     for col, term_months in COL_TO_TERM_MONTHS.items():
