@@ -125,4 +125,3 @@ class CDProduct(BaseModel):
 
 class FetchYieldsResponse(BaseModel):
     results: List[CDProduct]
-
