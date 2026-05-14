@@ -6,9 +6,6 @@ from data import RankingInput, Offer
 from engine import rank_offers, RankingEngineError
 import logging
 
-LIQUIDITY_ALLOWED = {"low", "medium", "high"}
-RATE_OUTLOOK_ALLOWED = {"rising", "stable", "falling"}
-
 logger = logging.getLogger(__name__)
 
 
@@ -89,14 +86,16 @@ def _target_maturity_windows(horizon_years: float) -> list[dict]:
             for offset in purchase_offsets
         ]
 
-    # Snap all maturities to nearest available DB term
-     # Snap down to available terms, excluding already-used terms
+    # Snap all maturities to nearest available DB term.
+    # For very short horizons (<12 months), duplicate terms are valid
+    # (e.g., 3-month now + 3-month in 3 months), so do not force uniqueness.
     used_terms: set[int] = set()
     snapped_maturities: list[int] = []
     valid_offsets: list[int] = []
+    allow_duplicate_terms = horizon_months < 12
 
     for i, (raw, offset) in enumerate(zip(maturities, purchase_offsets)):
-        snapped = _snap_to_available_term(raw, exclude=used_terms)
+        snapped = _snap_to_available_term(raw, exclude=set() if allow_duplicate_terms else used_terms)
         if snapped is None:
             # No unique term available for this tranche — drop it
             logger.warning(
@@ -104,7 +103,8 @@ def _target_maturity_windows(horizon_years: float) -> list[dict]:
                 "(already used: %s)", i + 1, raw, used_terms
             )
             continue
-        used_terms.add(snapped)
+        if not allow_duplicate_terms:
+            used_terms.add(snapped)
         snapped_maturities.append(snapped)
         valid_offsets.append(offset)
 
@@ -112,10 +112,10 @@ def _target_maturity_windows(horizon_years: float) -> list[dict]:
     return [
         {
             "tranche": i + 1,
-            "purchase_offset_months": purchase_offsets[i],
+            "purchase_offset_months": valid_offsets[i],
             "target_maturity_months": snapped_maturities[i],
         }
-        for i in range(len(purchase_offsets))
+        for i in range(len(valid_offsets))
     ]
 
 def _allocate_tranches(
@@ -230,7 +230,7 @@ def simulate_bullet(*,
     income_range: str,
     filing_status: str,
     local_area: Optional[str],
-    liquidity_preference: str,
+    liquidity_preference: Optional[str] = None,
     rate_outlook: Optional[str] = None,
     time_horizon: Optional[str] = None,
 ) -> Dict[str, Any]:
@@ -247,6 +247,11 @@ def simulate_bullet(*,
     # 2. Compute maturity windows
     windows = _target_maturity_windows(years)
     logger.info('Tranches  : %s',len(windows))
+    if not windows:
+        raise RankingEngineError(
+            "No valid maturity windows found for this horizon. "
+            "Try a longer duration (at least 3 months)."
+        )
     
     
     
@@ -322,6 +327,7 @@ def simulate_bullet(*,
         "tranches": [
             {
                 "tranche": t["tranche"],
+                "purchase_offset_months": t["purchase_offset_months"],
                 "target_maturity_months": t["target_maturity_months"],
                 "allocation_amount": t["allocation_amount"],
                 "allocation_pct": t["allocation_pct"],

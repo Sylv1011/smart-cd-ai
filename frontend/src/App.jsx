@@ -193,6 +193,11 @@ const parseTermToMonths = (label) => {
   return 12;
 };
 
+const toBulletTermLabel = (searchTermLabel) => {
+  const months = parseTermToMonths(searchTermLabel);
+  return `${months} months`;
+};
+
 const ALLOWED_TERM_MONTHS = [3, 6, 9, 12, 18, 24, 36, 48, 60];
 const TERM_LENGTH_OPTIONS = [
   '3 Month',
@@ -386,6 +391,11 @@ export default function App() {
   const [error, setError] = useState(null);
   const [results, setResults] = useState([]);
   const [rankResponse, setRankResponse] = useState(null);
+  const [bulletSimulation, setBulletSimulation] = useState(null);
+  const [bulletLoading, setBulletLoading] = useState(false);
+  const [bulletError, setBulletError] = useState(null);
+  const [bulletAlternativesByTranche, setBulletAlternativesByTranche] = useState({});
+  const [bulletControls, setBulletControls] = useState({ term: '12 months', amount: '20000' });
   const aiBase = import.meta.env.VITE_AI_LAYER_URL;
   const [showPrivacy, setShowPrivacy] = useState(false);
   const THEME_STORAGE_KEY = 'smartcd:theme:v1';
@@ -747,6 +757,104 @@ export default function App() {
     }
   };
 
+  const fetchBulletSimulation = async (nextFormData, options = {}) => {
+    const { silent = false, controlsOverride = null } = options;
+    const effectiveControls = controlsOverride || bulletControls;
+    const controlsAmount = parseFloat(String(effectiveControls.amount || '').replace(/[^0-9.]/g, ''));
+    const formAmount = parseFloat(nextFormData.investment_amount);
+    const amt = Number.isFinite(controlsAmount) && controlsAmount > 0 ? controlsAmount : formAmount;
+
+    if (!Number.isFinite(amt) || amt < 5000) {
+      return;
+    }
+
+    const rankBase =
+      import.meta.env.VITE_RANKING_API_URL ||
+      import.meta.env.VITE_API_URL ||
+      'http://localhost:8001';
+
+    const termLabel = (effectiveControls.term || '').trim() || nextFormData.term_length_months;
+    const termMonths = parseTermToMonths(termLabel);
+    const horizonYears = Math.round((termMonths / 12) * 10) / 10;
+
+    const payload = {
+      strategy_type: 'bullet',
+      investment_amount: amt,
+      state: selectedStateCode || stateNameToCode[nextFormData.state_selection] || nextFormData.state_selection,
+      income_range: nextFormData.income_range,
+      filing_status: normalizeFilingStatusForRanker(nextFormData.tax_filing_status),
+      local_area: nextFormData.city_county || null,
+      time_horizon: String(horizonYears),
+    };
+
+    if (!silent) {
+      setBulletLoading(true);
+    }
+    setBulletError(null);
+
+    try {
+      const response = await fetch(`${rankBase}/strategies/simulate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        const errPayload = await response.json().catch(() => ({}));
+        throw new Error(errPayload.detail || 'Failed to fetch bullet simulation.');
+      }
+
+      const simulationPayload = await response.json();
+      setBulletSimulation(simulationPayload);
+      const tranches = Array.isArray(simulationPayload?.tranches) ? simulationPayload.tranches : [];
+      const rankBaseForAlternatives =
+        import.meta.env.VITE_RANKING_API_URL ||
+        import.meta.env.VITE_API_URL ||
+        'http://localhost:8001';
+      const altMap = {};
+      for (const t of tranches) {
+        const termMonthsForRank = Number(t?.target_maturity_months ?? t?.actual_term_months ?? 0) || 0;
+        if (!termMonthsForRank) continue;
+        const allocAmount = Number(t?.allocation_amount ?? amt) || amt;
+        const rankReq = {
+          investment_amount: Math.max(5000, allocAmount),
+          term_months: termMonthsForRank,
+          state: selectedStateCode || stateNameToCode[nextFormData.state_selection] || nextFormData.state_selection,
+          income_range: nextFormData.income_range,
+          filing_status: normalizeFilingStatusForRanker(nextFormData.tax_filing_status),
+          local_area: nextFormData.city_county || null,
+          top_n_bank_cds: 3,
+          top_n_brokered_cds: 3,
+          top_n_treasuries: 2,
+          top_n_overall: 5,
+        };
+        try {
+          const rankRes = await fetch(`${rankBaseForAlternatives}/rank`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(rankReq),
+          });
+          if (rankRes.ok) {
+            const rankPayload = await rankRes.json();
+            altMap[String(t?.tranche)] = Array.isArray(rankPayload?.overall_top) ? rankPayload.overall_top : [];
+          } else {
+            altMap[String(t?.tranche)] = [];
+          }
+        } catch {
+          altMap[String(t?.tranche)] = [];
+        }
+      }
+      setBulletAlternativesByTranche(altMap);
+    } catch (err) {
+      setBulletError(err.message || 'Unable to fetch bullet simulation.');
+      setBulletAlternativesByTranche({});
+    } finally {
+      if (!silent) {
+        setBulletLoading(false);
+      }
+    }
+  };
+
   const canAutoRefreshRank = (nextFormData) => {
     const amt = parseFloat(nextFormData.investment_amount);
     const state = (nextFormData.state_selection || '').trim();
@@ -855,6 +963,25 @@ export default function App() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showResults, rankResponse]);
+
+  useEffect(() => {
+    if (!showResults || strategyView !== 'bullet') return;
+    if (!canAutoRefreshRank(formData)) return;
+    fetchBulletSimulation(formData, { silent: false });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    strategyView,
+    showResults,
+    formData.investment_amount,
+    formData.term_length_months,
+    formData.income_range,
+    formData.state_selection,
+    formData.city_county,
+    formData.tax_filing_status,
+    selectedStateCode,
+    bulletControls.term,
+    bulletControls.amount,
+  ]);
 
   const isAutoRefreshField = (name) => (
     name === 'term_length_months' ||
@@ -1551,7 +1678,20 @@ export default function App() {
                     <button
                       key={tab.id}
                       type="button"
-                      onClick={() => setStrategyView(tab.id)}
+                      onClick={() => {
+                        setStrategyView(tab.id);
+                        if (tab.id === 'bullet' && canAutoRefreshRank(formData)) {
+                          const syncedControls = {
+                            term: toBulletTermLabel(formData.term_length_months),
+                            amount: String(formData.investment_amount || '').replace(/[^0-9]/g, '') || '20000',
+                          };
+                          setBulletControls({
+                            term: syncedControls.term,
+                            amount: syncedControls.amount,
+                          });
+                          fetchBulletSimulation(formData, { silent: false, controlsOverride: syncedControls });
+                        }
+                      }}
                       className={`w-[273px] flex h-[67px] shrink-0 items-center gap-3 border-0 bg-transparent text-left transition-all duration-300 ease-out ${
                         active
                           ? 'rounded-[12px] border border-[#F59E0C] bg-[#0D1B2E] px-6 shadow-[inset_0_0_0_1px_rgba(245,158,11,0.28),0_0_0_1px_rgba(245,158,11,0.2)]'
@@ -1572,7 +1712,29 @@ export default function App() {
             </section>
             {strategyView === 'bullet' ? (
               <>
-                <BulletStrategyMockup embedded hideTitle />
+                <BulletStrategyMockup
+                  embedded
+                  hideTitle
+                  initialTerm={bulletControls.term}
+                  initialAmount={bulletControls.amount}
+                  simulationData={bulletSimulation}
+                  alternativesByTranche={bulletAlternativesByTranche}
+                  simulationLoading={bulletLoading}
+                  simulationError={bulletError}
+                  onExportPdf={() => window.print()}
+                  onControlsChange={(controls) => {
+                    setBulletControls((prev) => {
+                      const next = {
+                        term: controls?.term || prev.term,
+                        amount: controls?.amount || prev.amount,
+                      };
+                      if (next.term === prev.term && next.amount === prev.amount) {
+                        return prev;
+                      }
+                      return next;
+                    });
+                  }}
+                />
                 <AIAssistant rankResponse={rankResponse} />
               </>
             ) : (

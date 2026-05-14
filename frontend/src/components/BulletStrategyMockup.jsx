@@ -36,6 +36,13 @@ const InfoIcon = ({ className = '' }) => (
   </svg>
 );
 
+const BellIcon = ({ className = '' }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+    <path d="M12 3a5 5 0 0 0-5 5v2.1c0 .8-.3 1.6-.8 2.2L4.7 14a1 1 0 0 0 .7 1.7h13.2a1 1 0 0 0 .7-1.7l-1.5-1.7a3.3 3.3 0 0 1-.8-2.2V8a5 5 0 0 0-5-5Z" />
+    <path d="M9.5 18a2.5 2.5 0 0 0 5 0" />
+  </svg>
+);
+
 const purchaseNowPrimary = {
   id: 'citibank-now',
   provider: 'Citibank',
@@ -99,6 +106,78 @@ const summary = [
   { type: 'In 6 Months', provider: 'US Treasury', term: '6 Months', apy: '4.80%', tax: '4.22%', dep: '$1,667', date: 'May 20, 2027', dot: '#2B7FFF', projected: true },
 ];
 
+const BULLET_TERM_OPTIONS = [
+  '3 months',
+  '6 months',
+  '9 months',
+  '12 months',
+  '18 months',
+  '24 months',
+  '36 months',
+  '48 months',
+  '60 months',
+];
+
+const monthsFromLabel = (label) => {
+  const m = String(label || '').trim().match(/^(\d+)\s*months?$/i);
+  if (!m) return 12;
+  const n = Number(m[1]);
+  return Number.isFinite(n) && n > 0 ? n : 12;
+};
+
+const formatDateLong = (d) =>
+  d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+
+const addMonths = (date, months) => {
+  const out = new Date(date);
+  out.setMonth(out.getMonth() + months);
+  return out;
+};
+
+const formatMoney = (n, digits = 0) => {
+  const x = Number(n);
+  if (!Number.isFinite(x)) return '$0';
+  return `$${x.toLocaleString(undefined, { minimumFractionDigits: digits, maximumFractionDigits: digits })}`;
+};
+
+const formatPct = (n) => {
+  const x = Number(n);
+  if (!Number.isFinite(x)) return '0.00';
+  return x.toFixed(2);
+};
+
+const mapProductType = (pt) => {
+  if (pt === 'treasury') return 'Treasuries';
+  if (pt === 'brokered_cd') return 'Brokerage CDs';
+  return 'Bank CDs';
+};
+
+const mapProvider = (p) => p?.institution_name || p?.issuing_bank || p?.brokerage_firm || 'Unknown';
+
+const mapSubLabel = (p, type) => {
+  if (type === 'Treasuries') return 'Backed by the U.S. Government';
+  if (type === 'Brokerage CDs') {
+    const broker = p?.brokerage_firm ? `Issued through ${p.brokerage_firm}` : 'Issued through brokerage';
+    return `Member of FDIC, ${broker}`;
+  }
+  return 'Member of FDIC';
+};
+
+const makeTaxBreakdown = (p) => {
+  const interest = Number(p?.nominal_interest_usd ?? 0);
+  const fed = Number(p?.fed_rate ?? 0);
+  const state = p?.product_type === 'treasury' ? 0 : Number(p?.state_rate ?? 0);
+  const local = p?.product_type === 'treasury' ? 0 : Number(p?.local_rate ?? 0);
+  const totalTax = interest * (fed + state + local);
+  const savings = Math.max(0, interest * (state + local));
+  return {
+    interestEarned: formatMoney(interest, 2),
+    totalTax: `-${formatMoney(totalTax, 2)}`,
+    totalSavings: formatMoney(savings, 2),
+    netReturn: formatMoney(Number(p?.after_tax_interest_usd ?? 0), 2),
+  };
+};
+
 const DropdownField = ({ label, value, options, onSelect, narrow = false }) => {
   const [open, setOpen] = useState(false);
   return (
@@ -148,10 +227,10 @@ const SectionHeader = ({ title, badge, note }) => (
   </div>
 );
 
-const Rate = ({ value, tone = 'text-white', projected = false }) => (
+const Rate = ({ value, tone = 'text-white', projected = false, allocationText = '' }) => (
   <div className={`${tone} text-left text-[26px] font-bold leading-none max-[520px]:text-[22px]`}>
     {value}<span className="ml-2 text-[13px] font-medium">%</span>
-    {projected && <div className="mt-1 text-[12px] font-normal leading-[13px] text-[#0077FF]">Projected<br />(33% allocation)</div>}
+    {projected && <div className="mt-1 text-[12px] font-normal leading-[13px] text-[#0077FF]">Projected<br />({allocationText || 'Allocation'})</div>}
   </div>
 );
 
@@ -169,6 +248,7 @@ const Row = ({
   seamless = false,
   summaryState = 'idle',
   onGenerateSummary,
+  onSetReminder,
 }) => {
   const result = { provider: row.provider, productType: row.type };
 
@@ -187,7 +267,7 @@ const Row = ({
         </div>
         <div className="text-[16px] font-bold text-white md:text-left max-[760px]:pl-[56px]">{row.type}</div>
         <div className="md:text-left"><Rate value={row.nominal} /></div>
-        <div className="md:text-left"><Rate value={row.tax} tone={future ? 'text-[#0077FF]' : 'text-[#22C55E]'} projected={future} /></div>
+        <div className="md:text-left"><Rate value={row.tax} tone={future ? 'text-[#0077FF]' : 'text-[#22C55E]'} projected={future} allocationText={row.allocationText} /></div>
         <div className="text-[18px] font-bold text-white md:text-left max-[760px]:text-left">{row.dep}</div>
         <div className="flex items-center justify-start gap-3 max-[760px]:pl-[56px] max-[520px]:flex-wrap">
           <button
@@ -202,12 +282,18 @@ const Row = ({
           </button>
           <button
             type="button"
-            onClick={() => window.open(row.providerUrl, '_blank', 'noopener,noreferrer')}
-            className={`inline-flex h-[38px] w-[110px] items-center justify-center gap-2 rounded-[10px] border px-2 py-2 text-[14px] font-semibold leading-[24px] shadow-[0_4px_4px_rgba(0,0,0,0.25)] transition-all ${
+            onClick={() => {
+              if (future) {
+                onSetReminder?.(row);
+                return;
+              }
+              window.open(row.providerUrl, '_blank', 'noopener,noreferrer');
+            }}
+            className={`inline-flex h-[38px] w-[122px] items-center justify-center gap-2 whitespace-nowrap rounded-[10px] border px-2 py-2 text-[14px] font-semibold leading-[24px] shadow-[0_4px_4px_rgba(0,0,0,0.25)] transition-all ${
               future ? 'border-[#DCE6F7] bg-white text-[#155DFC] hover:bg-[#eaf1ff]' : 'border-[#E2E8F0] bg-white text-[#1A3050] hover:bg-[#eef3fb]'
             }`}
           >
-            Provider <ExternalLinkIcon className="h-3.5 w-3.5" />
+            {future ? 'Set Reminder' : 'Provider'} {!future && <ExternalLinkIcon className="h-3.5 w-3.5" />}
           </button>
         </div>
       </div>
@@ -218,21 +304,21 @@ const Row = ({
             <div className="px-[20px] pt-[24px]">
               <div className="flex h-[14px] items-center justify-between text-[12.5px] leading-none">
                 <span className="font-normal text-[#7AAAC0]">Interest Earned :</span>
-                <span className="w-[80px] text-right font-bold text-[#22C55E]">$2,475.00</span>
+                <span className="w-[80px] text-right font-bold text-[#22C55E]">{row.taxBreakdown?.interestEarned || '$0.00'}</span>
               </div>
               <div className="mt-[21px] flex h-[14px] items-center justify-between text-[12.5px] leading-none">
                 <span className="font-normal text-[#7AAAC0]">Total Tax :</span>
-                <span className="w-[80px] text-right font-bold text-[#EF4444]">-$594.00</span>
+                <span className="w-[80px] text-right font-bold text-[#EF4444]">{row.taxBreakdown?.totalTax || '$0.00'}</span>
               </div>
               <div className="mt-[20px] flex h-[14px] items-center justify-between text-[12.5px] leading-none">
                 <span className="font-normal text-[#7AAAC0]">Total Savings :</span>
-                <span className="w-[80px] text-right font-bold text-[#22C55E]">$329.18</span>
+                <span className="w-[80px] text-right font-bold text-[#22C55E]">{row.taxBreakdown?.totalSavings || '$0.00'}</span>
               </div>
             </div>
             <div className="mx-[12px] mt-[34px] rounded-[10px] border border-[#1A4A28] bg-[linear-gradient(180deg,#0A2A18_0%,#071E10_100%)] px-[10px] py-[9px] shadow-[inset_0_0_0_1px_rgba(34,197,94,0.22)]">
               <div className="flex items-center justify-between">
                 <span className="text-[13px] font-bold text-white">Net Return :</span>
-                <span className="text-[17px] font-bold text-[#22C55E]">$1,881.00</span>
+                <span className="text-[17px] font-bold text-[#22C55E]">{row.taxBreakdown?.netReturn || '$0.00'}</span>
               </div>
             </div>
           </div>
@@ -324,15 +410,41 @@ const Row = ({
   );
 };
 
-export default function BulletStrategyMockup({ embedded = false, hideTitle = false }) {
-  const [term, setTerm] = useState('12 months');
+export default function BulletStrategyMockup({
+  embedded = false,
+  hideTitle = false,
+  onControlsChange = null,
+  initialTerm = '12 months',
+  initialAmount = '20000',
+  simulationData = null,
+  alternativesByTranche = {},
+  simulationLoading = false,
+  simulationError = null,
+  onExportPdf = null,
+}) {
+  const [term, setTerm] = useState(initialTerm);
   const [filterType, setFilterType] = useState('All Products (3)');
-  const [amount, setAmount] = useState('20000');
+  const [amount, setAmount] = useState(initialAmount);
   const [showOtherNow, setShowOtherNow] = useState(true);
   const [showOtherFuture, setShowOtherFuture] = useState({});
   const [taxOpenById, setTaxOpenById] = useState({});
   const [summaryStateById, setSummaryStateById] = useState({});
+  const [showReminderModal, setShowReminderModal] = useState(false);
   const timersRef = useRef({});
+
+  useEffect(() => {
+    setTerm(initialTerm || '12 months');
+  }, [initialTerm]);
+
+  useEffect(() => {
+    setAmount(initialAmount || '20000');
+  }, [initialAmount]);
+
+  useEffect(() => {
+    if (typeof onControlsChange === 'function') {
+      onControlsChange({ term, amount });
+    }
+  }, [term, amount, onControlsChange]);
 
   const toggleTax = (id) => {
     setTaxOpenById((prev) => {
@@ -365,10 +477,132 @@ export default function BulletStrategyMockup({ embedded = false, hideTitle = fal
   }, []);
 
   const maturityText = useMemo(() => {
-    if (term === '6 months') return 'November 20, 2026';
-    if (term === '3 months') return 'August 20, 2026';
-    return 'May 20, 2027';
+    const months = monthsFromLabel(term);
+    return formatDateLong(addMonths(new Date(), months));
   }, [term]);
+
+  const selectedProductType = useMemo(() => {
+    const s = String(filterType || '').toLowerCase();
+    if (s.includes('bank')) return 'Bank CDs';
+    if (s.includes('brokerage')) return 'Brokerage CDs';
+    if (s.includes('treas')) return 'Treasuries';
+    return null;
+  }, [filterType]);
+
+  const matchFilter = (row) => !selectedProductType || row?.type === selectedProductType;
+
+  const derived = useMemo(() => {
+    const tranches = Array.isArray(simulationData?.tranches) ? simulationData.tranches : [];
+    if (!tranches.length) {
+      return {
+        purchaseNowPrimary,
+        purchaseNowOthers,
+        futureGroups,
+        summary,
+      };
+    }
+
+    const mapOfferRow = (offer, meta = {}) => {
+      const type = mapProductType(offer?.product_type);
+      const provider = mapProvider(offer);
+      const taxBreakdown = makeTaxBreakdown(offer || {});
+      const termMonths = Number(offer?.term_months ?? meta.termMonths ?? 0) || 0;
+      return {
+        id: `${meta.idPrefix || 'row'}-${provider}-${termMonths}-${offer?.apy_nominal ?? 0}`,
+        provider,
+        sub: mapSubLabel(offer, type),
+        type,
+        nominal: formatPct(offer?.apy_nominal),
+        tax: formatPct(offer?.after_tax_apy),
+        dep: formatMoney(offer?.minimum_deposit ?? 0, 0),
+        providerUrl: offer?.destination_url || offer?.source_url || 'https://www.smartcd.ai',
+        note: type === 'Treasuries',
+        taxBreakdown,
+        allocationText: meta.allocationText || '',
+        tranche: meta.tranche || null,
+        termMonths,
+        maturityDate: meta.maturityDate || '',
+      };
+    };
+
+    const start = new Date();
+    const groups = tranches.map((t, idx) => {
+      const purchaseOffset = Number(t?.purchase_offset_months ?? 0) || 0;
+      const offer = t?.product || {};
+      const altOffers = Array.isArray(alternativesByTranche?.[String(t?.tranche)]) ? alternativesByTranche[String(t.tranche)] : [];
+      const maturityDate = formatDateLong(addMonths(start, Number(t?.target_maturity_months ?? 0) || 0));
+      const slot = purchaseOffset === 0
+        ? 'Buy now'
+        : `Buy in ${purchaseOffset} months (${formatDateLong(addMonths(start, purchaseOffset))})`;
+      const allocationText = `${formatPct(t?.allocation_pct ?? 0)}% allocation`;
+      const primary = mapOfferRow(offer, {
+        idPrefix: `tranche-${t?.tranche || idx + 1}`,
+        allocationText,
+        tranche: t?.tranche || idx + 1,
+        termMonths: offer?.term_months,
+        maturityDate,
+      });
+      const others = altOffers
+        .filter((o) => mapProvider(o) !== primary.provider || Number(o?.term_months) !== primary.termMonths)
+        .slice(0, 3)
+        .map((o, altIdx) =>
+          mapOfferRow(o, {
+            idPrefix: `tranche-${t?.tranche || idx + 1}-alt-${altIdx + 1}`,
+            allocationText,
+            tranche: t?.tranche || idx + 1,
+            termMonths: o?.term_months,
+            maturityDate,
+          }),
+        );
+      return { slot, primary, others, tranche: t?.tranche || idx + 1 };
+    });
+
+    const purchaseNowGroup = groups.find((g) => g.slot.toLowerCase() === 'buy now') || groups[0];
+    const future = groups.filter((g) => g !== purchaseNowGroup);
+
+    const summaryRows = groups.map((g, idx) => {
+      const offset = Number(tranches[idx]?.purchase_offset_months ?? 0) || 0;
+      return {
+      type: offset <= 0 ? 'Buy Now' : `In ${offset} Months`,
+      provider: g.primary.provider,
+      term: `${g.primary.termMonths || 0} Months`,
+      apy: `${g.primary.nominal}%`,
+      tax: `${g.primary.tax}%`,
+      dep: g.primary.dep,
+      date: g.primary.maturityDate,
+      dot: offset <= 0 ? '#22C55E' : '#0077FF',
+      projected: offset > 0,
+    };
+    });
+
+    return {
+      purchaseNowPrimary: {
+        ...purchaseNowGroup.primary,
+        badge: 'Recommended',
+      },
+      purchaseNowOthers: purchaseNowGroup.others,
+      futureGroups: future.map((g) => ({
+        id: `future-${g.tranche}`,
+        slot: g.slot,
+        primary: g.primary,
+        others: g.others,
+      })),
+      summary: summaryRows,
+    };
+  }, [simulationData, alternativesByTranche]);
+
+  const simulationWarnings = useMemo(
+    () => (Array.isArray(simulationData?.warnings) ? simulationData.warnings.filter(Boolean) : []),
+    [simulationData],
+  );
+
+  const hasVisibleRows = useMemo(() => {
+    const nowVisible = [derived.purchaseNowPrimary, ...(derived.purchaseNowOthers || [])].some(matchFilter);
+    const futureVisible = (derived.futureGroups || []).some((g) =>
+      [g.primary, ...(g.others || [])].some(matchFilter),
+    );
+    return nowVisible || futureVisible;
+  }, [derived, selectedProductType]);
 
   return (
     <div className="mx-auto w-full max-w-[1288px] text-white">
@@ -394,14 +628,19 @@ export default function BulletStrategyMockup({ embedded = false, hideTitle = fal
             <DropdownField
               label="Target Maturity Date"
               value={term}
-              options={['3 months', '6 months', '12 months']}
+              options={BULLET_TERM_OPTIONS}
               onSelect={setTerm}
             />
 
             <DropdownField
               label="FILTER BY TYPE"
               value={filterType}
-              options={['All Products (3)', 'Bank CDs', 'Brokerage CDs', 'Treasuries']}
+              options={[
+                `All Products (${1 + (derived.purchaseNowOthers?.length || 0)})`,
+                'Bank CDs',
+                'Brokerage CDs',
+                'Treasuries',
+              ]}
               onSelect={setFilterType}
             />
 
@@ -424,6 +663,24 @@ export default function BulletStrategyMockup({ embedded = false, hideTitle = fal
 
       <section className="mb-6">
         <h2 className="mb-8 text-[20px] font-bold leading-[28px] text-white">Your Bullet Strategy</h2>
+        {simulationLoading && (
+          <div className="mb-4 rounded-[10px] border border-[#23446A] bg-[#0D1B2D] px-4 py-3 text-[13px] text-[#9FB4D3]">
+            Loading latest strategy simulation...
+          </div>
+        )}
+        {simulationError && (
+          <div className="mb-4 rounded-[10px] border border-[#5B1C1C] bg-[#2A1111] px-4 py-3 text-[13px] text-[#FCA5A5]">
+            {simulationError}
+          </div>
+        )}
+        {simulationWarnings.length > 0 && !simulationError && (
+          <div className="mb-4 rounded-[10px] border border-[#5B4A1C] bg-[#2A2411] px-4 py-3 text-[13px] text-[#FCD34D]">
+            <div className="mb-1 text-[12px] font-semibold uppercase tracking-[0.04em] text-[#FDE68A]">Warnings</div>
+            {simulationWarnings.map((w, idx) => (
+              <div key={`${idx}-${w}`} className="leading-[1.45]">{w}</div>
+            ))}
+          </div>
+        )}
         <div className="overflow-hidden rounded-[12px] border border-[#1E2939] bg-[#050D1F]">
           <div className={`hidden border-b border-[#1E2939] px-[18px] pt-5 pb-[27px] text-[14px] font-bold leading-[1] text-[#94A3B8] md:grid ${DESKTOP_GRID}`}>
             <div className="whitespace-nowrap pl-3 text-left">PROVIDER / INSTITUTION</div>
@@ -437,19 +694,22 @@ export default function BulletStrategyMockup({ embedded = false, hideTitle = fal
           <div className="border-b border-[#1E2939] px-4 py-3">
             <SectionHeader title="Purchase Now" badge="Live Rates" note="Buy now to lock in today's rates" />
             <div className="overflow-hidden rounded-[12px] border border-[#1E2939] bg-[#050D1F] shadow-none">
-              <Row
-                row={purchaseNowPrimary}
-                showOtherToggle={true}
-                expanded={showOtherNow}
-                onToggleOther={() => setShowOtherNow((v) => !v)}
-                taxOpen={Boolean(taxOpenById[purchaseNowPrimary.id])}
-                onToggleTax={() => toggleTax(purchaseNowPrimary.id)}
-                summaryState={summaryStateById[purchaseNowPrimary.id] || 'idle'}
-                onGenerateSummary={() => generateSummary(purchaseNowPrimary.id)}
-                highlight
-                seamless
-              />
-              {showOtherNow && purchaseNowOthers.map((row) => (
+              {matchFilter(derived.purchaseNowPrimary) && (
+                <Row
+                  row={derived.purchaseNowPrimary}
+                  showOtherToggle={true}
+                  expanded={showOtherNow}
+                  onToggleOther={() => setShowOtherNow((v) => !v)}
+                  taxOpen={Boolean(taxOpenById[derived.purchaseNowPrimary.id])}
+                  onToggleTax={() => toggleTax(derived.purchaseNowPrimary.id)}
+                  summaryState={summaryStateById[derived.purchaseNowPrimary.id] || 'idle'}
+                  onGenerateSummary={() => generateSummary(derived.purchaseNowPrimary.id)}
+                  onSetReminder={() => setShowReminderModal(true)}
+                  highlight
+                  seamless
+                />
+              )}
+              {showOtherNow && derived.purchaseNowOthers.filter(matchFilter).map((row) => (
                 <Row
                   key={row.id}
                   row={row}
@@ -457,6 +717,7 @@ export default function BulletStrategyMockup({ embedded = false, hideTitle = fal
                   onToggleTax={() => toggleTax(row.id)}
                   summaryState={summaryStateById[row.id] || 'idle'}
                   onGenerateSummary={() => generateSummary(row.id)}
+                  onSetReminder={() => setShowReminderModal(true)}
                   seamless
                 />
               ))}
@@ -465,23 +726,26 @@ export default function BulletStrategyMockup({ embedded = false, hideTitle = fal
 
           <div className="px-4 py-3">
             <SectionHeader title="Purchase in the Future" badge="Projected Rates" note="Rates are projected and may change" />
-            {futureGroups.map((group) => (
+            {derived.futureGroups.map((group) => (
               <div key={group.id} className="mb-3 overflow-hidden rounded-[12px] border border-[#1E2939] bg-[#050D1F] last:mb-0">
-                <Row
-                  row={{ ...group.primary, slot: group.slot }}
-                  future
-                  showOtherToggle
-                  expanded={Boolean(showOtherFuture[group.id])}
-                  onToggleOther={() => setShowOtherFuture((prev) => ({ ...prev, [group.id]: !prev[group.id] }))}
-                  taxOpen={Boolean(taxOpenById[group.primary.id])}
-                  onToggleTax={() => toggleTax(group.primary.id)}
-                  summaryState={summaryStateById[group.primary.id] || 'idle'}
-                  onGenerateSummary={() => generateSummary(group.primary.id)}
-                  highlight
-                  seamless
-                />
+                {matchFilter(group.primary) && (
+                  <Row
+                    row={{ ...group.primary, slot: group.slot }}
+                    future
+                    showOtherToggle
+                    expanded={Boolean(showOtherFuture[group.id])}
+                    onToggleOther={() => setShowOtherFuture((prev) => ({ ...prev, [group.id]: !prev[group.id] }))}
+                    taxOpen={Boolean(taxOpenById[group.primary.id])}
+                    onToggleTax={() => toggleTax(group.primary.id)}
+                    summaryState={summaryStateById[group.primary.id] || 'idle'}
+                    onGenerateSummary={() => generateSummary(group.primary.id)}
+                    onSetReminder={() => setShowReminderModal(true)}
+                    highlight
+                    seamless
+                  />
+                )}
                 {Boolean(showOtherFuture[group.id]) &&
-                  group.others.map((row) => (
+                  group.others.filter(matchFilter).map((row) => (
                     <Row
                       key={row.id}
                       row={row}
@@ -490,6 +754,7 @@ export default function BulletStrategyMockup({ embedded = false, hideTitle = fal
                       onToggleTax={() => toggleTax(row.id)}
                       summaryState={summaryStateById[row.id] || 'idle'}
                       onGenerateSummary={() => generateSummary(row.id)}
+                      onSetReminder={() => setShowReminderModal(true)}
                       seamless
                     />
                   ))}
@@ -497,12 +762,17 @@ export default function BulletStrategyMockup({ embedded = false, hideTitle = fal
             ))}
           </div>
         </div>
+        {!hasVisibleRows && (
+          <div className="mt-3 rounded-[10px] border border-[#23446A] bg-[#0D1B2D] px-4 py-3 text-[13px] text-[#9FB4D3]">
+            No products match the selected filter for this strategy output.
+          </div>
+        )}
       </section>
 
       <section className="mb-3">
         <div className="mb-4 flex items-center justify-between gap-4 max-[520px]:items-start max-[520px]:flex-col">
           <h2 className="text-[20px] font-medium leading-[30px] text-white">Bullet Strategy Summary</h2>
-          <button type="button" className="inline-flex items-center gap-2 rounded-[8px] border border-transparent bg-[#0D1117] px-3 py-2 text-[14px] font-medium leading-[20px] text-white shadow-none hover:bg-[#141c2a]">
+          <button type="button" onClick={onExportPdf || (() => {})} className="inline-flex items-center gap-2 rounded-[8px] border border-transparent bg-[#0D1117] px-3 py-2 text-[14px] font-medium leading-[20px] text-white shadow-none hover:bg-[#141c2a]">
             <DocumentIcon className="h-4 w-4" /> Export PDF
           </button>
         </div>
@@ -516,7 +786,7 @@ export default function BulletStrategyMockup({ embedded = false, hideTitle = fal
             <div className="text-[14px] font-bold leading-[20px] text-[#99A1AF]">MIN. DEPOSIT</div>
             <div className="text-[14px] font-bold leading-[20px] text-[#99A1AF]">MATURITY DATE</div>
           </div>
-          {summary.map((row) => (
+          {derived.summary.map((row) => (
             <div key={row.type} className="hidden h-[75px] border-b border-[#1E2939] px-6 md:grid md:grid-cols-[150px_290px_130px_140px_180px_140px_170px] md:items-center last:border-b-0">
               <div className="flex items-center gap-2">
                 <span className="h-2 w-2 rounded-full" style={{ background: row.dot }} />
@@ -547,8 +817,30 @@ export default function BulletStrategyMockup({ embedded = false, hideTitle = fal
 
       <div className="mb-8 text-[14px] italic leading-[20px] text-[#6A7282]">
         <span className="mr-1 inline-block h-2 w-2 rounded-full bg-[#0077FF]" />
-        All CDs are selected to mature on or before May 20, 2027. After-tax yield assumes New York (NY) tax profile
+        All CDs are selected to mature on or before {maturityText}. After-tax yield assumes your current tax profile.
       </div>
+      {showReminderModal && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-[rgba(255,255,255,0.20)] backdrop-blur-[3px] p-4">
+          <div className="w-full max-w-[380px] rounded-[10px] border-4 border-[#1E3A5F] bg-[#152341] px-6 py-6 text-center shadow-[0_4px_4px_rgba(0,0,0,0.25),0_4px_4px_rgba(0,0,0,0.20)]">
+            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-[#1E3A5F]">
+              <BellIcon className="h-7 w-7 text-white" />
+            </div>
+            <h3 className="text-[18px] font-medium leading-[26px] text-white">Reminder notifications are coming soon.</h3>
+            <p className="mx-auto mt-2 max-w-[320px] text-[13px] font-normal leading-5 text-[#99A1AF]">
+              We&apos;re building this feature to help you get notified when projected purchases are close.
+              <br />
+              We&apos;ll let you know when this is available.
+            </p>
+            <button
+              type="button"
+              onClick={() => setShowReminderModal(false)}
+              className="mt-5 inline-flex h-10 min-w-[96px] items-center justify-center rounded-[8px] bg-[#0077FF] px-5 text-[15px] font-medium leading-6 text-white transition-colors hover:bg-[#1D83FF]"
+            >
+              Got it
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
