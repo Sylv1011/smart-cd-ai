@@ -796,7 +796,7 @@ export default function App() {
       city_county: isLocalTaxState
         ? (() => {
           const area = (savedFormData.city_county || '').trim().toLowerCase();
-          if (!area) return 'other';
+          if (!area) return '';
           return allowedAreas.includes(area) ? area : 'other';
         })()
         : '',
@@ -828,10 +828,10 @@ export default function App() {
 
     if (name === 'state_selection') {
       const isCityCountyEnabled = STATES_WITH_LOCAL_TAX.includes(value);
-      const allowedAreas = isCityCountyEnabled ? (locationData[value] || []) : [];
+      const allowedAreas = isCityCountyEnabled ? getAllowedAreas(value) : [];
       const nextCityCounty =
         isCityCountyEnabled
-          ? (allowedAreas.includes(formData.city_county) ? formData.city_county : 'other')
+          ? (allowedAreas.includes(formData.city_county) ? formData.city_county : '')
           : '';
       setSelectedStateCode(stateNameToCode[value] || '');
       const nextFormData = {
@@ -865,7 +865,7 @@ export default function App() {
       const allowedAreas = isCityCountyEnabled ? getAllowedAreas(value) : [];
       const nextCityCounty =
         isCityCountyEnabled
-          ? (allowedAreas.includes(formData.city_county) ? formData.city_county : 'other')
+          ? (allowedAreas.includes(formData.city_county) ? formData.city_county : '')
           : '';
 
       setSelectedStateCode(stateNameToCode[value] || '');
