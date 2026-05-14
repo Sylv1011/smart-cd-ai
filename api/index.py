@@ -12,7 +12,6 @@ from sqlalchemy.orm import Session
 
 from api.config import get_settings
 from api.database import get_db
-from api.ladder import build_ladder, compute_blended_apy
 from api.models import (
     FederalTax,
     LocalTax,
@@ -30,8 +29,6 @@ from api.schemas import (
     FetchYieldsRequest,
     FetchYieldsResponse,
     HealthResponse,
-    LadderRequest,
-    LadderResponse,
     TaxBreakdown,
     TreasuryResult,
     YieldResponse,
@@ -209,50 +206,6 @@ def fetch_yields(request: FetchYieldsRequest, db: Session = Depends(get_db)) -> 
         raise HTTPException(status_code=503, detail="Database is not reachable")
 
     return FetchYieldsResponse(results=results)
-
-
-@app.post("/api/v1/strategy/ladder", response_model=LadderResponse)
-@app.post("/v1/strategy/ladder", response_model=LadderResponse)
-def ladder_strategy(request: LadderRequest, db: Session = Depends(get_db)):
-    income = estimate_income_from_range(request.income_range)
-    filing_key = normalize_filing_status(request.filing_status)
-    state_candidates = state_id_candidates(request.user_state)
-    locality = normalize_locality(request.user_locality)
-
-    try:
-        fed_rate = get_federal_rate(db, filing_key, income, request.income_range, request.filing_status)
-        state_rate = get_state_tax_rate(db, state_candidates, filing_key, income)
-        local_rate = get_local_tax_rate(db, state_candidates, locality)
-
-        rungs, warnings = build_ladder(
-            db=db,
-            investment_amount=request.investment_amount,
-            time_horizon_years=request.time_horizon_years,
-            liquidity_preference=request.liquidity_preference,
-            fed_rate=fed_rate,
-            state_rate=state_rate,
-            local_rate=local_rate,
-        )
-    except SQLAlchemyError:
-        raise HTTPException(status_code=503, detail="Database is not reachable")
-
-    blended_nominal, blended_after_tax = compute_blended_apy(rungs)
-    total_nominal = round(sum(r.nominal_interest for r in rungs), 2)
-    total_after_tax = round(sum(r.after_tax_interest for r in rungs), 2)
-    next_maturity = min((r.term_months for r in rungs), default=0)
-
-    return LadderResponse(
-        investment_amount=request.investment_amount,
-        time_horizon_years=request.time_horizon_years,
-        liquidity_preference=request.liquidity_preference,
-        rungs=rungs,
-        blended_nominal_apy=blended_nominal,
-        blended_after_tax_apy=blended_after_tax,
-        total_nominal_interest=total_nominal,
-        total_after_tax_interest=total_after_tax,
-        next_maturity_months=next_maturity,
-        warnings=warnings,
-    )
 
 
 def build_results(db: Session, request: FetchYieldsRequest) -> List[CDProduct]:

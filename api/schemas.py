@@ -1,4 +1,4 @@
-from typing import List, Literal, Optional
+from typing import List, Optional
 from pydantic import BaseModel, ConfigDict, Field, AliasChoices, field_validator
 
 
@@ -126,47 +126,3 @@ class CDProduct(BaseModel):
 class FetchYieldsResponse(BaseModel):
     results: List[CDProduct]
 
-
-# --- CD Ladder Strategy Schemas ---
-
-class LadderRequest(BaseModel):
-    investment_amount: float = Field(ge=1000, description="Minimum $1,000")
-    time_horizon_years: int = Field(ge=1, le=5)
-    liquidity_preference: Literal["low", "medium", "high"] = "medium"
-    income_range: str
-    user_state: str = Field(validation_alias=AliasChoices("user_state", "state_selection"))
-    user_locality: str = Field(default="", validation_alias=AliasChoices("user_locality", "city_county"))
-    filing_status: str = Field(validation_alias=AliasChoices("filing_status", "tax_filing_status"))
-    zip_code: Optional[str] = Field(default=None, validation_alias=AliasChoices("zip_code", "zipcode"))
-    goal_type: Optional[str] = None
-
-    model_config = ConfigDict(populate_by_name=True)
-
-
-class LadderRung(BaseModel):
-    term_months: int
-    amount: float
-    allocation_pct: float
-    provider: str
-    product_type: str
-    nominal_apy: float
-    after_tax_apy: float
-    nominal_interest: float
-    after_tax_interest: float
-    min_deposit: float
-    maturity_date: str          # ISO date string e.g. "2027-05-11"
-    source_url: Optional[str] = None
-
-
-class LadderResponse(BaseModel):
-    strategy: Literal["ladder"] = "ladder"
-    investment_amount: float
-    time_horizon_years: int
-    liquidity_preference: str
-    rungs: List[LadderRung]
-    blended_nominal_apy: float
-    blended_after_tax_apy: float
-    total_nominal_interest: float
-    total_after_tax_interest: float
-    next_maturity_months: int
-    warnings: List[str]
