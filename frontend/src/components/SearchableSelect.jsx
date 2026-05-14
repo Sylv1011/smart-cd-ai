@@ -6,6 +6,28 @@ const ChevronDownIcon = ({ className }) => (
   </svg>
 );
 
+const highlightMatch = (text, query) => {
+  const t = String(text || '');
+  const q = (query || '').trim();
+  if (!t || !q) return t;
+  const idx = t.toLowerCase().indexOf(q.toLowerCase());
+  if (idx < 0) return t;
+  return (
+    <>
+      {t.slice(0, idx)}
+      <span className="font-semibold text-[#1557F5]">{t.slice(idx, idx + q.length)}</span>
+      {t.slice(idx + q.length)}
+    </>
+  );
+};
+
+const toTitleCase = (text) =>
+  String(text || '')
+    .toLowerCase()
+    .split(' ')
+    .map((part) => (part ? part.charAt(0).toUpperCase() + part.slice(1) : part))
+    .join(' ');
+
 export default function SearchableSelect({
   value,
   onChange,
@@ -18,12 +40,15 @@ export default function SearchableSelect({
 }) {
   const wrapperRef = useRef(null);
   const inputRef = useRef(null);
+  const selectingOptionRef = useRef(false);
   const [isOpen, setIsOpen] = useState(false);
   const [inputValue, setInputValue] = useState(value || '');
+  const [hasTyped, setHasTyped] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
 
   useEffect(() => {
-    setInputValue(value || '');
+    setInputValue(toTitleCase(value || ''));
+    setHasTyped(false);
   }, [value]);
 
   useEffect(() => {
@@ -38,10 +63,26 @@ export default function SearchableSelect({
   }, []);
 
   const filteredOptions = useMemo(() => {
+    const all = (options || []).slice();
+    const hasOther = all.some((opt) => String(opt).toLowerCase() === 'other');
+    const withoutOther = all.filter((opt) => String(opt).toLowerCase() !== 'other');
+    withoutOther.sort((a, b) => String(a).localeCompare(String(b)));
+    const orderedAll = hasOther ? [...withoutOther, 'other'] : withoutOther;
+
+    if (!hasTyped) return orderedAll;
+
     const query = (inputValue || '').trim().toLowerCase();
-    if (!query) return options;
-    return options.filter((opt) => opt.toLowerCase().includes(query));
-  }, [inputValue, options]);
+    if (!query) return orderedAll;
+
+    const prefix = [];
+    for (const opt of orderedAll) {
+      if (String(opt).toLowerCase() === 'other') continue;
+      const lower = String(opt).toLowerCase();
+      if (lower.startsWith(query)) prefix.push(opt);
+    }
+    if (prefix.length) return prefix;
+    return hasOther ? ['other'] : [];
+  }, [inputValue, options, hasTyped]);
 
   const openDropdown = () => {
     if (disabled) return;
@@ -50,15 +91,21 @@ export default function SearchableSelect({
   };
 
   const selectOption = (option) => {
-    setInputValue(option);
+    selectingOptionRef.current = true;
+    setInputValue(toTitleCase(option));
+    setHasTyped(false);
     onChange?.({ target: { name, value: option } });
     setIsOpen(false);
+    window.setTimeout(() => {
+      selectingOptionRef.current = false;
+    }, 0);
   };
 
   const handleInputChange = (e) => {
     const val = e.target.value;
     setInputValue(val);
-    onChange?.({ target: { name, value: val } });
+    setHasTyped(true);
+    setActiveIndex(0);
     if (!isOpen) openDropdown();
   };
 
@@ -107,7 +154,11 @@ export default function SearchableSelect({
           className={`w-full pr-9 py-4 px-4 text-base font-normal rounded-[8px] border outline-none bg-white text-[#111827] box-border transition-all placeholder:text-[#9CA3AF] focus:border-[#22C55E] ${hasError ? 'border-[#FF5252] shadow-[0_0_0_2px_rgba(255,82,82,0.2)]' : 'border-[#E5E7EB] focus:shadow-[0_0_0_2px_rgba(29,141,238,0.3)]'}`}
           value={inputValue}
           onChange={handleInputChange}
-          onBlur={(e) => onBlur?.(e)}
+          onBlur={(e) => {
+            if (!selectingOptionRef.current) {
+              onBlur?.({ target: { name, value: e.target.value } });
+            }
+          }}
           onFocus={() => openDropdown()}
           onClick={() => openDropdown()}
           onKeyDown={handleKeyDown}
@@ -145,7 +196,7 @@ export default function SearchableSelect({
                 selectOption(option);
               }}
             >
-              {option}
+              {highlightMatch(toTitleCase(option), inputValue)}
             </li>
           )) : (
             <li className="cursor-default px-4 py-[10px] text-[0.9rem] text-[#64748B]">
