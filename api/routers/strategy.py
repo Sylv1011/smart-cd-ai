@@ -80,10 +80,13 @@ def bullet_convergence(
         status = (offer.status or "active") if offer else None
         min_deposit = float(offer.minimum_deposit) if offer else 0.0
 
-        t_score = term_match_score(t.required_term_months, actual_term)
-        a_score = availability_score(status if product_found else None)
-        d_score = deposit_score(t.allocation, min_deposit)
-        composite = tranche_composite_score(t_score, a_score, d_score)
+        if not product_found:
+            t_score = a_score = d_score = composite = 0.0
+        else:
+            t_score = term_match_score(t.required_term_months, actual_term)
+            a_score = availability_score(status)
+            d_score = deposit_score(t.allocation, min_deposit)
+            composite = tranche_composite_score(t_score, a_score, d_score)
 
         deviation = compute_deviation_days(today, t.buy_in_months, actual_term, request.target_maturity_date)
         flags = compute_flags(

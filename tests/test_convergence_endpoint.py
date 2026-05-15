@@ -272,6 +272,37 @@ class TestErrorHandling:
         tranche = body["tranches"][0]
         assert "product_not_found" in tranche["flags"]
 
+    def test_missing_product_scores_zero_not_seventy(self, client, db):
+        """A missing product must get 0 for all sub-scores, not the ~70 from
+        the default actual_term==required_term + min_deposit==0 fallbacks."""
+        db.add_all([
+            make_offer("prod-a", term_months=24),
+            make_offer("prod-b", term_months=18),
+        ])
+        db.commit()
+
+        req = {
+            "target_maturity_date": FUTURE_DATE,
+            "investment_amount": 30000,
+            "tranches": [
+                {"slot": 1, "buy_in_months": 0, "required_term_months": 24, "product_id": "prod-a", "allocation": 10000},
+                {"slot": 2, "buy_in_months": 6, "required_term_months": 18, "product_id": "prod-b", "allocation": 10000},
+                {"slot": 3, "buy_in_months": 12, "required_term_months": 12, "product_id": "ghost-id", "allocation": 10000},
+            ],
+        }
+        body = client.post("/strategy/bullet/convergence", json=req).json()
+
+        missing = next(t for t in body["tranches"] if t["slot"] == 3)
+        assert missing["term_match_score"] == 0.0
+        assert missing["availability_score"] == 0.0
+        assert missing["deposit_score"] == 0.0
+        assert missing["tranche_score"] == 0.0
+        assert "product_not_found" in missing["flags"]
+
+        # Two perfect tranches (100) + one missing (0) → ~66.7 → Medium, not High
+        assert body["overall_score"] == pytest.approx(200 / 3, rel=1e-3)
+        assert body["confidence_label"] == "Medium"
+
     def test_all_products_not_found_forces_at_risk(self, client, db):
         req = {
             "target_maturity_date": FUTURE_DATE,
