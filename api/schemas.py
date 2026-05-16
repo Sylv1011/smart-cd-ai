@@ -181,3 +181,67 @@ class BulletConvergenceResponse(BaseModel):
     cache_hit: bool
     tranches: List[TrancheResult]
     ai_summary_input: AISummaryInput
+
+
+# --- Bullet Rate Risk Schemas ---
+
+
+class BulletRateRiskTranche(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    slot: int = Field(..., ge=1)
+    buy_in_months: int = Field(..., ge=0)
+    cd_term_months: int = Field(..., gt=0)
+    product_id: str
+    after_tax_apy: float = Field(..., ge=0)
+    allocation: float = Field(..., gt=0)
+
+
+class BulletRateRiskRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    investment_amount: float = Field(..., gt=0)
+    tranches: List[BulletRateRiskTranche] = Field(..., min_length=1)
+    user_state: str = Field(..., min_length=1)
+    user_income_range: str = Field(..., min_length=1)
+
+
+class RateRiskScenario(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    label: str
+    delta: float
+    total_return: float
+    dollar_impact: float
+
+
+class AiSummaryInputScenario(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    label: str
+    dollar_impact: float
+
+
+class BulletRateRiskAiSummaryInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    locked_pct: float
+    deferred_pct: float
+    worst_case_dollar_impact: float
+    break_even_drop: float
+    user_state: str
+    flat_total_return: float
+    scenarios: List[AiSummaryInputScenario]
+
+
+class BulletRateRiskResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    locked_amount: float
+    locked_pct: float
+    deferred_amount: float
+    deferred_pct: float
+    scenarios: List[RateRiskScenario]
+    break_even_drop: float
+    cache_hit: bool
+    ai_summary_input: BulletRateRiskAiSummaryInput
