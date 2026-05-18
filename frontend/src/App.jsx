@@ -447,7 +447,6 @@ export default function App() {
     };
 
     setWhyThisFitsLoading((prev) => ({ ...prev, [id]: true }));
-    console.log(payload);
     try {
       const res = await fetch(`${aiBase}/explain-why-this-fits`, {
         method: 'POST',
@@ -461,7 +460,6 @@ export default function App() {
       }
       
       const data = await res.json().catch(() => ({}));
-      console.log(data);
       const headline = String(data?.headline ?? '').trim();
       const insight = String(data?.insight ?? '').trim();
       if (!headline || !insight) {
@@ -1006,7 +1004,7 @@ export default function App() {
               </button>
               <button
                 type="button"
-                className="theme-keep-white flex h-11 min-w-[140px] w-full max-w-full items-center justify-center gap-2 whitespace-nowrap rounded-[14px] bg-[linear-gradient(180deg,#00000_0%,#20B856_100%)] px-5 text-[0.82rem] font-bold text-black transition-all enabled:hover:bg-[linear-gradient(180deg,#D3D3D3_0%,#898989_100%)] appearance-none border-none focus:outline-none ring-0 shadow-none md:h-[50px] md:w-[106px] md:min-w-0 md:px-3 md:text-[0.86rem] disabled:cursor-not-allowed disabled:opacity-60"
+                className="theme-keep-white flex h-11 min-w-[140px] w-full max-w-full items-center justify-center gap-2 whitespace-nowrap rounded-[14px] bg-[#FFFFFF] px-5 text-[0.82rem] font-bold text-black transition-all enabled:hover:bg-[linear-gradient(180deg,#D3D3D3_0%,#FFFFFF_100%)] appearance-none border-none focus:outline-none ring-0 shadow-none md:h-[50px] md:w-[106px] md:min-w-0 md:px-3 md:text-[0.86rem] disabled:cursor-not-allowed disabled:opacity-60"
                 onClick={openProviderLink}
                 disabled={!result.detailsUrl}
               >
