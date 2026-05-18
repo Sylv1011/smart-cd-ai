@@ -20,14 +20,29 @@ from api.bullet_convergence import (
     term_match_score,
     tranche_composite_score,
 )
+from api.bullet_rate_risk import (
+    TrancheRateRisk,
+    build_ai_summary_input as build_rate_risk_ai_summary_input,
+    compute_best_single_cd_return,
+    compute_break_even,
+    compute_portfolio_totals,
+    deferred_flat_total,
+    deferred_term_avg_months,
+    summarize_allocations,
+)
 from api.convergence_cache import convergence_cache
+from api.rate_risk_cache import rate_risk_cache
 from api.database import get_db
 from api.models import Offer
 from api.schemas import (
     AISummaryInput,
     BulletConvergenceRequest,
     BulletConvergenceResponse,
+    BulletRateRiskAiSummaryInput,
+    BulletRateRiskRequest,
+    BulletRateRiskResponse,
     DeviationEntry,
+    RateRiskScenario,
     TrancheResult,
 )
 
@@ -169,3 +184,99 @@ def invalidate_convergence_cache(product_ids: List[str]) -> dict:
     """Called by the ingestion pipeline after marking products inactive."""
     convergence_cache.invalidate_by_product_ids(product_ids)
     return {"invalidated": True, "product_ids": product_ids}
+
+
+@router.post("/bullet/rate-risk", response_model=BulletRateRiskResponse)
+def bullet_rate_risk(
+    request: BulletRateRiskRequest,
+) -> BulletRateRiskResponse:
+    # Validate allocations sum to investment amount (within a small tolerance).
+    allocation_sum = sum(t.allocation for t in request.tranches)
+    if allocation_sum <= 0:
+        raise HTTPException(status_code=400, detail="Total allocation must be > 0")
+    if abs(allocation_sum - request.investment_amount) > 0.01:
+        raise HTTPException(
+            status_code=400,
+            detail="Sum of tranche allocations must equal investment_amount",
+        )
+
+    tranches = [
+        TrancheRateRisk(
+            allocation=float(t.allocation),
+            after_tax_apy=float(t.after_tax_apy),
+            term_months=int(t.cd_term_months),
+            buy_in_months=int(t.buy_in_months),
+        )
+        for t in request.tranches
+    ]
+
+    # The cache identity must include every field that can affect the computation.
+    # This prevents two different portfolios from colliding on the same cached response.
+    cache_key = rate_risk_cache.make_key(
+        investment_amount=request.investment_amount,
+        user_state=request.user_state,
+        user_income_range=request.user_income_range,
+        tranches=[t.model_dump() for t in request.tranches],
+    )
+
+    cached = rate_risk_cache.get(cache_key)
+    if cached is not None:
+        cached_payload = dict(cached)
+        cached_payload["cache_hit"] = True
+        return BulletRateRiskResponse(**cached_payload)
+
+    scenarios_full = compute_portfolio_totals(tranches)
+    flat_total = next((s["total_return"] for s in scenarios_full if s["delta"] == 0.0), 0.0)
+
+    alloc_summary = summarize_allocations(request.investment_amount, tranches)
+    deferred_avg = deferred_term_avg_months(tranches)
+    best_single = compute_best_single_cd_return(request.investment_amount, tranches, deferred_avg)
+    deferred_flat = deferred_flat_total(tranches)
+    break_even_drop = compute_break_even(
+        deferred_flat_return=float(deferred_flat),
+        best_single_cd_return=float(best_single),
+        deferred_allocation=float(alloc_summary["deferred_amount"]),
+        deferred_term_avg_months=float(deferred_avg),
+    )
+
+    scenarios = [
+        RateRiskScenario(
+            label=s["label"],
+            delta=float(s["delta"]),
+            total_return=float(s["total_return"]),
+            dollar_impact=float(s["dollar_impact"]),
+        )
+        for s in scenarios_full
+    ]
+    worst_case = min((s.dollar_impact for s in scenarios), default=0.0)
+
+    ai_summary_dict = build_rate_risk_ai_summary_input(
+        locked_pct=float(alloc_summary["locked_pct"]),
+        deferred_pct=float(alloc_summary["deferred_pct"]),
+        worst_case_dollar_impact=float(worst_case),
+        break_even_drop=float(break_even_drop),
+        user_state=request.user_state,
+        flat_total_return=float(flat_total),
+        scenarios=[s.model_dump() for s in scenarios],
+    )
+    ai_summary = BulletRateRiskAiSummaryInput(**ai_summary_dict)
+
+    response_payload = {
+        "locked_amount": float(alloc_summary["locked_amount"]),
+        "locked_pct": float(alloc_summary["locked_pct"]),
+        "deferred_amount": float(alloc_summary["deferred_amount"]),
+        "deferred_pct": float(alloc_summary["deferred_pct"]),
+        "scenarios": [s.model_dump() for s in scenarios],
+        "break_even_drop": float(break_even_drop),
+        "cache_hit": False,
+        "ai_summary_input": ai_summary.model_dump(),
+    }
+
+    # Cache stores the same payload shape but without cache_hit=true; response overrides cache_hit.
+    try:
+        rate_risk_cache.set(cache_key, response_payload)
+    except Exception:
+        # Cache failures should not break the request.
+        pass
+
+    return BulletRateRiskResponse(**response_payload)
