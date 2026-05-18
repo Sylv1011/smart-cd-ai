@@ -90,10 +90,20 @@ def compute_best_single_cd_return(
     tranches: List[TrancheRateRisk],
     deferred_term_avg_months: float,
 ) -> float:
-    # Deterministic: use best after_tax_apy from provided tranches as proxy for "best single CD".
-    best_apy = max((t.after_tax_apy for t in tranches), default=0.0)
-    years = float(deferred_term_avg_months) / 12.0 if deferred_term_avg_months > 0 else 0.0
-    return round(float(investment_amount) * (float(best_apy) / 100.0) * years, 2)
+    # Deterministic proxy: compare only the deferred portion against a single-CD alternative.
+    # This keeps locked tranches out of the baseline so compute_break_even can hold them constant.
+    deferred_tranches = [t for t in tranches if not t.is_locked]
+    if not deferred_tranches or deferred_term_avg_months <= 0:
+        return 0.0
+
+    deferred_allocation = sum(float(t.allocation) for t in deferred_tranches)
+    principal = min(float(investment_amount), deferred_allocation)
+    if principal <= 0:
+        return 0.0
+
+    best_apy = max((float(t.after_tax_apy) for t in deferred_tranches), default=0.0)
+    years = float(deferred_term_avg_months) / 12.0
+    return round(principal * (best_apy / 100.0) * years, 2)
 
 
 def compute_break_even(
