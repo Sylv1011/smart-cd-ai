@@ -26,6 +26,7 @@ from api.bullet_rate_risk import (
     compute_best_single_cd_return,
     compute_break_even,
     compute_portfolio_totals,
+    deferred_flat_total,
     deferred_term_avg_months,
     summarize_allocations,
 )
@@ -209,18 +210,13 @@ def bullet_rate_risk(
         for t in request.tranches
     ]
 
-    # Cache key spec: tranche2/tranche3 refers to the first two deferred tranches by buy-in month.
-    deferred = sorted([t for t in tranches if not t.is_locked], key=lambda x: x.buy_in_months)
-    t2 = deferred[0] if len(deferred) >= 1 else None
-    t3 = deferred[1] if len(deferred) >= 2 else None
-
+    # The cache identity must include every field that can affect the computation.
+    # This prevents two different portfolios from colliding on the same cached response.
     cache_key = rate_risk_cache.make_key(
-        tranche2_after_tax_apy=None if t2 is None else t2.after_tax_apy,
-        tranche3_after_tax_apy=None if t3 is None else t3.after_tax_apy,
-        tranche2_buy_in_months=None if t2 is None else t2.buy_in_months,
-        tranche3_buy_in_months=None if t3 is None else t3.buy_in_months,
+        investment_amount=request.investment_amount,
         user_state=request.user_state,
-        income_range=request.user_income_range,
+        user_income_range=request.user_income_range,
+        tranches=[t.model_dump() for t in request.tranches],
     )
 
     cached = rate_risk_cache.get(cache_key)
@@ -235,8 +231,9 @@ def bullet_rate_risk(
     alloc_summary = summarize_allocations(request.investment_amount, tranches)
     deferred_avg = deferred_term_avg_months(tranches)
     best_single = compute_best_single_cd_return(request.investment_amount, tranches, deferred_avg)
+    deferred_flat = deferred_flat_total(tranches)
     break_even_drop = compute_break_even(
-        flat_total=float(flat_total),
+        deferred_flat_return=float(deferred_flat),
         best_single_cd_return=float(best_single),
         deferred_allocation=float(alloc_summary["deferred_amount"]),
         deferred_term_avg_months=float(deferred_avg),

@@ -90,8 +90,8 @@ def compute_best_single_cd_return(
     tranches: List[TrancheRateRisk],
     deferred_term_avg_months: float,
 ) -> float:
-    # Deterministic proxy: compare only the deferred portion against a single-CD alternative.
-    # This keeps locked tranches out of the baseline so compute_break_even can hold them constant.
+    # Compare deferred capital against a deferred single-CD alternative only.
+    # Locked tranches are excluded so they do not artificially increase the Bullet advantage.
     deferred_tranches = [t for t in tranches if not t.is_locked]
     if not deferred_tranches or deferred_term_avg_months <= 0:
         return 0.0
@@ -107,18 +107,18 @@ def compute_best_single_cd_return(
 
 
 def compute_break_even(
-    flat_total: float,
+    deferred_flat_return: float,
     best_single_cd_return: float,
     deferred_allocation: float,
     deferred_term_avg_months: float,
 ) -> float:
-    # break_even_drop = percentage points (e.g., 0.5) that deferred APYs could drop
-    # before Bullet underperforms best single CD (holding locked portion constant).
-    # If Bullet is already <= best single, break_even_drop is 0.
+    # break_even_drop is the drop in deferred after-tax APY that makes the deferred Bullet
+    # return equal the deferred single-CD alternative. Locked tranches are excluded so both
+    # sides compare the same capital scope.
     if deferred_allocation <= 0 or deferred_term_avg_months <= 0:
         return 0.0
 
-    advantage = float(flat_total) - float(best_single_cd_return)
+    advantage = float(deferred_flat_return) - float(best_single_cd_return)
     if advantage <= 0:
         return 0.0
 
@@ -131,6 +131,25 @@ def compute_break_even(
     if drop_percent < 0:
         drop_percent = 0.0
     return round(drop_percent, 2)
+
+
+def deferred_flat_total(tranches: List[TrancheRateRisk]) -> float:
+    # This is the fair baseline for break-even: only the deferred tranche return is comparable
+    # to the deferred single-CD alternative.
+    return round(
+        sum(
+            compute_tranche_return(
+                allocation=t.allocation,
+                after_tax_apy=t.after_tax_apy,
+                delta=0.0,
+                term_months=t.term_months,
+                is_locked=t.is_locked,
+            )
+            for t in tranches
+            if not t.is_locked
+        ),
+        2,
+    )
 
 
 def summarize_allocations(investment_amount: float, tranches: List[TrancheRateRisk]) -> Dict[str, float]:
