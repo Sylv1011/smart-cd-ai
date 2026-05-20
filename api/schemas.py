@@ -1,3 +1,4 @@
+from datetime import date
 from typing import List, Optional
 from pydantic import BaseModel, ConfigDict, Field, AliasChoices, field_validator
 
@@ -125,3 +126,122 @@ class CDProduct(BaseModel):
 
 class FetchYieldsResponse(BaseModel):
     results: List[CDProduct]
+
+
+# --- Bullet Convergence Schemas ---
+
+class TrancheInput(BaseModel):
+    slot: int = Field(..., ge=1)
+    buy_in_months: int = Field(..., ge=0)
+    required_term_months: int = Field(..., gt=0)
+    product_id: str
+    allocation: float = Field(..., gt=0)
+
+
+class BulletConvergenceRequest(BaseModel):
+    target_maturity_date: date
+    investment_amount: float = Field(..., gt=0)
+    tranches: List[TrancheInput] = Field(..., min_length=1)
+
+
+class TrancheResult(BaseModel):
+    slot: int
+    buy_in_months: int
+    product_id: str
+    term_match_score: float
+    availability_score: float
+    deposit_score: float
+    tranche_score: float
+    actual_maturity_date: date
+    deviation_days: int
+    flags: List[str]
+
+
+class DeviationEntry(BaseModel):
+    slot: int
+    deviation_days: int
+    direction: str  # "late" | "early"
+
+
+class AISummaryInput(BaseModel):
+    overall_score: float
+    confidence_label: str
+    target_maturity_date: date
+    tranche_count: int
+    flags: List[str]
+    deviations: List[DeviationEntry]
+    at_risk_tranches: List[int]
+    limited_availability_tranches: List[int]
+
+
+class BulletConvergenceResponse(BaseModel):
+    overall_score: float
+    confidence_label: str
+    target_maturity_date: date
+    cache_hit: bool
+    tranches: List[TrancheResult]
+    ai_summary_input: AISummaryInput
+
+
+# --- Bullet Rate Risk Schemas ---
+
+
+class BulletRateRiskTranche(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    slot: int = Field(..., ge=1)
+    buy_in_months: int = Field(..., ge=0)
+    cd_term_months: int = Field(..., gt=0)
+    product_id: str
+    after_tax_apy: float = Field(..., ge=0)
+    allocation: float = Field(..., gt=0)
+
+
+class BulletRateRiskRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    investment_amount: float = Field(..., gt=0)
+    tranches: List[BulletRateRiskTranche] = Field(..., min_length=1)
+    user_state: str = Field(..., min_length=1)
+    user_income_range: str = Field(..., min_length=1)
+
+
+class RateRiskScenario(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    label: str
+    delta: float
+    total_return: float
+    dollar_impact: float
+
+
+class AiSummaryInputScenario(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    label: str
+    dollar_impact: float
+
+
+class BulletRateRiskAiSummaryInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    locked_pct: float
+    deferred_pct: float
+    worst_case_dollar_impact: float
+    break_even_drop: float
+    user_state: str
+    flat_total_return: float
+    scenarios: List[AiSummaryInputScenario]
+
+
+class BulletRateRiskResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    locked_amount: float
+    locked_pct: float
+    deferred_amount: float
+    deferred_pct: float
+    scenarios: List[RateRiskScenario]
+    break_even_drop: float
+    cache_hit: bool
+    ai_summary_input: BulletRateRiskAiSummaryInput

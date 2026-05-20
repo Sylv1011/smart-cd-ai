@@ -414,7 +414,7 @@ export default function App() {
   const explainWhyThisFits = async (result) => {
     const id = result?.id;
     if (!id) return;
-
+    
     if (!aiBase) {
       setWhyThisFitsOverrides((prev) => ({ ...prev, [id]: 'AI is not configured. Set VITE_AI_LAYER_URL to enable this explanation.' }));
       return;
@@ -458,14 +458,15 @@ export default function App() {
         const errPayload = await res.json().catch(() => ({}));
         throw new Error(errPayload.detail || 'AI explanation request failed.');
       }
-
+      
       const data = await res.json().catch(() => ({}));
-      const text = String(data?.why_this_fits ?? '').trim();
-      if (!text) {
+      const headline = String(data?.headline ?? '').trim();
+      const insight = String(data?.insight ?? '').trim();
+      if (!headline || !insight) {
         throw new Error('No explanation returned from AI service.');
       }
 
-      setWhyThisFitsOverrides((prev) => ({ ...prev, [id]: text }));
+      setWhyThisFitsOverrides((prev) => ({ ...prev, [id]: { headline, insight } }));
       setWhyThisFitsFetched((prev) => ({ ...prev, [id]: true }));
     } catch (e) {
       setWhyThisFitsOverrides((prev) => ({ ...prev, [id]: e?.message || 'Unable to reach the AI service right now.' }));
@@ -796,7 +797,7 @@ export default function App() {
       city_county: isLocalTaxState
         ? (() => {
           const area = (savedFormData.city_county || '').trim().toLowerCase();
-          if (!area) return 'other';
+          if (!area) return '';
           return allowedAreas.includes(area) ? area : 'other';
         })()
         : '',
@@ -828,10 +829,10 @@ export default function App() {
 
     if (name === 'state_selection') {
       const isCityCountyEnabled = STATES_WITH_LOCAL_TAX.includes(value);
-      const allowedAreas = isCityCountyEnabled ? (locationData[value] || []) : [];
+      const allowedAreas = isCityCountyEnabled ? getAllowedAreas(value) : [];
       const nextCityCounty =
         isCityCountyEnabled
-          ? (allowedAreas.includes(formData.city_county) ? formData.city_county : 'other')
+          ? (allowedAreas.includes(formData.city_county) ? formData.city_county : '')
           : '';
       setSelectedStateCode(stateNameToCode[value] || '');
       const nextFormData = {
@@ -865,7 +866,7 @@ export default function App() {
       const allowedAreas = isCityCountyEnabled ? getAllowedAreas(value) : [];
       const nextCityCounty =
         isCityCountyEnabled
-          ? (allowedAreas.includes(formData.city_county) ? formData.city_county : 'other')
+          ? (allowedAreas.includes(formData.city_county) ? formData.city_county : '')
           : '';
 
       setSelectedStateCode(stateNameToCode[value] || '');
@@ -922,11 +923,13 @@ export default function App() {
     const safeMatch = Math.max(0, Math.min(100, Number(result.matchPercentage) || 0));
     const isWhyLoading = Boolean(whyThisFitsLoading?.[result.id]);
     const isWhyExpanded = Boolean(whyThisFitsExpanded?.[result.id]);
-    const whyText = (whyThisFitsOverrides && Object.prototype.hasOwnProperty.call(whyThisFitsOverrides, result.id))
-      ? whyThisFitsOverrides[result.id]
-      : '';
-    const whyChunks = splitWhyThisFitsText(whyText);
-
+    const whyEntry = (whyThisFitsOverrides && Object.prototype.hasOwnProperty.call(whyThisFitsOverrides, result.id))
+        ? whyThisFitsOverrides[result.id]
+        : null;
+    const whyHeadline = typeof whyEntry === 'string' ? whyEntry : (whyEntry?.headline ?? '');
+    const whyInsight  = typeof whyEntry === 'string' ? '' : (whyEntry?.insight ?? '');
+    const whyChunks = splitWhyThisFitsText(whyHeadline);
+      
     const openProviderLink = () => {
       const url = result?.detailsUrl;
       if (!url) {
@@ -1001,7 +1004,7 @@ export default function App() {
               </button>
               <button
                 type="button"
-                className="theme-keep-white flex h-11 min-w-[140px] w-full max-w-full items-center justify-center gap-2 whitespace-nowrap rounded-[14px] bg-[linear-gradient(180deg,#2BC65F_0%,#20B856_100%)] px-5 text-[0.82rem] font-bold text-white transition-all enabled:hover:bg-[linear-gradient(180deg,#29BA5A_0%,#1AA34C_100%)] appearance-none border-none focus:outline-none ring-0 shadow-none md:h-[50px] md:w-[106px] md:min-w-0 md:px-3 md:text-[0.86rem] disabled:cursor-not-allowed disabled:opacity-60"
+                className="theme-keep-white flex h-11 min-w-[140px] w-full max-w-full items-center justify-center gap-2 whitespace-nowrap rounded-[14px] bg-[#FFFFFF] px-5 text-[0.82rem] font-bold text-black transition-all enabled:hover:bg-[linear-gradient(180deg,#D3D3D3_0%,#FFFFFF_100%)] appearance-none border-none focus:outline-none ring-0 shadow-none md:h-[50px] md:w-[106px] md:min-w-0 md:px-3 md:text-[0.86rem] disabled:cursor-not-allowed disabled:opacity-60"
                 onClick={openProviderLink}
                 disabled={!result.detailsUrl}
               >
@@ -1106,15 +1109,25 @@ export default function App() {
                               AI analyzed based on your income, tax bracket, investment term
                             </div>
 
-                            {whyChunks.length ? (
-                              whyChunks.map((chunk, idx) => (
-                                <React.Fragment key={`${result.id}-why-${idx}`}>
-                                  <span aria-hidden="true" className="h-5 w-5" />
-                                  <p className="m-0 break-words text-[0.86rem] leading-[1.55] tracking-[0.003em] text-[#80A4CC] max-[768px]:text-[0.84rem] max-[768px]:leading-[1.7]">
-                                    {chunk}
-                                  </p>
-                                </React.Fragment>
-                              ))
+                            {(whyHeadline || whyInsight) ? (
+                              <>
+                                {whyChunks.length > 0 && whyChunks.map((chunk, idx) => (
+                                  <React.Fragment key={`${result.id}-why-${idx}`}>
+                                    <span aria-hidden="true" className="h-5 w-5" />
+                                    <p className="m-0 break-words text-[0.86rem] leading-[1.55] tracking-[0.003em] text-[#80A4CC] max-[768px]:text-[0.84rem] max-[768px]:leading-[1.7]">
+                                      {chunk}
+                                    </p>
+                                  </React.Fragment>
+                                ))}
+                                {whyInsight && (
+                                  <React.Fragment key={`${result.id}-why-insight`}>
+                                    <span aria-hidden="true" className="h-5 w-5" />
+                                    <p className="m-0 break-words text-[0.86rem] leading-[1.55] tracking-[0.003em] text-[#80A4CC]/70 italic max-[768px]:text-[0.84rem] max-[768px]:leading-[1.7]">
+                                      {whyInsight}
+                                    </p>
+                                  </React.Fragment>
+                                )}
+                              </>
                             ) : (
                               <>
                                 <span aria-hidden="true" className="h-5 w-5" />
