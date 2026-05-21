@@ -201,6 +201,8 @@ class StrategySimulateRequest(BaseModel):
     filing_status: str
     local_area: Optional[str] = None
     time_horizon: Optional[str] = None
+    target_maturity_months: Optional[int] = Field(default=None, gt=0, le=120)
+    short_term_percentage: Optional[int] = Field(default=None, ge=20, le=50)
     liquidity_preference: Optional[Literal["low", "medium", "high"]] = None
     rate_outlook: Optional[Literal["rising", "stable", "falling"]] = None
 
@@ -339,9 +341,6 @@ def simulate_strategy(req: StrategySimulateRequest) -> Dict[str, Any]:
 
         strategy_type = req.strategy_type.lower()
         if strategy_type == "barbell":
-            if req.liquidity_preference is None:
-                raise HTTPException(status_code=422, detail="liquidity_preference is required for barbell")
-
             return simulate_barbell(
                 data_client=data_client,
                 investment_amount=req.investment_amount,
@@ -352,6 +351,8 @@ def simulate_strategy(req: StrategySimulateRequest) -> Dict[str, Any]:
                 liquidity_preference=req.liquidity_preference,
                 rate_outlook=req.rate_outlook,
                 time_horizon=req.time_horizon,
+                target_maturity_months=req.target_maturity_months,
+                short_term_percentage=req.short_term_percentage,
             )
 
         if strategy_type == "ladder":
