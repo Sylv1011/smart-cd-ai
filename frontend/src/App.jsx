@@ -279,7 +279,11 @@ const normalizeSavedIncomeLabel = (value) => {
     const stateTax = grossInterest * stateRate;
     const localTax = grossInterest * localRate;
     const totalTax = fedTax + stateTax + localTax;
-    const estimatedSavings = Math.max(0, stateTax + localTax);
+    // For treasuries, savings = state+local tax avoided (API returns the user's actual marginal
+    // rates even for treasuries, so we use the raw fields here, not the zeroed stateRate/localRate).
+    const estimatedSavings = productType === 'Treasuries'
+      ? Math.max(0, grossInterest * (Number(o?.state_rate ?? 0) + Number(o?.local_rate ?? 0)))
+      : 0;
 
     const rankOverall = Number(o?.rank_overall);
     const topPickRank = Number.isFinite(rankOverall) && rankOverall >= 1 && rankOverall <= 3 ? rankOverall : null;
@@ -1030,16 +1034,17 @@ export default function App() {
                     <span className="text-[#9CA3AF]">Total Tax :</span>
                     <span className="text-right font-bold text-[#FF5C5C]">{result.taxBreakdown.totalTax}</span>
                   </div>
-                  <div className="flex items-center justify-between gap-3 text-[0.8rem]">
-                    <span className="text-[#9CA3AF]">Total Savings :</span>
-                    <span className="text-right font-bold text-[#22C55E]">{result.taxBreakdown.totalSavings}</span>
-                  </div>
                 </div>
                 <div className="my-4 border-t border-[rgba(255,255,255,0.1)]"></div>
                 <div className="mt-2 flex items-center justify-between rounded-xl border border-[rgba(34,197,94,0.28)] bg-[rgba(34,197,94,0.12)] px-4 py-3 text-[1rem] font-bold">
                   <span className="text-[#E2E8F0]">Net Return :</span>
                   <span className="text-[1.03rem] leading-none text-[#22C55E] max-[768px]:text-[0.8rem]">{result.netReturn}</span>
                 </div>
+                {result.productType === 'Treasuries' && (
+                  <div className="mt-3 flex items-center justify-between gap-3 text-[0.78rem]">
+                    <span className="text-[#6B7280]">Includes <span className="font-bold text-[#22C55E]">{result.taxBreakdown.totalSavings}</span> in state &amp; local tax savings</span>
+                  </div>
+                )}
               </div>
 
               <div className="self-start rounded-2xl border border-[#1C6FC4] bg-[rgba(2,10,22,0.72)] px-5 py-0 shadow-[0_0_0_1px_rgba(29,141,238,0.18),inset_0_1px_0_rgba(255,255,255,0.03)] max-[768px]:px-4 max-[768px]:py-0">
