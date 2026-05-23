@@ -43,18 +43,20 @@ class StrategySimulateTests(unittest.TestCase):
         self.assertEqual(res.status_code, 422)
         self.assertEqual(res.json()["detail"], "Invalid state provided")
 
-    def test_ladder_placeholder(self):
+    def test_ladder_requires_liquidity_preference(self):
         payload = self._base_payload()
         payload["strategy_type"] = "ladder"
+        payload["time_horizon"] = "3"
+        # liquidity_preference not set — ladder requires it
         res = self.client.post("/strategies/simulate", json=payload)
-        self.assertEqual(res.status_code, 501)
-        self.assertIn("not implemented", res.json()["detail"].lower())
+        self.assertEqual(res.status_code, 422)
 
-    def test_bullet_placeholder(self):
+    def test_bullet_requires_time_horizon(self):
         payload = self._base_payload()
         payload["strategy_type"] = "bullet"
+        # base payload has target_maturity_months but no time_horizon; bullet needs time_horizon
         res = self.client.post("/strategies/simulate", json=payload)
-        self.assertIn(res.status_code, [501, 503])
+        self.assertEqual(res.status_code, 422)
 
     def test_rank_endpoint_still_works(self):
         payload = {
