@@ -15,7 +15,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 from data import DataClient, RankingInput, StaticDataClient
-from engine import rank_offers
+from engine import rank_offers, RankingEngineError
 from strategies import simulate_barbell, simulate_ladder, simulate_bullet
 
 # ---------------- Logging ----------------
@@ -386,6 +386,8 @@ def simulate_strategy(req: StrategySimulateRequest) -> Dict[str, Any]:
 
     except NotImplementedError as e:
         raise HTTPException(status_code=501, detail=str(e))
+    except RankingEngineError as e:
+        raise HTTPException(status_code=422, detail=str(e))
     except RuntimeError as e:
         logger.exception("Server configuration error")
         raise HTTPException(status_code=503, detail=str(e))
