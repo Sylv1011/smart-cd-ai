@@ -323,7 +323,11 @@ const normalizeSavedIncomeLabel = (value) => {
     const stateTax = grossInterest * stateRate;
     const localTax = grossInterest * localRate;
     const totalTax = fedTax + stateTax + localTax;
-    const estimatedSavings = Math.max(0, stateTax + localTax);
+    // For treasuries, savings = state+local tax avoided (API returns the user's actual marginal
+    // rates even for treasuries, so we use the raw fields here, not the zeroed stateRate/localRate).
+    const estimatedSavings = productType === 'Treasuries'
+      ? Math.max(0, grossInterest * (Number(o?.state_rate ?? 0) + Number(o?.local_rate ?? 0)))
+      : 0;
 
     const rankOverall = Number(o?.rank_overall);
     const topPickRank = Number.isFinite(rankOverall) && rankOverall >= 1 && rankOverall <= 3 ? rankOverall : null;
@@ -464,7 +468,7 @@ export default function App() {
   const explainWhyThisFits = async (result) => {
     const id = result?.id;
     if (!id) return;
-
+    
     if (!aiBase) {
       setWhyThisFitsOverrides((prev) => ({ ...prev, [id]: 'AI is not configured. Set VITE_AI_LAYER_URL to enable this explanation.' }));
       return;
@@ -508,14 +512,15 @@ export default function App() {
         const errPayload = await res.json().catch(() => ({}));
         throw new Error(errPayload.detail || 'AI explanation request failed.');
       }
-
+      
       const data = await res.json().catch(() => ({}));
-      const text = String(data?.why_this_fits ?? '').trim();
-      if (!text) {
+      const headline = String(data?.headline ?? '').trim();
+      const insight = String(data?.insight ?? '').trim();
+      if (!headline || !insight) {
         throw new Error('No explanation returned from AI service.');
       }
 
-      setWhyThisFitsOverrides((prev) => ({ ...prev, [id]: text }));
+      setWhyThisFitsOverrides((prev) => ({ ...prev, [id]: { headline, insight } }));
       setWhyThisFitsFetched((prev) => ({ ...prev, [id]: true }));
     } catch (e) {
       setWhyThisFitsOverrides((prev) => ({ ...prev, [id]: e?.message || 'Unable to reach the AI service right now.' }));
@@ -945,7 +950,7 @@ export default function App() {
       city_county: isLocalTaxState
         ? (() => {
           const area = (savedFormData.city_county || '').trim().toLowerCase();
-          if (!area) return 'other';
+          if (!area) return '';
           return allowedAreas.includes(area) ? area : 'other';
         })()
         : '',
@@ -996,10 +1001,10 @@ export default function App() {
 
     if (name === 'state_selection') {
       const isCityCountyEnabled = STATES_WITH_LOCAL_TAX.includes(value);
-      const allowedAreas = isCityCountyEnabled ? (locationData[value] || []) : [];
+      const allowedAreas = isCityCountyEnabled ? getAllowedAreas(value) : [];
       const nextCityCounty =
         isCityCountyEnabled
-          ? (allowedAreas.includes(formData.city_county) ? formData.city_county : 'other')
+          ? (allowedAreas.includes(formData.city_county) ? formData.city_county : '')
           : '';
       setSelectedStateCode(stateNameToCode[value] || '');
       const nextFormData = {
@@ -1033,7 +1038,7 @@ export default function App() {
       const allowedAreas = isCityCountyEnabled ? getAllowedAreas(value) : [];
       const nextCityCounty =
         isCityCountyEnabled
-          ? (allowedAreas.includes(formData.city_county) ? formData.city_county : 'other')
+          ? (allowedAreas.includes(formData.city_county) ? formData.city_county : '')
           : '';
 
       setSelectedStateCode(stateNameToCode[value] || '');
@@ -1090,11 +1095,13 @@ export default function App() {
     const safeMatch = Math.max(0, Math.min(100, Number(result.matchPercentage) || 0));
     const isWhyLoading = Boolean(whyThisFitsLoading?.[result.id]);
     const isWhyExpanded = Boolean(whyThisFitsExpanded?.[result.id]);
-    const whyText = (whyThisFitsOverrides && Object.prototype.hasOwnProperty.call(whyThisFitsOverrides, result.id))
-      ? whyThisFitsOverrides[result.id]
-      : '';
-    const whyChunks = splitWhyThisFitsText(whyText);
-
+    const whyEntry = (whyThisFitsOverrides && Object.prototype.hasOwnProperty.call(whyThisFitsOverrides, result.id))
+        ? whyThisFitsOverrides[result.id]
+        : null;
+    const whyHeadline = typeof whyEntry === 'string' ? whyEntry : (whyEntry?.headline ?? '');
+    const whyInsight  = typeof whyEntry === 'string' ? '' : (whyEntry?.insight ?? '');
+    const whyChunks = splitWhyThisFitsText(whyHeadline);
+      
     const openProviderLink = () => {
       const url = result?.detailsUrl;
       if (!url) {
@@ -1169,7 +1176,7 @@ export default function App() {
               </button>
               <button
                 type="button"
-                className="theme-keep-white flex h-11 min-w-[140px] w-full max-w-full items-center justify-center gap-2 whitespace-nowrap rounded-[14px] bg-[linear-gradient(180deg,#2BC65F_0%,#20B856_100%)] px-5 text-[0.82rem] font-bold text-white transition-all enabled:hover:bg-[linear-gradient(180deg,#29BA5A_0%,#1AA34C_100%)] appearance-none border-none focus:outline-none ring-0 shadow-none md:h-[50px] md:w-[106px] md:min-w-0 md:px-3 md:text-[0.86rem] disabled:cursor-not-allowed disabled:opacity-60"
+                className="theme-keep-white flex h-11 min-w-[140px] w-full max-w-full items-center justify-center gap-2 whitespace-nowrap rounded-[14px] bg-[#FFFFFF] px-5 text-[0.82rem] font-bold text-black transition-all enabled:hover:bg-[linear-gradient(180deg,#D3D3D3_0%,#FFFFFF_100%)] appearance-none border-none focus:outline-none ring-0 shadow-none md:h-[50px] md:w-[106px] md:min-w-0 md:px-3 md:text-[0.86rem] disabled:cursor-not-allowed disabled:opacity-60"
                 onClick={openProviderLink}
                 disabled={!result.detailsUrl}
               >
@@ -1195,16 +1202,17 @@ export default function App() {
                     <span className="text-[#8FB3C4]">Total Tax :</span>
                     <span className="font-bold text-[#FF3B3B]">{result.taxBreakdown.totalTax}</span>
                   </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-[#8FB3C4]">Total Savings :</span>
-                    <span className="font-bold text-[#22C55E]">{result.taxBreakdown.totalSavings}</span>
-                  </div>
                 </div>
                 <div className="my-4 border-t border-[rgba(34,197,94,0.12)]"></div>
                 <div className="flex items-center justify-between rounded-[10px] border border-[#0B5C2A] bg-[linear-gradient(92deg,rgba(8,58,36,0.85)_0%,rgba(3,36,23,0.9)_100%)] px-3 py-2 text-[13px] font-bold">
                   <span className="text-[#E2E8F0]">Net Return :</span>
                   <span className="text-[17px] text-[#22C55E]">{result.netReturn}</span>
                 </div>
+                {result.productType === 'Treasuries' && (
+                  <div className="mt-3 flex items-center justify-between gap-3 text-[0.78rem]">
+                    <span className="text-[#6B7280]">Includes <span className="font-bold text-[#22C55E]">{result.taxBreakdown.totalSavings}</span> in state &amp; local tax savings</span>
+                  </div>
+                )}
               </div>
 
               <div
@@ -1253,27 +1261,67 @@ export default function App() {
                 </div>
 
                 {isWhyExpanded && (
-                  <div className="min-h-[198px] px-5 py-4">
-                    {isWhyLoading ? (
-                      <div className="flex h-[150px] items-center justify-center gap-2 text-[24px] font-bold text-[#73AFD9]">
-                        <SparkleIcon className="h-4 w-4" />
-                        Loading Summary.....
+                  <div className="pb-4 pt-3">
+                    <div className="rounded-xl border border-[rgba(29,141,238,0.22)] bg-[rgba(2,10,22,0.55)] px-4 py-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] max-[768px]:px-3 max-[768px]:py-3">
+                      <div className="grid grid-cols-[20px_1fr] items-start gap-x-2 gap-y-3 text-left">
+                        {isWhyLoading ? (
+                          <>
+                            <span aria-hidden="true" className="h-5 w-5" />
+                            <p className="m-0 break-words pl-28 text-[0.86rem] leading-[1.55] tracking-[0.003em] text-[#80A4CC] max-[768px]:text-[0.84rem] max-[768px]:leading-[1.7]">
+                              ✨ Loading Summary......
+                            </p>
+                          </>
+                        ) : (
+                          <>
+                            <span className="mt-[2px] inline-flex h-5 w-5 items-center justify-center text-[#1D8DEE]">
+                              <SparkleIcon className="h-3.5 w-3.5" />
+                            </span>
+                            <div className="mt-[5px] text-[0.72rem] tracking-[0.005em] text-[#4E76A8]">
+                              AI analyzed based on your income, tax bracket, investment term
+                            </div>
+
+                            {(whyHeadline || whyInsight) ? (
+                              <>
+                                {whyChunks.length > 0 && whyChunks.map((chunk, idx) => (
+                                  <React.Fragment key={`${result.id}-why-${idx}`}>
+                                    <span aria-hidden="true" className="h-5 w-5" />
+                                    <p className="m-0 break-words text-[0.86rem] leading-[1.55] tracking-[0.003em] text-[#80A4CC] max-[768px]:text-[0.84rem] max-[768px]:leading-[1.7]">
+                                      {chunk}
+                                    </p>
+                                  </React.Fragment>
+                                ))}
+                                {whyInsight && (
+                                  <React.Fragment key={`${result.id}-why-insight`}>
+                                    <span aria-hidden="true" className="h-5 w-5" />
+                                    <p className="m-0 break-words text-[0.86rem] leading-[1.55] tracking-[0.003em] text-[#80A4CC]/70 italic max-[768px]:text-[0.84rem] max-[768px]:leading-[1.7]">
+                                      {whyInsight}
+                                    </p>
+                                  </React.Fragment>
+                                )}
+                              </>
+                            ) : (
+                              <>
+                                <span aria-hidden="true" className="h-5 w-5" />
+                                <p className="m-0 break-words text-[0.86rem] leading-[1.55] tracking-[0.003em] text-[#5C81AF] max-[768px]:text-[0.84rem] max-[768px]:leading-[1.7]">
+                                  Unable to generate summary. Please try again.
+                                </p>
+                              </>
+                            )}
+                          </>
+                        )}
+
+                        {!isWhyLoading && (
+                          <>
+                            <span className="mt-[1px] inline-flex h-5 w-5 items-center justify-center rounded-full border border-[#1D8DEE] text-[0.72rem] font-bold leading-none text-[#1D8DEE]">
+                              i
+                            </span>
+                            <div className="mt-[3.6px] text-[0.74rem] tracking-[0.005em] text-[#5C81AF]">
+                              Generated by <strong className="text-[#9BCBFF]">SmartCD.AI</strong> - Results may vary - Not financial advice
+                            </div>
+                          </>
+                        )}
                       </div>
-                    ) : (
-                      <div>
-                        <h5 className="m-0 mb-2 text-[16px] font-medium leading-[28px] text-white">Best after-tax yield</h5>
-                        <p className="m-0 text-[14px] font-normal leading-[22.75px] text-[#99A1AF]">
-                          {whyChunks.length ? whyChunks.join(' ') : whyText}
-                        </p>
-                        <div className="mt-3 flex items-start gap-2 text-[12px] font-normal leading-[16px] text-[#4A5565]">
-                          <span className="mt-[2px] inline-flex h-4 w-4 items-center justify-center rounded-full border border-[#4A5565] text-[10px] text-[#4A5565]">i</span>
-                          <span>
-                            AI analyzed based on your inputs.
-                            <em> All results for informational purposes only. Not financial advice.</em>
-                          </span>
-                        </div>
-                      </div>
-                    )}
+                    </div>
                   </div>
                 )}
               </div>

@@ -3,114 +3,163 @@ from __future__ import annotations
 from typing import Any, Dict, List, Optional, Tuple
 
 from data import RankingInput
-from engine import rank_offers, RankingEngineError
+from engine import RankingEngineError, rank_offers
 
 
-LIQUIDITY_ALLOWED = {"low", "medium", "high"}
-RATE_OUTLOOK_ALLOWED = {"rising", "stable", "falling"}
+AVAILABLE_TERMS_MONTHS = [3, 6, 9, 12, 18, 24, 36, 48, 60]
+DEFAULT_SPLIT_SHORT_PCTS = [20, 30, 40, 50]
 
 
-def _normalize_split(
-    liquidity_preference: str,
-    rate_outlook: Optional[str],
-) -> Tuple[float, float]:
-    liq = (liquidity_preference or "").strip().lower()
-    outlook = (rate_outlook or "stable").strip().lower()
-
-    if liq not in LIQUIDITY_ALLOWED:
-        raise RankingEngineError("liquidity_preference must be one of: low, medium, high")
-    if outlook not in RATE_OUTLOOK_ALLOWED:
-        raise RankingEngineError("rate_outlook must be one of: rising, stable, falling")
-
-    short_pct = 0.5
-    long_pct = 0.5
-
-    if liq == "high":
-        short_pct += 0.2
-        long_pct -= 0.2
-    elif liq == "low":
-        short_pct -= 0.2
-        long_pct += 0.2
-
-    if outlook == "rising":
-        short_pct += 0.1
-        long_pct -= 0.1
-    elif outlook == "falling":
-        short_pct -= 0.1
-        long_pct += 0.1
-
-    short_pct = max(0.3, min(0.7, short_pct))
-    long_pct = 1.0 - short_pct
-    return short_pct, long_pct
-
-
-def _to_years(time_horizon: Optional[str]) -> Optional[float]:
+def _to_months(time_horizon: Optional[str], target_maturity_months: Optional[int]) -> Optional[int]:
+    if target_maturity_months is not None:
+        return int(target_maturity_months)
     if time_horizon is None:
         return None
     value = str(time_horizon).strip().lower()
     if not value:
         return None
     if value == "short":
-        return 1.0
+        return 12
     if value == "medium":
-        return 3.0
+        return 36
     if value == "long":
-        return 5.0
+        return 60
     try:
-        return float(value)
+        years = float(value)
+        return int(round(years * 12))
     except ValueError:
         return None
 
 
-def _offer_preference_score(offer: Dict[str, Any], *, is_long_term: bool) -> Tuple[int, int, float]:
-    # Prefer no-penalty and monthly/quarterly compounding when the fields are available.
-    # If source data does not contain those fields, scoring gracefully falls back.
-    no_penalty = bool(offer.get("no_penalty", False))
-    comp = str(offer.get("compounding_frequency", "")).strip().lower()
-    comp_pref = 1 if comp in {"monthly", "quarterly"} else 0
+def _institution_key(offer: Dict[str, Any]) -> str:
+    return str(
+        offer.get("institution_name")
+        or offer.get("issuing_bank")
+        or offer.get("brokerage_firm")
+        or ""
+    ).strip().lower()
 
-    # Long bucket prefers stable + insured products (PDF guidance).
-    fdic = bool(offer.get("fdic_insured", False))
+
+def _offer_sort_key(offer: Dict[str, Any]) -> Tuple[float, int, int, int]:
+    after_tax_apy = float(offer.get("after_tax_apy", 0.0))
+    fdic = 1 if bool(offer.get("fdic_insured", False)) else 0
     product_type = str(offer.get("product_type", "")).strip().lower()
-    bank_like = 1 if product_type in {"bank_cd", "brokered_cd"} else 0
-    long_stability = 1 if (fdic and bank_like) else 0
-    if not is_long_term:
-        long_stability = 0
-
-    apy = float(offer.get("after_tax_apy", 0.0))
-    return no_penalty, (comp_pref + long_stability), apy
+    stable_institution = 1 if product_type in {"bank_cd", "brokered_cd"} else 0
+    term_months = int(offer.get("term_months", 0) or 0)
+    return (after_tax_apy, fdic, stable_institution, term_months)
 
 
-def _pick_offer(rank_result: Dict[str, Any], *, is_long_term: bool) -> Optional[Dict[str, Any]]:
-    candidates: List[Dict[str, Any]] = []
-    candidates.extend(rank_result.get("bank_cds") or [])
-    candidates.extend(rank_result.get("brokered_cds") or [])
-    candidates.extend(rank_result.get("overall_top") or [])
-    if not candidates:
-        return None
+def _collect_leg_candidates(
+    *,
+    data_client: Any,
+    amount: float,
+    state: str,
+    income_range: str,
+    filing_status: str,
+    local_area: Optional[str],
+    eligible_terms: List[int],
+) -> List[Dict[str, Any]]:
+    offers: List[Dict[str, Any]] = []
+    for term in eligible_terms:
+        inp = RankingInput(
+            investment_amount=amount,
+            term_months=term,
+            state=state,
+            income_range=income_range,
+            filing_status=filing_status,
+            local_area=local_area,
+        )
+        ranked = rank_offers(
+            inp,
+            data_client=data_client,
+            top_n_bank_cds=10,
+            top_n_brokered_cds=10,
+            top_n_treasuries=1,
+            top_n_overall=10,
+            include_all_ranked=False,
+        )
+        leg_offers = (ranked.get("bank_cds") or []) + (ranked.get("brokered_cds") or [])
+        offers.extend(leg_offers)
 
     deduped: List[Dict[str, Any]] = []
     seen = set()
-    for c in candidates:
+    for offer in offers:
         key = (
-            c.get("product_type"),
-            c.get("institution_name"),
-            c.get("issuing_bank"),
-            c.get("brokerage_firm"),
-            c.get("term_months"),
-            c.get("apy_nominal"),
+            offer.get("product_type"),
+            _institution_key(offer),
+            offer.get("term_months"),
+            offer.get("apy_nominal"),
         )
         if key in seen:
             continue
         seen.add(key)
-        deduped.append(c)
+        deduped.append(offer)
+    deduped.sort(key=_offer_sort_key, reverse=True)
+    return deduped
 
-    deduped.sort(key=lambda x: _offer_preference_score(x, is_long_term=is_long_term), reverse=True)
-    return deduped[0]
+
+def _best_and_alternative(candidates: List[Dict[str, Any]]) -> Tuple[Optional[Dict[str, Any]], Optional[Dict[str, Any]]]:
+    if not candidates:
+        return None, None
+    best = candidates[0]
+    best_inst = _institution_key(best)
+    alternative = None
+    for offer in candidates[1:]:
+        if _institution_key(offer) and _institution_key(offer) != best_inst:
+            alternative = offer
+            break
+    return best, alternative
 
 
 def _interest_simple(amount: float, apy_percent: float, term_months: int) -> float:
     return amount * (apy_percent / 100.0) * (term_months / 12.0)
+
+
+def _build_allocation_result(
+    *,
+    investment_amount: float,
+    short_pct: int,
+    short_best: Dict[str, Any],
+    short_alt: Optional[Dict[str, Any]],
+    long_best: Dict[str, Any],
+    long_alt: Optional[Dict[str, Any]],
+) -> Dict[str, Any]:
+    short_amount = round(float(investment_amount) * (short_pct / 100.0), 2)
+    long_amount = round(float(investment_amount) - short_amount, 2)
+
+    short_apy = float(short_best.get("apy_nominal", 0.0))
+    long_apy = float(long_best.get("apy_nominal", 0.0))
+    short_after_tax_apy = float(short_best.get("after_tax_apy", 0.0))
+    long_after_tax_apy = float(long_best.get("after_tax_apy", 0.0))
+
+    total_amount = float(investment_amount)
+    blended_apy = ((short_amount * short_apy) + (long_amount * long_apy)) / total_amount
+    after_tax_blended_apy = ((short_amount * short_after_tax_apy) + (long_amount * long_after_tax_apy)) / total_amount
+
+    short_term = int(short_best.get("term_months", 0) or 0)
+    long_term = int(long_best.get("term_months", 0) or 0)
+
+    short_nominal_interest = _interest_simple(short_amount, short_apy, short_term)
+    long_nominal_interest = _interest_simple(long_amount, long_apy, long_term)
+    short_after_tax_interest = _interest_simple(short_amount, short_after_tax_apy, short_term)
+    long_after_tax_interest = _interest_simple(long_amount, long_after_tax_apy, long_term)
+
+    return {
+        "short_term_percentage": int(short_pct),
+        "long_term_percentage": int(100 - short_pct),
+        "short_term_amount": short_amount,
+        "long_term_amount": long_amount,
+        "selected_products": {
+            "short_term": {"best": short_best, "alternative": short_alt},
+            "long_term": {"best": long_best, "alternative": long_alt},
+        },
+        "portfolio": {
+            "blended_apy": round(blended_apy, 4),
+            "after_tax_blended_apy": round(after_tax_blended_apy, 4),
+            "estimated_total_return_usd": round(short_nominal_interest + long_nominal_interest, 2),
+            "estimated_after_tax_total_return_usd": round(short_after_tax_interest + long_after_tax_interest, 2),
+        },
+    }
 
 
 def simulate_barbell(
@@ -121,134 +170,127 @@ def simulate_barbell(
     income_range: str,
     filing_status: str,
     local_area: Optional[str],
-    liquidity_preference: str,
+    liquidity_preference: Optional[str] = None,
     rate_outlook: Optional[str] = None,
     time_horizon: Optional[str] = None,
+    target_maturity_months: Optional[int] = None,
+    short_term_percentage: Optional[int] = None,
 ) -> Dict[str, Any]:
+    _ = (liquidity_preference, rate_outlook)  # kept for backward-compatible request shape
     warnings: List[str] = []
 
-    years = _to_years(time_horizon)
-    if years is not None and years < 1.0:
-        warnings.append("Barbell strategy may not fit very short horizons (<1 year).")
+    target_months = _to_months(time_horizon, target_maturity_months)
+    if target_months is None or target_months <= 0:
+        raise RankingEngineError("target_maturity_months (or time_horizon) is required for barbell")
 
-    short_pct, long_pct = _normalize_split(liquidity_preference, rate_outlook)
-
-    short_amount = round(float(investment_amount) * short_pct, 2)
-    long_amount = round(float(investment_amount) - short_amount, 2)
-
-    short_input = RankingInput(
-        investment_amount=short_amount,
-        term_months=6,
-        state=state,
-        income_range=income_range,
-        filing_status=filing_status,
-        local_area=local_area,
-    )
-    long_input = RankingInput(
-        investment_amount=long_amount,
-        term_months=60,
-        state=state,
-        income_range=income_range,
-        filing_status=filing_status,
-        local_area=local_area,
-    )
-
-    short_rank = rank_offers(
-        short_input,
-        data_client=data_client,
-        top_n_bank_cds=10,
-        top_n_brokered_cds=10,
-        top_n_treasuries=1,
-        top_n_overall=10,
-        include_all_ranked=False,
-    )
-    long_rank = rank_offers(
-        long_input,
-        data_client=data_client,
-        top_n_bank_cds=10,
-        top_n_brokered_cds=10,
-        top_n_treasuries=1,
-        top_n_overall=10,
-        include_all_ranked=False,
-    )
-
-    short_offer = _pick_offer(short_rank, is_long_term=False)
-    long_offer = _pick_offer(long_rank, is_long_term=True)
-    if short_offer is None:
-        raise RankingEngineError("No eligible short-term offers found for barbell strategy")
-    if long_offer is None:
-        warnings.append("No long-term CD data available; falling back to ladder suggestion.")
+    if target_months < 12:
         return {
             "strategy": "barbell",
-            "fallback_strategy": "ladder",
-            "message": "Long-term offers are unavailable. Consider ladder strategy for graceful degradation.",
-            "allocation": {
-                "short_term_percentage": int(round(short_pct * 100)),
-                "long_term_percentage": int(round(long_pct * 100)),
-                "short_term_amount": round(short_amount, 2),
-                "long_term_amount": round(long_amount, 2),
-            },
-            "selected_products": {
-                "short_term": short_offer,
-                "long_term": None,
-            },
+            "barbell_eligible": False,
+            "target_maturity_months": target_months,
+            "message": "Barbell strategy is not recommended for horizons under 12 months.",
+            "warnings": ["Target maturity under 12 months makes barbell ineligible."],
+        }
+
+    short_terms = [m for m in AVAILABLE_TERMS_MONTHS if m < 12]
+    long_terms = [m for m in AVAILABLE_TERMS_MONTHS if m >= 12 and m <= target_months]
+
+    if not short_terms:
+        warnings.append("No short-term products found under 12 months.")
+    if not long_terms:
+        warnings.append("No long-term products found from 12 months up to selected maturity.")
+    if not short_terms or not long_terms:
+        return {
+            "strategy": "barbell",
+            "barbell_eligible": True,
+            "target_maturity_months": target_months,
+            "has_fallback": True,
+            "message": "Insufficient eligible products for one or both barbell legs.",
+            "short_leg_terms": short_terms,
+            "long_leg_terms": long_terms,
             "warnings": warnings,
         }
 
-    short_apy = float(short_offer.get("apy_nominal", 0.0))
-    long_apy = float(long_offer.get("apy_nominal", 0.0))
-    short_after_tax_apy = float(short_offer.get("after_tax_apy", 0.0))
-    long_after_tax_apy = float(long_offer.get("after_tax_apy", 0.0))
+    split_candidates = [int(short_term_percentage)] if short_term_percentage is not None else DEFAULT_SPLIT_SHORT_PCTS
+    for pct in split_candidates:
+        if pct % 10 != 0 or pct < 20 or pct > 50:
+            raise RankingEngineError("short_term_percentage must be one of: 20, 30, 40, 50")
 
-    total_amount = float(investment_amount)
-    blended_apy = ((short_amount * short_apy) + (long_amount * long_apy)) / total_amount
-    after_tax_blended_apy = ((short_amount * short_after_tax_apy) + (long_amount * long_after_tax_apy)) / total_amount
+    split_results: List[Dict[str, Any]] = []
+    for short_pct in split_candidates:
+        short_amount = round(float(investment_amount) * (short_pct / 100.0), 2)
+        long_amount = round(float(investment_amount) - short_amount, 2)
 
-    short_nominal_interest = _interest_simple(short_amount, short_apy, 6)
-    long_nominal_interest = _interest_simple(long_amount, long_apy, 60)
-    short_after_tax_interest = _interest_simple(short_amount, short_after_tax_apy, 6)
-    long_after_tax_interest = _interest_simple(long_amount, long_after_tax_apy, 60)
+        short_candidates = _collect_leg_candidates(
+            data_client=data_client,
+            amount=short_amount,
+            state=state,
+            income_range=income_range,
+            filing_status=filing_status,
+            local_area=local_area,
+            eligible_terms=short_terms,
+        )
+        long_candidates = _collect_leg_candidates(
+            data_client=data_client,
+            amount=long_amount,
+            state=state,
+            income_range=income_range,
+            filing_status=filing_status,
+            local_area=local_area,
+            eligible_terms=long_terms,
+        )
 
-    nominal_interest_total = short_nominal_interest + long_nominal_interest
-    after_tax_interest_total = short_after_tax_interest + long_after_tax_interest
+        short_best, short_alt = _best_and_alternative(short_candidates)
+        long_best, long_alt = _best_and_alternative(long_candidates)
 
-    rise_short_apy = short_after_tax_apy + 0.5
-    rise_interest = _interest_simple(short_amount, rise_short_apy, 6) + long_after_tax_interest
+        if short_best is None or long_best is None:
+            split_results.append(
+                {
+                    "short_term_percentage": short_pct,
+                    "eligible": False,
+                    "message": "No eligible products found for one or both legs at this split.",
+                }
+            )
+            continue
 
-    fall_short_apy = max(0.0, short_after_tax_apy - 0.5)
-    fall_interest = _interest_simple(short_amount, fall_short_apy, 6) + long_after_tax_interest
+        built = _build_allocation_result(
+            investment_amount=investment_amount,
+            short_pct=short_pct,
+            short_best=short_best,
+            short_alt=short_alt,
+            long_best=long_best,
+            long_alt=long_alt,
+        )
+        built["eligible"] = True
+        split_results.append(built)
+
+    eligible_splits = [x for x in split_results if x.get("eligible")]
+    if not eligible_splits:
+        return {
+            "strategy": "barbell",
+            "barbell_eligible": True,
+            "target_maturity_months": target_months,
+            "has_fallback": True,
+            "message": "No eligible product combination found across allowed split ratios.",
+            "split_candidates": split_results,
+            "warnings": warnings,
+        }
+
+    best_split = max(eligible_splits, key=lambda x: float(x["portfolio"]["after_tax_blended_apy"]))
+    selected_split = best_split if short_term_percentage is None else eligible_splits[0]
 
     return {
         "strategy": "barbell",
-        "allocation": {
-            "short_term_percentage": int(round(short_pct * 100)),
-            "long_term_percentage": int(round(long_pct * 100)),
-            "short_term_amount": round(short_amount, 2),
-            "long_term_amount": round(long_amount, 2),
+        "barbell_eligible": True,
+        "target_maturity_months": target_months,
+        "short_leg_terms": short_terms,
+        "long_leg_terms": long_terms,
+        "default_split": {
+            "short_term_percentage": int(best_split["short_term_percentage"]),
+            "long_term_percentage": int(best_split["long_term_percentage"]),
+            "after_tax_blended_apy": best_split["portfolio"]["after_tax_blended_apy"],
         },
-        "selected_products": {
-            "short_term": short_offer,
-            "long_term": long_offer,
-        },
-        "portfolio": {
-            "blended_apy": round(blended_apy, 4),
-            "after_tax_blended_apy": round(after_tax_blended_apy, 4),
-            "nominal_interest_usd": round(nominal_interest_total, 2),
-            "after_tax_interest_usd": round(after_tax_interest_total, 2),
-        },
-        "simulation": {
-            "scenarios": [
-                {
-                    "name": "rates_rise",
-                    "description": "Assumes short-term CD rollover can capture +0.50% after-tax APY on the next cycle.",
-                    "estimated_after_tax_interest_usd": round(rise_interest, 2),
-                },
-                {
-                    "name": "rates_fall",
-                    "description": "Assumes short-term CD rollover loses 0.50% after-tax APY while long-term lock remains unchanged.",
-                    "estimated_after_tax_interest_usd": round(fall_interest, 2),
-                },
-            ]
-        },
+        "selected_split": selected_split,
+        "split_candidates": split_results,
         "warnings": warnings,
     }

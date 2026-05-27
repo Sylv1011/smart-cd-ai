@@ -34,6 +34,8 @@ from api.schemas import (
     YieldResponse,
 )
 
+from api.routers.strategy import router as strategy_router
+
 settings = get_settings()
 
 app = FastAPI(title="SmartCD Backend API")
@@ -46,6 +48,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Mount under both /strategy and /api/strategy for consistency with existing routes
+app.include_router(strategy_router)
+app.include_router(strategy_router, prefix="/api")
 
 
 @dataclass(frozen=True)
