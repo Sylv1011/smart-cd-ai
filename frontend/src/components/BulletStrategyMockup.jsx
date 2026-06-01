@@ -253,7 +253,7 @@ const Row = ({
   const result = { provider: row.provider, productType: row.type };
 
   return (
-    <div className={`transition-colors md:hover:bg-[rgba(29,141,238,0.05)] ${seamless ? 'rounded-none border-0 border-b border-[#1E2939] px-[8px] py-5 last:border-b-0' : 'rounded-[10px] border border-[#1E2939] px-3 py-3'} ${highlight ? 'min-h-[141px] bg-[#050D1F]' : 'bg-[#050D1F]'}`}>
+    <div className={`transition-colors md:hover:bg-[rgba(29,141,238,0.05)] ${seamless ? 'rounded-none border-0 border-b border-[#253E5C] px-[8px] py-5 last:border-b-0' : 'rounded-[10px] border border-[#1E2939] px-3 py-3'} ${highlight ? 'min-h-[141px] bg-[#050D1F]' : 'bg-[#050D1F]'}`}>
       {future && row.slot && <div className="mb-2 inline-flex rounded-full bg-[#0077FF] px-3 py-1 text-[12px] leading-none text-white">{row.slot}</div>}
       {!future && row.badge && <div className="mb-2 inline-flex rounded-full bg-[#22C55E] px-3 py-1 text-[12px] leading-none text-white">{row.badge}</div>}
       <div className={`grid items-center gap-0 ${DESKTOP_GRID} ${highlight ? 'min-h-[82px]' : ''}`}>
