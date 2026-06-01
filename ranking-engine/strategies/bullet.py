@@ -220,8 +220,9 @@ def _compute_blended_yield(tranches: list[dict], total_amount: float) -> float:
         for t in tranches
     )
 
-def _interest_simple(amount: float, apy_percent: float, term_months: int) -> float:
-    return amount * (apy_percent / 100.0) * (term_months / 12.0)
+def _interest_compound(amount: float, apy_percent: float, term_months: int) -> float:
+    t = term_months / 12.0
+    return amount * ((1.0 + apy_percent / 100.0) ** t - 1.0)
 
 def simulate_bullet(*,
     data_client: Any,
@@ -306,8 +307,8 @@ def simulate_bullet(*,
                 "or removing this tranche."
             )
         tranche["product"]["investment_amount"] = tranche["allocation_amount"]
-        tranche["product"]["nominal_interest_usd"] = round(_interest_simple(tranche["allocation_amount"], product.get("apy_nominal"), product.get("term_months")),2)
-        tranche["product"]["after_tax_interest_usd"] = round(_interest_simple(tranche["allocation_amount"], product.get("after_tax_apy"), product.get("term_months")),2)
+        tranche["product"]["nominal_interest_usd"] = round(_interest_compound(tranche["allocation_amount"], product.get("apy_nominal"), product.get("term_months")),2)
+        tranche["product"]["after_tax_interest_usd"] = round(_interest_compound(tranche["allocation_amount"], product.get("after_tax_apy"), product.get("term_months")),2)
 
 
     

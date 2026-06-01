@@ -111,8 +111,9 @@ def _best_and_alternative(candidates: List[Dict[str, Any]]) -> Tuple[Optional[Di
     return best, alternative
 
 
-def _interest_simple(amount: float, apy_percent: float, term_months: int) -> float:
-    return amount * (apy_percent / 100.0) * (term_months / 12.0)
+def _interest_compound(amount: float, apy_percent: float, term_months: int) -> float:
+    t = term_months / 12.0
+    return amount * ((1.0 + apy_percent / 100.0) ** t - 1.0)
 
 
 def _build_allocation_result(
@@ -139,10 +140,10 @@ def _build_allocation_result(
     short_term = int(short_best.get("term_months", 0) or 0)
     long_term = int(long_best.get("term_months", 0) or 0)
 
-    short_nominal_interest = _interest_simple(short_amount, short_apy, short_term)
-    long_nominal_interest = _interest_simple(long_amount, long_apy, long_term)
-    short_after_tax_interest = _interest_simple(short_amount, short_after_tax_apy, short_term)
-    long_after_tax_interest = _interest_simple(long_amount, long_after_tax_apy, long_term)
+    short_nominal_interest = _interest_compound(short_amount, short_apy, short_term)
+    long_nominal_interest = _interest_compound(long_amount, long_apy, long_term)
+    short_after_tax_interest = _interest_compound(short_amount, short_after_tax_apy, short_term)
+    long_after_tax_interest = _interest_compound(long_amount, long_after_tax_apy, long_term)
 
     return {
         "short_term_percentage": int(short_pct),
