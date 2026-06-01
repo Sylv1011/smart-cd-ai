@@ -117,7 +117,7 @@ const ExternalLinkIcon = ({ className }) => (
 );
 
 const StrategyTabIcon = ({ id, active }) => {
-  const color = active ? '#FFFFFF' : id === 'ladder' ? '#FACC15' : '#FFFFFF';
+  const color = '#FFFFFF';
   if (id === 'best-rate') {
     return (
       <svg className="h-5 w-5" viewBox="0 0 24 24" fill={color} aria-hidden="true">
