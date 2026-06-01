@@ -307,8 +307,8 @@ def simulate_bullet(*,
                 "or removing this tranche."
             )
         tranche["product"]["investment_amount"] = tranche["allocation_amount"]
-        tranche["product"]["nominal_interest_usd"] = round(_interest_compound(tranche["allocation_amount"], product.get("apy_nominal"), product.get("term_months")),2)
-        tranche["product"]["after_tax_interest_usd"] = round(_interest_compound(tranche["allocation_amount"], product.get("after_tax_apy"), product.get("term_months")),2)
+        tranche["product"]["nominal_interest_usd"] = round(_interest_compound(tranche["allocation_amount"], product.get("apy_nominal", 0.0) or 0.0, product.get("term_months", 0) or 0),2)
+        tranche["product"]["after_tax_interest_usd"] = round(_interest_compound(tranche["allocation_amount"], product.get("after_tax_apy", 0.0) or 0.0, product.get("term_months", 0) or 0),2)
 
 
     
