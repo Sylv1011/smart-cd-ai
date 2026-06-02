@@ -165,10 +165,9 @@ const mapSubLabel = (p, type) => {
 
 const makeTaxBreakdown = (p) => {
   const interest = Number(p?.nominal_interest_usd ?? 0);
-  const fed = Number(p?.fed_rate ?? 0);
   const state = p?.product_type === 'treasury' ? 0 : Number(p?.state_rate ?? 0);
   const local = p?.product_type === 'treasury' ? 0 : Number(p?.local_rate ?? 0);
-  const totalTax = interest * (fed + state + local);
+  const totalTax = interest - Number(p?.after_tax_interest_usd ?? 0);
   const savings = Math.max(0, interest * (state + local));
   return {
     interestEarned: formatMoney(interest, 2),
