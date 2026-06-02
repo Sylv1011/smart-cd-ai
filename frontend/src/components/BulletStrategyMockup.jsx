@@ -165,10 +165,9 @@ const mapSubLabel = (p, type) => {
 
 const makeTaxBreakdown = (p) => {
   const interest = Number(p?.nominal_interest_usd ?? 0);
-  const fed = Number(p?.fed_rate ?? 0);
   const state = p?.product_type === 'treasury' ? 0 : Number(p?.state_rate ?? 0);
   const local = p?.product_type === 'treasury' ? 0 : Number(p?.local_rate ?? 0);
-  const totalTax = interest * (fed + state + local);
+  const totalTax = interest - Number(p?.after_tax_interest_usd ?? 0);
   const savings = Math.max(0, interest * (state + local));
   return {
     interestEarned: formatMoney(interest, 2),
@@ -253,7 +252,7 @@ const Row = ({
   const result = { provider: row.provider, productType: row.type };
 
   return (
-    <div className={`${seamless ? 'rounded-none border-0 border-b border-[#1E2939] px-[8px] py-5 last:border-b-0' : 'rounded-[10px] border border-[#1E2939] px-3 py-3'} ${highlight ? 'min-h-[141px] bg-[#050D1F]' : 'bg-[#050D1F]'}`}>
+    <div className={`transition-colors md:hover:bg-[rgba(29,141,238,0.05)] ${seamless ? 'rounded-none border-0 border-b border-[#253E5C] px-[8px] py-5 last:border-b-0' : 'rounded-[10px] border border-[#1E2939] px-3 py-3'} ${highlight ? 'min-h-[141px] bg-[#050D1F]' : 'bg-[#050D1F]'}`}>
       {future && row.slot && <div className="mb-2 inline-flex rounded-full bg-[#0077FF] px-3 py-1 text-[12px] leading-none text-white">{row.slot}</div>}
       {!future && row.badge && <div className="mb-2 inline-flex rounded-full bg-[#22C55E] px-3 py-1 text-[12px] leading-none text-white">{row.badge}</div>}
       <div className={`grid items-center gap-0 ${DESKTOP_GRID} ${highlight ? 'min-h-[82px]' : ''}`}>
@@ -273,7 +272,7 @@ const Row = ({
           <button
             type="button"
             onClick={onToggleTax}
-            className={`inline-flex h-[43px] w-[145px] items-center justify-center gap-2 rounded-[10px] border-0 px-2 py-2 text-[14px] font-semibold leading-[24px] shadow-[0_4px_4px_rgba(0,0,0,0.25)] outline-none ring-0 transition-colors ${
+            className={`inline-flex h-[43px] w-[145px] items-center justify-center gap-2 rounded-[14px] border-0 px-2 py-2 text-[14px] font-semibold leading-[24px] shadow-[0_4px_4px_rgba(0,0,0,0.25)] outline-none ring-0 transition-colors ${
               taxOpen ? 'bg-[#0D1B2E] text-[#F59E0C] shadow-[inset_0_0_0_1px_#F59E0C,0_4px_4px_rgba(0,0,0,0.25)]' : 'bg-[#1A3050] text-white hover:bg-[#254873]'
             }`}
           >
@@ -604,6 +603,16 @@ export default function BulletStrategyMockup({
     return nowVisible || futureVisible;
   }, [derived, selectedProductType]);
 
+  useEffect(() => {
+    setFilterType((prev) => {
+      const s = String(prev).toLowerCase();
+      if (!s.includes('bank') && !s.includes('brokerage') && !s.includes('treas')) {
+        return `All Products (${1 + (derived.purchaseNowOthers?.length || 0)})`;
+      }
+      return prev;
+    });
+  }, [derived.purchaseNowOthers?.length]);
+
   return (
     <div className="mx-auto w-full max-w-[1288px] text-white">
       {!hideTitle && (
@@ -724,7 +733,7 @@ export default function BulletStrategyMockup({
             </div>
           </div>
 
-          <div className="px-4 py-3">
+          <div className="bg-[#0D1B2E] px-4 py-3">
             <SectionHeader title="Purchase in the Future" badge="Projected Rates" note="Rates are projected and may change" />
             {derived.futureGroups.map((group) => (
               <div key={group.id} className="mb-3 overflow-hidden rounded-[12px] border border-[#1E2939] bg-[#050D1F] last:mb-0">

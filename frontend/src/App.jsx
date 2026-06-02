@@ -117,7 +117,7 @@ const ExternalLinkIcon = ({ className }) => (
 );
 
 const StrategyTabIcon = ({ id, active }) => {
-  const color = active ? '#FFFFFF' : id === 'ladder' ? '#FACC15' : '#FFFFFF';
+  const color = '#FFFFFF';
   if (id === 'best-rate') {
     return (
       <svg className="h-5 w-5" viewBox="0 0 24 24" fill={color} aria-hidden="true">
@@ -315,14 +315,7 @@ const normalizeSavedIncomeLabel = (value) => {
       'Unknown';
 
     const grossInterest = Number(o?.nominal_interest_usd ?? 0);
-    const fedRate = Number(o?.fed_rate ?? 0);
-    const stateRate = productType === 'Treasuries' ? 0 : Number(o?.state_rate ?? 0);
-    const localRate = productType === 'Treasuries' ? 0 : Number(o?.local_rate ?? 0);
-
-    const fedTax = grossInterest * fedRate;
-    const stateTax = grossInterest * stateRate;
-    const localTax = grossInterest * localRate;
-    const totalTax = fedTax + stateTax + localTax;
+    const totalTax = grossInterest - Number(o?.after_tax_interest_usd ?? 0);
     // For treasuries, savings = state+local tax avoided (API returns the user's actual marginal
     // rates even for treasuries, so we use the raw fields here, not the zeroed stateRate/localRate).
     const estimatedSavings = productType === 'Treasuries'

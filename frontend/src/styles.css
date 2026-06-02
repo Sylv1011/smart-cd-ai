@@ -165,6 +165,39 @@ body {
   color: #0F172A !important;
 }
 
+/* BulletStrategyMockup — light mode background overrides */
+.theme-light .bg-\[\#050D1F\] {
+  background-color: #FFFFFF !important;
+}
+
+.theme-light .bg-\[\#122035\] {
+  background-color: #EAF3FF !important;
+}
+
+.theme-light .bg-\[\#0D1B2E\] {
+  background-color: #F1F5F9 !important;
+}
+
+/* BulletStrategyMockup — light mode border overrides */
+.theme-light .border-\[\#1E2939\],
+.theme-light .border-\[\#253E5C\] {
+  border-color: #E2E8F0 !important;
+}
+
+/* BulletStrategyMockup — light mode text overrides */
+.theme-light .text-\[\#D1D5DC\] {
+  color: #334155 !important;
+}
+
+.theme-light .text-\[\#4A7A9A\],
+.theme-light .text-\[\#4A6A8A\] {
+  color: #475569 !important;
+}
+
+.theme-light .text-\[\#9E9E9E\] {
+  color: #4B5563 !important;
+}
+
 html,
 body,
 #root {
