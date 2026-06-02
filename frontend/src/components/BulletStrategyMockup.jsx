@@ -215,13 +215,17 @@ const DropdownField = ({ label, value, options, onSelect, narrow = false }) => {
   );
 };
 
-const SectionHeader = ({ title, badge, note }) => (
-  <div className="mb-3 flex items-center justify-between gap-4 max-[760px]:items-start max-[760px]:flex-col">
-    <div className="flex min-w-0 items-center gap-2 text-[20px] font-medium leading-[28px] text-white max-[520px]:text-[17px]">
+const SectionHeader = ({ title, badge, note, collapsed = false, onToggle }) => (
+  <div className="flex items-center justify-between gap-4 max-[760px]:items-start max-[760px]:flex-col">
+    <button
+      type="button"
+      onClick={onToggle}
+      className="flex min-w-0 cursor-pointer items-center gap-2 border-0 bg-transparent p-0 text-[20px] font-medium leading-[28px] text-white outline-none max-[520px]:text-[17px]"
+    >
       <span>{title}</span>
       <span className={`rounded-[4px] px-2 py-1 text-[11px] font-medium leading-[16px] text-white ${badge === 'Live Rates' ? 'bg-[#00A63E]' : 'bg-[#0077FF]'}`}>{badge}</span>
-      <ChevronDownIcon className="h-4 w-4 text-[#6A7282]" />
-    </div>
+      <ChevronDownIcon className={`h-4 w-4 text-[#6A7282] transition-transform duration-200 ${collapsed ? '-rotate-90' : ''}`} />
+    </button>
     <div className="text-[14px] leading-[20px] text-[#99A1AF] max-[520px]:text-[12px]">{note}</div>
   </div>
 );
@@ -298,7 +302,7 @@ const Row = ({
       </div>
       {taxOpen && (
         <div className="relative mt-2 h-[264px] w-full border border-[#071710] bg-[#050D1F]">
-          <div className="absolute left-[22px] top-[22px] h-[231px] w-[572px] border border-[#0E2818] bg-[linear-gradient(180deg,#071810_0%,#050E0A_100%)]">
+          <div className="absolute left-[22px] top-[22px] h-[231px] w-[572px] rounded-xl border border-[#0E2818] bg-[linear-gradient(180deg,#071810_0%,#050E0A_100%)]">
             <div className="px-[20px] pt-[12px] text-[13px] font-bold text-white">Read Tax Break down</div>
             <div className="px-[20px] pt-[24px]">
               <div className="flex h-[14px] items-center justify-between text-[12.5px] leading-none">
@@ -424,6 +428,8 @@ export default function BulletStrategyMockup({
   const [term, setTerm] = useState(initialTerm);
   const [filterType, setFilterType] = useState('All Products (3)');
   const [amount, setAmount] = useState(initialAmount);
+  const [nowCollapsed, setNowCollapsed] = useState(false);
+  const [futureCollapsed, setFutureCollapsed] = useState(false);
   const [showOtherNow, setShowOtherNow] = useState(true);
   const [showOtherFuture, setShowOtherFuture] = useState({});
   const [taxOpenById, setTaxOpenById] = useState({});
@@ -700,42 +706,58 @@ export default function BulletStrategyMockup({
             <div className="whitespace-nowrap pl-5 text-left">ACTIONS</div>
           </div>
 
-          <div className="border-b border-[#1E2939] px-4 py-3">
-            <SectionHeader title="Purchase Now" badge="Live Rates" note="Buy now to lock in today's rates" />
-            <div className="overflow-hidden rounded-[12px] border border-[#1E2939] bg-[#050D1F] shadow-none">
-              {matchFilter(derived.purchaseNowPrimary) && (
-                <Row
-                  row={derived.purchaseNowPrimary}
-                  showOtherToggle={true}
-                  expanded={showOtherNow}
-                  onToggleOther={() => setShowOtherNow((v) => !v)}
-                  taxOpen={Boolean(taxOpenById[derived.purchaseNowPrimary.id])}
-                  onToggleTax={() => toggleTax(derived.purchaseNowPrimary.id)}
-                  summaryState={summaryStateById[derived.purchaseNowPrimary.id] || 'idle'}
-                  onGenerateSummary={() => generateSummary(derived.purchaseNowPrimary.id)}
-                  onSetReminder={() => setShowReminderModal(true)}
-                  highlight
-                  seamless
-                />
-              )}
-              {showOtherNow && derived.purchaseNowOthers.filter(matchFilter).map((row) => (
-                <Row
-                  key={row.id}
-                  row={row}
-                  taxOpen={Boolean(taxOpenById[row.id])}
-                  onToggleTax={() => toggleTax(row.id)}
-                  summaryState={summaryStateById[row.id] || 'idle'}
-                  onGenerateSummary={() => generateSummary(row.id)}
-                  onSetReminder={() => setShowReminderModal(true)}
-                  seamless
-                />
-              ))}
-            </div>
+          <div className="px-4 pb-5 pt-3">
+            <SectionHeader
+              title="Purchase Now"
+              badge="Live Rates"
+              note="Buy now to lock in today's rates"
+              collapsed={nowCollapsed}
+              onToggle={() => setNowCollapsed((v) => !v)}
+            />
+            {!nowCollapsed && (
+              <div className="mt-3 overflow-hidden rounded-[12px] border border-[#1E2939] bg-[#050D1F] shadow-none">
+                {matchFilter(derived.purchaseNowPrimary) && (
+                  <Row
+                    row={derived.purchaseNowPrimary}
+                    showOtherToggle={true}
+                    expanded={showOtherNow}
+                    onToggleOther={() => setShowOtherNow((v) => !v)}
+                    taxOpen={Boolean(taxOpenById[derived.purchaseNowPrimary.id])}
+                    onToggleTax={() => toggleTax(derived.purchaseNowPrimary.id)}
+                    summaryState={summaryStateById[derived.purchaseNowPrimary.id] || 'idle'}
+                    onGenerateSummary={() => generateSummary(derived.purchaseNowPrimary.id)}
+                    onSetReminder={() => setShowReminderModal(true)}
+                    highlight
+                    seamless
+                  />
+                )}
+                {showOtherNow && derived.purchaseNowOthers.filter(matchFilter).map((row) => (
+                  <Row
+                    key={row.id}
+                    row={row}
+                    taxOpen={Boolean(taxOpenById[row.id])}
+                    onToggleTax={() => toggleTax(row.id)}
+                    summaryState={summaryStateById[row.id] || 'idle'}
+                    onGenerateSummary={() => generateSummary(row.id)}
+                    onSetReminder={() => setShowReminderModal(true)}
+                    seamless
+                  />
+                ))}
+              </div>
+            )}
           </div>
 
-          <div className="bg-[#0D1B2E] px-4 py-3">
-            <SectionHeader title="Purchase in the Future" badge="Projected Rates" note="Rates are projected and may change" />
-            {derived.futureGroups.map((group) => (
+          <div className="mx-4 border-t border-[#1E3A5F]" />
+
+          <div className="bg-[#080F1C] px-4 pb-5 pt-4">
+            <SectionHeader
+              title="Purchase in the Future"
+              badge="Projected Rates"
+              note="Rates are projected and may change"
+              collapsed={futureCollapsed}
+              onToggle={() => setFutureCollapsed((v) => !v)}
+            />
+            {!futureCollapsed && derived.futureGroups.map((group) => (
               <div key={group.id} className="mb-3 overflow-hidden rounded-[12px] border border-[#1E2939] bg-[#050D1F] last:mb-0">
                 {matchFilter(group.primary) && (
                   <Row
