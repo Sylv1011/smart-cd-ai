@@ -29,4 +29,5 @@ jobs:
       - name: Run tests
         env:
           SMARTCD_DATA_MODE: static
+          PYTHONPATH: .
         run: pytest --tb=short
