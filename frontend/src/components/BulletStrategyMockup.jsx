@@ -634,10 +634,10 @@ export default function BulletStrategyMockup({
     [simulationData],
   );
 
-  const visibleSummaryRows = useMemo(() => {
+  const summaryRows = useMemo(() => {
     const rows = [];
 
-    if (!nowCollapsed && matchFilter(derived.purchaseNowPrimary)) {
+    if (matchFilter(derived.purchaseNowPrimary)) {
       rows.push({
         key: derived.purchaseNowPrimary.id,
         type: 'Buy Now',
@@ -653,42 +653,53 @@ export default function BulletStrategyMockup({
       });
     }
 
+    derived.futureGroups.forEach((group) => {
+      if (matchFilter(group.primary)) {
+        rows.push({
+          key: group.primary.id,
+          type: `In ${(() => {
+            const match = String(group.slot || '').match(/buy in\s+(\d+)\s+months?/i);
+            return match ? `${match[1]} Months` : 'Future';
+          })()}`,
+          provider: group.primary.provider,
+          productType: group.primary.type,
+          term: `${group.primary.termMonths || 0} Months`,
+          apy: `${group.primary.nominal}%`,
+          tax: `${group.primary.tax}%`,
+          allocation: group.primary.allocation,
+          date: group.primary.maturityDate,
+          dot: '#0077FF',
+          projected: true,
+        });
+      }
+    });
+
+    return rows;
+  }, [derived, matchFilter]);
+
+  const visibleSummaryRows = useMemo(() => {
+    const rows = [];
+
+    if (!nowCollapsed && matchFilter(derived.purchaseNowPrimary)) {
+      rows.push(derived.purchaseNowPrimary.id);
+    }
+
     if (!futureCollapsed) {
       derived.futureGroups.forEach((group) => {
         if (matchFilter(group.primary)) {
-          rows.push({
-            key: group.primary.id,
-            type: `In ${group.primary.tranche === null ? '' : ''}${(() => {
-              const match = String(group.slot || '').match(/buy in\s+(\d+)\s+months?/i);
-              return match ? `${match[1]} Months` : 'Future';
-            })()}`,
-            provider: group.primary.provider,
-            productType: group.primary.type,
-            term: `${group.primary.termMonths || 0} Months`,
-            apy: `${group.primary.nominal}%`,
-            tax: `${group.primary.tax}%`,
-            allocation: group.primary.allocation,
-            date: group.primary.maturityDate,
-            dot: '#0077FF',
-            projected: true,
-          });
+          rows.push(group.primary.id);
         }
       });
     }
 
     return rows;
-  }, [
-    derived,
-    futureCollapsed,
-    matchFilter,
-    nowCollapsed,
-    showOtherFuture,
-    showOtherNow,
-  ]);
+  }, [derived, futureCollapsed, matchFilter, nowCollapsed]);
 
   const hasVisibleRows = useMemo(() => {
-    return visibleSummaryRows.length > 0;
-  }, [visibleSummaryRows]);
+    const nowVisible = matchFilter(derived.purchaseNowPrimary);
+    const futureVisible = derived.futureGroups.some((group) => matchFilter(group.primary));
+    return nowVisible || futureVisible;
+  }, [derived, matchFilter]);
 
   useEffect(() => {
     setFilterType((prev) => {
@@ -902,7 +913,7 @@ export default function BulletStrategyMockup({
             <div className="text-[14px] font-bold leading-[20px] text-[#99A1AF]">ALLOCATION</div>
             <div className="text-[14px] font-bold leading-[20px] text-[#99A1AF]">MATURITY DATE</div>
           </div>
-          {visibleSummaryRows.map((row) => (
+          {summaryRows.map((row) => (
             <div key={row.key} className="hidden min-h-[75px] border-b border-[#1E2939] px-6 py-4 md:grid md:grid-cols-[190px_360px_130px_140px_180px_140px_170px] md:items-center last:border-b-0">
               <div className="flex items-center gap-2">
                 <span className="h-2 w-2 rounded-full" style={{ background: row.dot }} />
