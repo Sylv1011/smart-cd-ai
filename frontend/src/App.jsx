@@ -4,9 +4,7 @@ import { locationData } from './utils/locationData';
 import { usStates } from './utils/statesData';
 import { stateNameToCode } from './utils/stateCodes';
 import AIAssistant from './AIAssistant';
-import SearchableSelect from './components/SearchableSelect';
-import StrictSelect from './components/StrictSelect';
-import StateAutocomplete from './components/StateAutocomplete';
+import Dropdown from './components/Dropdown';
 import BankBadge from './components/BankBadge';
 import BulletStrategyMockup from './components/BulletStrategyMockup';
 
@@ -1590,17 +1588,22 @@ export default function App() {
                     <div className="flex flex-col gap-2.5 relative">
                       <label htmlFor="investment_amount" className="text-xs font-semibold text-[#6B7280] capitalize">Cash Amount</label>
                       <div className="relative flex items-center">
-                        <span className="absolute left-4 text-[#111827] font-semibold pointer-events-none flex items-center">$</span>
+                        {formData.investment_amount && (
+                          <span className="absolute left-4 text-[#1E293B] text-[0.95rem] font-normal pointer-events-none flex items-center">$</span>
+                        )}
                         <input
-                          type="number"
+                          type="text"
+                          inputMode="numeric"
                           id="investment_amount"
                           name="investment_amount"
-                          value={formData.investment_amount}
-                          onChange={handleChange}
+                          value={formData.investment_amount ? Number(formData.investment_amount).toLocaleString('en-US') : ''}
+                          onChange={(e) => {
+                            const digits = e.target.value.replace(/[^0-9]/g, '');
+                            handleChange({ target: { name: 'investment_amount', value: digits } });
+                          }}
                           onBlur={handleFieldBlur}
-                          className={`w-full pl-8 pr-4 py-4 text-base font-medium rounded-[8px] border outline-none bg-white text-[#111827] transition-all placeholder:text-[#9CA3AF] placeholder:font-normal appearance-none focus:shadow-[0_0_0_2px_rgba(29,141,238,0.3)] ${investmentAmountError ? 'border-[#FF5252] shadow-[0_0_0_2px_rgba(255,82,82,0.2)]' : 'border-[#E5E7EB]'}`}
+                          className={`w-full ${formData.investment_amount ? 'pl-8' : 'pl-4'} pr-4 py-4 text-[0.95rem] leading-6 font-normal box-border rounded-[8px] border outline-none bg-white text-[#1E293B] transition-all placeholder:text-[#9CA3AF] placeholder:font-normal appearance-none focus:shadow-[0_0_0_2px_rgba(29,141,238,0.3)] ${investmentAmountError ? 'border-[#FF5252] shadow-[0_0_0_2px_rgba(255,82,82,0.2)]' : 'border-[#E5E7EB]'}`}
                           placeholder="Enter amount ($5,000 minimum)"
-                          min="5000"
                           required
                         />
                       </div>
@@ -1608,7 +1611,7 @@ export default function App() {
                     </div>
                     <div className="flex flex-col gap-2.5 relative">
                       <label htmlFor="term_length_months" className="text-xs font-semibold text-[#6B7280] capitalize">Duration</label>
-                      <StrictSelect
+                      <Dropdown
                         name="term_length_months"
                         value={formData.term_length_months}
                         onChange={handleChange}
@@ -1616,7 +1619,6 @@ export default function App() {
                         options={TERM_LENGTH_OPTIONS}
                         placeholder="Select Duration"
                         hasError={Boolean(termLengthError)}
-                        hasSeparators={true}
                       />
                       {termLengthError && <p className="text-[0.75rem] font-medium text-[#FF5252]">{termLengthError}</p>}
                     </div>
@@ -1625,7 +1627,7 @@ export default function App() {
                   <div className="grid grid-cols-2 gap-6 max-[640px]:grid-cols-1 max-[640px]:gap-4">
                     <div className="flex flex-col gap-2.5 relative">
                       <label htmlFor="state_selection" className="text-xs font-semibold text-[#6B7280] capitalize">State</label>
-                      <StateAutocomplete
+                      <Dropdown
                         name="state_selection"
                         value={formData.state_selection}
                         onChange={handleChange}
@@ -1633,12 +1635,16 @@ export default function App() {
                         options={usStates}
                         placeholder="Select State"
                         hasError={Boolean(stateSelectionError)}
+                        searchable
+                        matchMode="contains"
+                        maxResults={10}
+                        noResultsText="No matching state found"
                       />
                       {stateSelectionError && <p className="text-[0.75rem] font-medium text-[#FF5252]">{stateSelectionError}</p>}
                     </div>
                     <div className="flex flex-col gap-2.5 relative">
                       <label htmlFor="city_county" className="text-xs font-semibold text-[#6B7280] capitalize">City / County</label>
-                      <SearchableSelect
+                      <Dropdown
                         name="city_county"
                         value={formData.city_county}
                         onChange={handleChange}
@@ -1651,6 +1657,11 @@ export default function App() {
                         placeholder="Select or type City/County"
                         hasError={Boolean(cityCountyError)}
                         disabled={!STATES_WITH_LOCAL_TAX.includes(formData.state_selection)}
+                        searchable
+                        matchMode="prefix"
+                        pinOther
+                        titleCase
+                        noResultsText="No matching city/county found"
                       />
                       {cityCountyError && <p className="text-[0.75rem] font-medium text-[#FF5252]">{cityCountyError}</p>}
                     </div>
@@ -1659,7 +1670,7 @@ export default function App() {
                   <div className="grid grid-cols-2 gap-6 max-[640px]:grid-cols-1 max-[640px]:gap-4">
                     <div className="flex flex-col gap-2.5 relative">
                       <label htmlFor="income_range" className="text-xs font-semibold text-[#6B7280] capitalize">Annual Income Range</label>
-                      <StrictSelect
+                      <Dropdown
                         name="income_range"
                         value={formData.income_range}
                         onChange={handleChange}
@@ -1672,7 +1683,7 @@ export default function App() {
                     </div>
                     <div className="flex flex-col gap-2.5 relative">
                       <label htmlFor="tax_filing_status" className="text-xs font-semibold text-[#6B7280] capitalize">Tax Filing Status</label>
-                      <StrictSelect
+                      <Dropdown
                         name="tax_filing_status"
                         value={formData.tax_filing_status}
                         onChange={handleChange}
