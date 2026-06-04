@@ -411,6 +411,7 @@ export default function App() {
   const [sortColumn, setSortColumn] = useState(null); // 'nominalRate' | 'afterTaxYield' | 'minDeposit' | null
   const [sortDirection, setSortDirection] = useState('desc'); // 'asc' | 'desc'
   const latestRequestIdRef = useRef(0);
+  const latestBulletRequestIdRef = useRef(0);
   const didRestoreRef = useRef(false);
   const [selectedStateCode, setSelectedStateCode] = useState('');
   const [whyThisFitsOverrides, setWhyThisFitsOverrides] = useState({});
@@ -756,6 +757,7 @@ export default function App() {
   };
 
   const fetchBulletSimulation = async (nextFormData, options = {}) => {
+    const requestId = ++latestBulletRequestIdRef.current;
     const { silent = false, controlsOverride = null } = options;
     const effectiveControls = controlsOverride || bulletControls;
     const controlsAmount = parseFloat(String(effectiveControls.amount || '').replace(/[^0-9.]/g, ''));
@@ -797,12 +799,19 @@ export default function App() {
         body: JSON.stringify(payload),
       });
 
+      if (requestId !== latestBulletRequestIdRef.current) {
+        return;
+      }
+
       if (!response.ok) {
         const errPayload = await response.json().catch(() => ({}));
         throw new Error(errPayload.detail || 'Failed to fetch bullet simulation.');
       }
 
       const simulationPayload = await response.json();
+      if (requestId !== latestBulletRequestIdRef.current) {
+        return;
+      }
       setBulletSimulation(simulationPayload);
       const tranches = Array.isArray(simulationPayload?.tranches) ? simulationPayload.tranches : [];
       const rankBaseForAlternatives =
@@ -832,8 +841,14 @@ export default function App() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(rankReq),
           });
+          if (requestId !== latestBulletRequestIdRef.current) {
+            return;
+          }
           if (rankRes.ok) {
             const rankPayload = await rankRes.json();
+            if (requestId !== latestBulletRequestIdRef.current) {
+              return;
+            }
             altMap[String(t?.tranche)] = Array.isArray(rankPayload?.overall_top) ? rankPayload.overall_top : [];
           } else {
             altMap[String(t?.tranche)] = [];
@@ -842,12 +857,18 @@ export default function App() {
           altMap[String(t?.tranche)] = [];
         }
       }
+      if (requestId !== latestBulletRequestIdRef.current) {
+        return;
+      }
       setBulletAlternativesByTranche(altMap);
     } catch (err) {
+      if (requestId !== latestBulletRequestIdRef.current) {
+        return;
+      }
       setBulletError(err.message || 'Unable to fetch bullet simulation.');
       setBulletAlternativesByTranche({});
     } finally {
-      if (!silent) {
+      if (!silent && requestId === latestBulletRequestIdRef.current) {
         setBulletLoading(false);
       }
     }
@@ -982,6 +1003,7 @@ export default function App() {
   ]);
 
   const isAutoRefreshField = (name) => (
+    name === 'investment_amount' ||
     name === 'term_length_months' ||
     name === 'income_range' ||
     name === 'state_selection' ||
