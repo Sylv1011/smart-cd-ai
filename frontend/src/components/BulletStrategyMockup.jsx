@@ -216,24 +216,27 @@ const DropdownField = ({ label, value, options, onSelect, narrow = false }) => {
 };
 
 const SectionHeader = ({ title, badge, note, collapsed = false, onToggle }) => (
-  <div className="flex items-center justify-between gap-4 max-[760px]:items-start max-[760px]:flex-col">
-    <button
-      type="button"
-      onClick={onToggle}
-      className="flex min-w-0 cursor-pointer items-center gap-2 border-0 bg-transparent p-0 text-[20px] font-medium leading-[28px] text-white outline-none max-[520px]:text-[17px]"
-    >
+  <button
+    type="button"
+    onClick={onToggle}
+    aria-expanded={!collapsed}
+    className="flex w-full items-center justify-between gap-4 border-0 bg-transparent p-0 text-left outline-none transition-opacity hover:opacity-95 max-[760px]:items-start max-[760px]:flex-col"
+  >
+    <div className="flex min-w-0 items-center gap-2 text-[20px] font-medium leading-[28px] text-white max-[520px]:text-[17px]">
       <span>{title}</span>
       <span className={`rounded-[4px] px-2 py-1 text-[11px] font-medium leading-[16px] text-white ${badge === 'Live Rates' ? 'bg-[#00A63E]' : 'bg-[#0077FF]'}`}>{badge}</span>
       <ChevronDownIcon className={`h-4 w-4 text-[#6A7282] transition-transform duration-200 ${collapsed ? '-rotate-90' : ''}`} />
-    </button>
+    </div>
     <div className="text-[14px] leading-[20px] text-[#99A1AF] max-[520px]:text-[12px]">{note}</div>
-  </div>
+  </button>
 );
 
 const Rate = ({ value, tone = 'text-white', projected = false, allocationText = '' }) => (
-  <div className={`${tone} text-left text-[26px] font-bold leading-none max-[520px]:text-[22px]`}>
-    {value}<span className="ml-2 text-[13px] font-medium">%</span>
-    {projected && <div className="mt-1 text-[12px] font-normal leading-[13px] text-[#0077FF]">Projected<br />({allocationText || 'Allocation'})</div>}
+  <div className={`${tone} text-left text-[26px] font-bold leading-none max-[768px]:text-right max-[520px]:text-[22px]`}>
+    <div>
+      {value}<span className="ml-2 text-[13px] font-medium">%</span>
+    </div>
+    {projected && <div className="mt-1 text-[12px] font-normal leading-[13px] text-[#0077FF] max-[768px]:text-right">Projected<br />({allocationText || 'Allocation'})</div>}
   </div>
 );
 
@@ -254,29 +257,51 @@ const Row = ({
   onSetReminder,
 }) => {
   const result = { provider: row.provider, productType: row.type };
+  const mobileHighlight = highlight && !future;
 
   return (
-    <div className={`transition-colors md:hover:bg-[rgba(29,141,238,0.05)] ${seamless ? 'rounded-none border-0 border-b border-[#253E5C] px-[8px] py-5 last:border-b-0' : 'rounded-[10px] border border-[#1E2939] px-3 py-3'} ${highlight ? 'min-h-[141px] bg-[#050D1F]' : 'bg-[#050D1F]'}`}>
-      {future && row.slot && <div className="mb-2 inline-flex rounded-full bg-[#0077FF] px-3 py-1 text-[12px] leading-none text-white">{row.slot}</div>}
-      {!future && row.badge && <div className="mb-2 inline-flex rounded-full bg-[#22C55E] px-3 py-1 text-[12px] leading-none text-white">{row.badge}</div>}
-      <div className={`grid items-center gap-0 ${DESKTOP_GRID} ${highlight ? 'min-h-[82px]' : ''}`}>
-        <div className="flex min-w-0 items-center gap-3">
-          <div className={`${highlight ? 'h-[100px] opacity-100' : 'h-[68px] opacity-0'} w-1 shrink-0 rounded ${future ? 'bg-[#22C55E]' : 'bg-[linear-gradient(180deg,#22C55E_0%,#16A34A_100%)]'}`} />
+    <div className={`transition-colors md:hover:bg-[rgba(29,141,238,0.05)] ${seamless ? 'rounded-none border-0 border-b border-[#253E5C] px-[8px] py-5 last:border-b-0 max-[768px]:px-4 max-[768px]:py-4' : 'rounded-[10px] border border-[#1E2939] px-3 py-3 max-[768px]:px-4 max-[768px]:py-4'} ${highlight ? 'min-h-[141px] bg-[#050D1F]' : 'bg-[#050D1F]'} ${mobileHighlight ? 'max-[768px]:border-[#0B5C2A] max-[768px]:bg-[#062314]' : ''}`}>
+      {future && row.slot && <div className="mb-3 inline-flex rounded-full bg-[#0077FF] px-3 py-1 text-[12px] leading-none text-white">{row.slot}</div>}
+      {!future && row.badge && <div className={`mb-3 inline-flex rounded-full px-3 py-1 text-[12px] leading-none text-white ${mobileHighlight ? 'bg-[linear-gradient(180deg,#22C55E_0%,#16A34A_100%)]' : 'bg-[#22C55E]'}`}>{row.badge}</div>}
+      <div className={`grid items-center gap-0 max-[768px]:gap-3 ${DESKTOP_GRID} ${highlight ? 'min-h-[82px]' : ''}`}>
+        <div className="flex min-w-0 items-center gap-3 max-[768px]:border-b max-[768px]:border-[#1E293B] max-[768px]:pb-3">
+          <div className={`${highlight ? 'h-[100px] opacity-100' : 'h-[68px] opacity-0'} w-1 shrink-0 rounded ${future ? 'bg-[#22C55E]' : 'bg-[linear-gradient(180deg,#22C55E_0%,#16A34A_100%)]'} max-[768px]:h-[56px]`} />
           <BankBadge result={result} />
           <div className="min-w-0">
-            <div className="text-[16px] font-bold leading-[20px] text-white">{row.provider}</div>
+            <div className="text-[16px] font-bold leading-[20px] text-white max-[480px]:text-[0.95rem]">{row.provider}</div>
             <div className="text-[11px] font-normal leading-[16px] text-[#4A7A9A]">{row.sub}</div>
           </div>
         </div>
-        <div className="text-[16px] font-bold text-white md:text-left max-[760px]:pl-[56px]">{row.type}</div>
-        <div className="md:text-left"><Rate value={row.nominal} /></div>
-        <div className="md:text-left"><Rate value={row.tax} tone={future ? 'text-[#0077FF]' : 'text-[#22C55E]'} projected={future} allocationText={row.allocationText} /></div>
-        <div className="text-[18px] font-bold text-white md:text-left max-[760px]:text-left">{row.dep}</div>
-        <div className="flex items-center justify-start gap-3 max-[760px]:pl-[56px] max-[520px]:flex-wrap">
+        <div className="flex w-full justify-between text-left text-[0.9rem] font-medium text-[#E2E8F0] md:text-[16px] md:font-bold md:text-white md:text-left">
+          <span className="text-[0.74rem] font-bold uppercase tracking-[0.04em] text-[#94A3B8] md:hidden">Product Type</span>
+          <span>{row.type}</span>
+        </div>
+        <div className="flex w-full justify-between text-left md:block">
+          <span className="text-[0.74rem] font-bold uppercase tracking-[0.04em] text-[#94A3B8] md:hidden">Nominal Rate</span>
+          <div className="text-right md:text-left">
+            <Rate value={row.nominal} />
+          </div>
+        </div>
+        <div className="flex w-full justify-between text-left md:block">
+          <span className="text-[0.74rem] font-bold uppercase tracking-[0.04em] text-[#94A3B8] md:hidden">After-Tax Yield</span>
+          <div className="text-right md:text-left">
+            <Rate value={row.tax} tone={future ? 'text-[#0077FF]' : 'text-[#22C55E]'} projected={future} allocationText={row.allocationText} />
+          </div>
+        </div>
+        <div className="flex w-full justify-between text-left md:block">
+          <span className="text-[0.74rem] font-bold uppercase tracking-[0.04em] text-[#94A3B8] md:hidden">Allocation</span>
+          <div className="text-right md:text-left max-[760px]:text-right">
+            <div className="text-[18px] font-bold text-white">{row.allocation}</div>
+            <div className="mt-1 text-[11px] leading-[14px] text-[#7D93AF]">Min. {row.minimumDeposit}</div>
+          </div>
+        </div>
+        <div className="flex w-full flex-col gap-2 md:flex-row md:items-center md:justify-start max-[768px]:pt-1">
+          <span className="text-[0.74rem] font-bold uppercase tracking-[0.04em] text-[#94A3B8] md:hidden">Actions</span>
+          <div className="flex w-full flex-col items-stretch gap-2 md:w-auto md:flex-row md:items-center md:justify-start">
           <button
             type="button"
             onClick={onToggleTax}
-            className={`inline-flex h-[43px] w-[145px] items-center justify-center gap-2 rounded-[14px] border-0 px-2 py-2 text-[14px] font-semibold leading-[24px] shadow-[0_4px_4px_rgba(0,0,0,0.25)] outline-none ring-0 transition-colors ${
+            className={`inline-flex h-11 w-full items-center justify-center gap-2 rounded-[14px] border-0 px-4 py-2 text-[0.82rem] font-bold leading-[24px] shadow-[0_4px_4px_rgba(0,0,0,0.25)] outline-none ring-0 transition-colors md:h-[43px] md:w-[145px] md:px-2 md:text-[14px] md:font-semibold ${
               taxOpen ? 'bg-[#0D1B2E] text-[#F59E0C] shadow-[inset_0_0_0_1px_#F59E0C,0_4px_4px_rgba(0,0,0,0.25)]' : 'bg-[#1A3050] text-white hover:bg-[#254873]'
             }`}
           >
@@ -292,12 +317,13 @@ const Row = ({
               }
               window.open(row.providerUrl, '_blank', 'noopener,noreferrer');
             }}
-            className={`inline-flex h-[38px] w-[122px] items-center justify-center gap-2 whitespace-nowrap rounded-[10px] border px-2 py-2 text-[14px] font-semibold leading-[24px] shadow-[0_4px_4px_rgba(0,0,0,0.25)] transition-all ${
+            className={`inline-flex h-11 w-full items-center justify-center gap-2 whitespace-nowrap rounded-[14px] border px-5 py-2 text-[0.82rem] font-bold leading-[24px] shadow-[0_4px_4px_rgba(0,0,0,0.25)] transition-all md:h-[38px] md:w-[122px] md:rounded-[10px] md:px-2 md:text-[14px] md:font-semibold ${
               future ? 'border-[#DCE6F7] bg-white text-[#155DFC] hover:bg-[#eaf1ff]' : 'border-[#E2E8F0] bg-white text-[#1A3050] hover:bg-[#eef3fb]'
             }`}
           >
             {future ? 'Set Reminder' : 'Provider'} {!future && <ExternalLinkIcon className="h-3.5 w-3.5" />}
           </button>
+          </div>
         </div>
       </div>
       {taxOpen && (
@@ -313,12 +339,8 @@ const Row = ({
                 <span className="font-normal text-[#7AAAC0]">Total Tax :</span>
                 <span className="w-[80px] text-right font-bold text-[#EF4444]">{row.taxBreakdown?.totalTax || '$0.00'}</span>
               </div>
-              <div className="mt-[20px] flex h-[14px] items-center justify-between text-[12.5px] leading-none">
-                <span className="font-normal text-[#7AAAC0]">Total Savings :</span>
-                <span className="w-[80px] text-right font-bold text-[#22C55E]">{row.taxBreakdown?.totalSavings || '$0.00'}</span>
-              </div>
             </div>
-            <div className="mx-[12px] mt-[34px] rounded-[10px] border border-[#1A4A28] bg-[linear-gradient(180deg,#0A2A18_0%,#071E10_100%)] px-[10px] py-[9px] shadow-[inset_0_0_0_1px_rgba(34,197,94,0.22)]">
+            <div className="mx-[12px] mt-[69px] rounded-[10px] border border-[#1A4A28] bg-[linear-gradient(180deg,#0A2A18_0%,#071E10_100%)] px-[10px] py-[9px] shadow-[inset_0_0_0_1px_rgba(34,197,94,0.22)]">
               <div className="flex items-center justify-between">
                 <span className="text-[13px] font-bold text-white">Net Return :</span>
                 <span className="text-[17px] font-bold text-[#22C55E]">{row.taxBreakdown?.netReturn || '$0.00'}</span>
@@ -486,6 +508,12 @@ export default function BulletStrategyMockup({
     return formatDateLong(addMonths(new Date(), months));
   }, [term]);
 
+  const numericAmount = useMemo(
+    () => Number(String(amount || '').replace(/[^0-9]/g, '')) || 0,
+    [amount],
+  );
+  const isAmountBelowMinimum = numericAmount > 0 && numericAmount < 5000;
+
   const selectedProductType = useMemo(() => {
     const s = String(filterType || '').toLowerCase();
     if (s.includes('bank')) return 'Bank CDs';
@@ -512,6 +540,8 @@ export default function BulletStrategyMockup({
       const provider = mapProvider(offer);
       const taxBreakdown = makeTaxBreakdown(offer || {});
       const termMonths = Number(offer?.term_months ?? meta.termMonths ?? 0) || 0;
+      const allocationAmount = Number(offer?.investment_amount ?? meta.allocationAmount ?? 0) || 0;
+      const minimumDeposit = Number(offer?.minimum_deposit ?? 0) || 0;
       return {
         id: `${meta.idPrefix || 'row'}-${provider}-${termMonths}-${offer?.apy_nominal ?? 0}`,
         provider,
@@ -519,7 +549,8 @@ export default function BulletStrategyMockup({
         type,
         nominal: formatPct(offer?.apy_nominal),
         tax: formatPct(offer?.after_tax_apy),
-        dep: formatMoney(offer?.minimum_deposit ?? 0, 0),
+        allocation: formatMoney(allocationAmount, 0),
+        minimumDeposit: formatMoney(minimumDeposit, 0),
         providerUrl: offer?.destination_url || offer?.source_url || 'https://www.smartcd.ai',
         note: type === 'Treasuries',
         taxBreakdown,
@@ -543,6 +574,7 @@ export default function BulletStrategyMockup({
       const primary = mapOfferRow(offer, {
         idPrefix: `tranche-${t?.tranche || idx + 1}`,
         allocationText,
+        allocationAmount: t?.allocation_amount,
         tranche: t?.tranche || idx + 1,
         termMonths: offer?.term_months,
         maturityDate,
@@ -554,6 +586,7 @@ export default function BulletStrategyMockup({
           mapOfferRow(o, {
             idPrefix: `tranche-${t?.tranche || idx + 1}-alt-${altIdx + 1}`,
             allocationText,
+            allocationAmount: t?.allocation_amount,
             tranche: t?.tranche || idx + 1,
             termMonths: o?.term_months,
             maturityDate,
@@ -573,7 +606,7 @@ export default function BulletStrategyMockup({
       term: `${g.primary.termMonths || 0} Months`,
       apy: `${g.primary.nominal}%`,
       tax: `${g.primary.tax}%`,
-      dep: g.primary.dep,
+      allocation: g.primary.allocation,
       date: g.primary.maturityDate,
       dot: offset <= 0 ? '#22C55E' : '#0077FF',
       projected: offset > 0,
@@ -601,13 +634,72 @@ export default function BulletStrategyMockup({
     [simulationData],
   );
 
+  const summaryRows = useMemo(() => {
+    const rows = [];
+
+    if (matchFilter(derived.purchaseNowPrimary)) {
+      rows.push({
+        key: derived.purchaseNowPrimary.id,
+        type: 'Buy Now',
+        provider: derived.purchaseNowPrimary.provider,
+        productType: derived.purchaseNowPrimary.type,
+        term: `${derived.purchaseNowPrimary.termMonths || 0} Months`,
+        apy: `${derived.purchaseNowPrimary.nominal}%`,
+        tax: `${derived.purchaseNowPrimary.tax}%`,
+        allocation: derived.purchaseNowPrimary.allocation,
+        date: derived.purchaseNowPrimary.maturityDate,
+        dot: '#22C55E',
+        projected: false,
+      });
+    }
+
+    derived.futureGroups.forEach((group) => {
+      if (matchFilter(group.primary)) {
+        rows.push({
+          key: group.primary.id,
+          type: `In ${(() => {
+            const match = String(group.slot || '').match(/buy in\s+(\d+)\s+months?/i);
+            return match ? `${match[1]} Months` : 'Future';
+          })()}`,
+          provider: group.primary.provider,
+          productType: group.primary.type,
+          term: `${group.primary.termMonths || 0} Months`,
+          apy: `${group.primary.nominal}%`,
+          tax: `${group.primary.tax}%`,
+          allocation: group.primary.allocation,
+          date: group.primary.maturityDate,
+          dot: '#0077FF',
+          projected: true,
+        });
+      }
+    });
+
+    return rows;
+  }, [derived, matchFilter]);
+
+  const visibleSummaryRows = useMemo(() => {
+    const rows = [];
+
+    if (!nowCollapsed && matchFilter(derived.purchaseNowPrimary)) {
+      rows.push(derived.purchaseNowPrimary.id);
+    }
+
+    if (!futureCollapsed) {
+      derived.futureGroups.forEach((group) => {
+        if (matchFilter(group.primary)) {
+          rows.push(group.primary.id);
+        }
+      });
+    }
+
+    return rows;
+  }, [derived, futureCollapsed, matchFilter, nowCollapsed]);
+
   const hasVisibleRows = useMemo(() => {
-    const nowVisible = [derived.purchaseNowPrimary, ...(derived.purchaseNowOthers || [])].some(matchFilter);
-    const futureVisible = (derived.futureGroups || []).some((g) =>
-      [g.primary, ...(g.others || [])].some(matchFilter),
-    );
+    const nowVisible = matchFilter(derived.purchaseNowPrimary);
+    const futureVisible = derived.futureGroups.some((group) => matchFilter(group.primary));
     return nowVisible || futureVisible;
-  }, [derived, selectedProductType]);
+  }, [derived, matchFilter]);
 
   useEffect(() => {
     setFilterType((prev) => {
@@ -669,9 +761,13 @@ export default function BulletStrategyMockup({
             </div>
           </div>
 
-          <div className="mt-3 text-[11px] leading-[1.35] text-[#64748B]">
+          <div className={`mt-3 text-[11px] leading-[1.35] ${isAmountBelowMinimum ? 'text-[#FCA5A5]' : 'text-[#64748B]'}`}>
             <span>💡 </span>
-            <span className="italic">All CDs in this strategy are selected to mature by {maturityText} based on your {term} term</span>
+            <span className="italic">
+              {isAmountBelowMinimum
+                ? 'Warning: Please enter at least $5,000 to view Bullet strategy results.'
+                : `All CDs in this strategy are selected to mature by ${maturityText} based on your ${term} term`}
+            </span>
           </div>
         </div>
       </section>
@@ -702,7 +798,7 @@ export default function BulletStrategyMockup({
             <div className="whitespace-nowrap text-left">PRODUCT TYPE</div>
             <div className="whitespace-nowrap text-left">NOMINAL RATE <ChevronDownIcon className="inline h-[10px] w-[10px]" /></div>
             <div className="whitespace-nowrap text-left">AFTER TAX YIELD <ChevronDownIcon className="inline h-[10px] w-[10px]" /></div>
-            <div className="whitespace-nowrap text-left">MIN. DEPOSIT <ChevronDownIcon className="inline h-[10px] w-[10px]" /></div>
+            <div className="whitespace-nowrap text-left">ALLOCATION <ChevronDownIcon className="inline h-[10px] w-[10px]" /></div>
             <div className="whitespace-nowrap pl-5 text-left">ACTIONS</div>
           </div>
 
@@ -808,28 +904,28 @@ export default function BulletStrategyMockup({
           </button>
         </div>
         <div className="overflow-hidden rounded-[10px] border border-[rgba(245,158,11,0.27)] bg-[#122035]">
-          <div className="hidden border-b border-[#1E2939] px-6 py-4 md:grid md:grid-cols-[150px_290px_130px_140px_180px_140px_170px] md:items-center">
+          <div className="hidden border-b border-[#1E2939] px-6 py-4 md:grid md:grid-cols-[190px_360px_130px_140px_180px_140px_170px] md:items-center">
             <div className="text-[14px] font-bold leading-[20px] text-[#99A1AF]">TYPE</div>
             <div className="text-[14px] font-bold leading-[20px] text-[#99A1AF]">PROVIDER/INSTITUTION</div>
             <div className="text-[14px] font-bold leading-[20px] text-[#99A1AF]">TERM</div>
             <div className="text-[14px] font-bold leading-[20px] text-[#99A1AF]">ANNUAL APY</div>
             <div className="text-[14px] font-bold leading-[20px] text-[#99A1AF]">AFTER TAX YIELD</div>
-            <div className="text-[14px] font-bold leading-[20px] text-[#99A1AF]">MIN. DEPOSIT</div>
+            <div className="text-[14px] font-bold leading-[20px] text-[#99A1AF]">ALLOCATION</div>
             <div className="text-[14px] font-bold leading-[20px] text-[#99A1AF]">MATURITY DATE</div>
           </div>
-          {derived.summary.map((row) => (
-            <div key={row.type} className="hidden h-[75px] border-b border-[#1E2939] px-6 md:grid md:grid-cols-[150px_290px_130px_140px_180px_140px_170px] md:items-center last:border-b-0">
+          {summaryRows.map((row) => (
+            <div key={row.key} className="hidden min-h-[75px] border-b border-[#1E2939] px-6 py-4 md:grid md:grid-cols-[190px_360px_130px_140px_180px_140px_170px] md:items-center last:border-b-0">
               <div className="flex items-center gap-2">
                 <span className="h-2 w-2 rounded-full" style={{ background: row.dot }} />
-                <span className="whitespace-nowrap text-[16px] font-normal leading-[24px] text-white">{row.type}</span>
+                <span className="text-[15px] font-normal leading-[22px] text-white">{row.type}</span>
               </div>
-              <div className="flex items-center gap-2">
-                <BankBadge result={{ provider: row.provider, productType: row.provider === 'US Treasury' ? 'Treasuries' : 'Bank CDs' }} />
-                <span className="whitespace-nowrap text-[16px] font-normal leading-[24px] text-white">{row.provider}</span>
+              <div className="flex min-w-0 items-center gap-3">
+                <BankBadge result={{ provider: row.provider, productType: row.productType }} />
+                <span className="text-[15px] font-normal leading-[22px] text-white">{row.provider}</span>
               </div>
-              <div className="whitespace-nowrap text-[16px] font-normal leading-[24px] text-white">{row.term}</div>
-              <div className="whitespace-nowrap text-[16px] font-normal leading-[24px] text-white">{row.apy}</div>
-              <div className="text-[16px] font-medium leading-[18px] text-[#0077FF]">
+              <div className="text-[15px] font-normal leading-[22px] text-white">{row.term}</div>
+              <div className="text-[15px] font-normal leading-[22px] text-white">{row.apy}</div>
+              <div className="text-[15px] font-medium leading-[18px] text-[#0077FF]">
                 {row.projected ? (
                   <>
                     <div>{row.tax}</div>
@@ -839,8 +935,8 @@ export default function BulletStrategyMockup({
                   <span className="leading-[24px] text-[#16A34A]">{row.tax}</span>
                 )}
               </div>
-              <div className="whitespace-nowrap text-[16px] font-normal leading-[24px] text-white">{row.dep}</div>
-              <div className="whitespace-nowrap text-[16px] font-normal leading-[24px] text-[#99A1AF]">{row.date}</div>
+              <div className="text-[15px] font-normal leading-[22px] text-white">{row.allocation}</div>
+              <div className="text-[15px] font-normal leading-[22px] text-[#99A1AF]">{row.date}</div>
             </div>
           ))}
         </div>
