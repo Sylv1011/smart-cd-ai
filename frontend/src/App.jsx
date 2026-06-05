@@ -597,6 +597,8 @@ export default function App() {
   const [showErrors, setShowErrors] = useState(false);
   const [touchedFields, setTouchedFields] = useState({});
   const refreshTimeoutRef = useRef(null);
+  const cashInputRef = useRef(null);
+  const cashCursorRef = useRef(null);
 
   const getAllowedAreas = (stateSelection) => {
     const state = (stateSelection || '').trim();
@@ -985,6 +987,14 @@ export default function App() {
     bulletControls.term,
     bulletControls.amount,
   ]);
+
+  useEffect(() => {
+    if (cashCursorRef.current !== null && cashInputRef.current) {
+      const pos = cashInputRef.current.value.length - cashCursorRef.current;
+      cashInputRef.current.setSelectionRange(pos, pos);
+      cashCursorRef.current = null;
+    }
+  }, [formData.investment_amount]);
 
   const isAutoRefreshField = (name) => (
     name === 'term_length_months' ||
@@ -1589,20 +1599,22 @@ export default function App() {
                       <label htmlFor="investment_amount" className="text-xs font-semibold text-[#6B7280] capitalize">Cash Amount</label>
                       <div className="relative flex items-center">
                         {formData.investment_amount && (
-                          <span className="absolute left-4 text-[#1E293B] text-[0.95rem] font-normal pointer-events-none flex items-center">$</span>
+                          <span className="absolute left-4 text-[#1E293B] text-base font-normal pointer-events-none flex items-center">$</span>
                         )}
                         <input
+                          ref={cashInputRef}
                           type="text"
                           inputMode="numeric"
                           id="investment_amount"
                           name="investment_amount"
                           value={formData.investment_amount ? Number(formData.investment_amount).toLocaleString('en-US') : ''}
                           onChange={(e) => {
+                            cashCursorRef.current = e.target.value.length - e.target.selectionStart;
                             const digits = e.target.value.replace(/[^0-9]/g, '');
                             handleChange({ target: { name: 'investment_amount', value: digits } });
                           }}
                           onBlur={handleFieldBlur}
-                          className={`w-full ${formData.investment_amount ? 'pl-8' : 'pl-4'} pr-4 py-4 text-[0.95rem] leading-6 font-normal box-border rounded-[8px] border outline-none bg-white text-[#1E293B] transition-all placeholder:text-[#9CA3AF] placeholder:font-normal appearance-none focus:shadow-[0_0_0_2px_rgba(29,141,238,0.3)] ${investmentAmountError ? 'border-[#FF5252] shadow-[0_0_0_2px_rgba(255,82,82,0.2)]' : 'border-[#E5E7EB]'}`}
+                          className={`w-full ${formData.investment_amount ? 'pl-8' : 'pl-4'} pr-4 py-4 text-base leading-6 font-normal box-border rounded-[8px] border outline-none bg-white text-[#1E293B] transition-all placeholder:text-[#9CA3AF] placeholder:font-normal appearance-none focus:shadow-[0_0_0_2px_rgba(29,141,238,0.3)] ${investmentAmountError ? 'border-[#FF5252] shadow-[0_0_0_2px_rgba(255,82,82,0.2)]' : 'border-[#E5E7EB]'}`}
                           placeholder="Enter amount ($5,000 minimum)"
                           required
                         />

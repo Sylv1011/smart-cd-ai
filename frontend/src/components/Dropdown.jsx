@@ -131,7 +131,8 @@ export default function Dropdown({
   const openDropdown = () => {
     if (disabled) return;
     setIsOpen(true);
-    setActiveIndex(0);
+    const idx = filteredOptions.findIndex((opt) => opt === value);
+    setActiveIndex(idx >= 0 ? idx : 0);
   };
 
   const selectOption = (option) => {
