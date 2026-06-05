@@ -593,6 +593,7 @@ export default function App() {
   const refreshTimeoutRef = useRef(null);
   const cashInputRef = useRef(null);
   const cashCursorRef = useRef(null);
+  const bulletRefreshTimeoutRef = useRef(null);
 
   const getAllowedAreas = (stateSelection) => {
     const state = (stateSelection || '').trim();
@@ -924,6 +925,9 @@ export default function App() {
       if (refreshTimeoutRef.current) {
         clearTimeout(refreshTimeoutRef.current);
       }
+      if (bulletRefreshTimeoutRef.current) {
+        clearTimeout(bulletRefreshTimeoutRef.current);
+      }
     };
   }, []);
 
@@ -986,7 +990,12 @@ export default function App() {
   useEffect(() => {
     if (!showResults || strategyView !== 'bullet') return;
     if (!canAutoRefreshRank(formData)) return;
-    fetchBulletSimulation(formData, { silent: false });
+    if (bulletRefreshTimeoutRef.current) {
+      clearTimeout(bulletRefreshTimeoutRef.current);
+    }
+    bulletRefreshTimeoutRef.current = setTimeout(() => {
+      fetchBulletSimulation(formData, { silent: false });
+    }, 500);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     strategyView,
