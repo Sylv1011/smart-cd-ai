@@ -1255,7 +1255,7 @@ export default function App() {
             <div className={`grid grid-cols-2 gap-4 px-6 py-5 max-[768px]:grid-cols-1 max-[768px]:px-3 max-[768px]:py-3 ${expandedBorderClass}`}>
               <div className={taxCardClass}>
                 <div className={taxHeadingClass}>
-                  Read Tax Break down
+                  Read Tax Breakdown
                 </div>
                 <div className="space-y-4 text-[12.5px]">
                   <div className="flex items-center justify-between">
