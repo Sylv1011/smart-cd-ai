@@ -1,0 +1,19 @@
+{
+  "name": "SmartCD.ai",
+  "short_name": "SmartCD",
+  "icons": [
+    {
+      "src": "/favicon.png?v=1",
+      "sizes": "200x200",
+      "type": "image/png"
+    },
+    {
+      "src": "/apple-touch-icon.png?v=1",
+      "sizes": "200x200",
+      "type": "image/png"
+    }
+  ],
+  "theme_color": "#061124",
+  "background_color": "#061124",
+  "display": "standalone"
+}
