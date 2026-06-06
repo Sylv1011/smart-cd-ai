@@ -347,7 +347,7 @@ const Row = ({
       {taxOpen && (
         <div className={`relative mt-2 h-[264px] w-full border ${isLightTheme ? 'border-[#E2E8F0] bg-[#F8FAFC]' : 'border-[#071710] bg-[#050D1F]'}`}>
           <div className={`absolute left-[22px] top-[22px] h-[231px] w-[572px] rounded-xl ${isLightTheme ? 'border border-[#D7E7D9] bg-[linear-gradient(180deg,#F8FFFA_0%,#ECFDF3_100%)]' : 'border border-[#0E2818] bg-[linear-gradient(180deg,#071810_0%,#050E0A_100%)]'}`}>
-            <div className={`px-[20px] pt-[12px] text-[13px] font-bold ${isLightTheme ? 'text-[#0F172A]' : 'text-white'}`}>Read Tax Break down</div>
+            <div className={`px-[20px] pt-[12px] text-[13px] font-bold ${isLightTheme ? 'text-[#0F172A]' : 'text-white'}`}>Read Tax Breakdown</div>
             <div className="px-[20px] pt-[24px]">
               <div className="flex h-[14px] items-center justify-between text-[12.5px] leading-none">
                 <span className={`font-normal ${isLightTheme ? 'text-[#475569]' : 'text-[#7AAAC0]'}`}>Interest Earned :</span>
