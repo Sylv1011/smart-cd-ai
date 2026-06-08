@@ -38,7 +38,7 @@ const DropdownField = ({ label, value, options, onSelect, narrow = false }) => {
   const [open, setOpen] = useState(false);
 
   return (
-    <div className={`w-full flex flex-col align-center gap-[16px] ${narrow ? 'max-w-[220px]' : label === 'Target Maturity Date' ? 'max-w-[302px]' : 'max-w-[278px]'} relative`}>
+    <div className={`w-full flex flex-col align-center gap-[16px] ${narrow ? 'max-w-[220px]' : label === 'Target Maturity Date' ? 'max-w-[302px]' : 'max-w-[278px]'} relative ${open ? 'pb-[180px]' : ''}`}>
       <div className={`mb-[14px] text-[11px] uppercase tracking-[0.55px] text-[#94A3B8] ${label === 'AMOUNT' ? 'font-bold' : 'font-semibold'}`}>{label}</div>
       <button
         type="button"
