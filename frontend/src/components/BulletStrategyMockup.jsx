@@ -260,7 +260,7 @@ const Row = ({
   const result = { provider: row.provider, productType: row.type };
   const mobileHighlight = highlight && !future;
   const rowSurfaceClass = isLightTheme
-    ? `border-[#E2E8F0] bg-white ${highlight ? 'min-h-[141px] bg-[#EEF4FF]' : ''} ${mobileHighlight ? 'max-[768px]:border-[#C7D2FE] max-[768px]:bg-[#EEF4FF]' : ''}`
+    ? `border-[#E2E8F0] ${highlight ? 'min-h-[141px] bg-[#EEF4FF]' : 'bg-white'} ${mobileHighlight ? 'max-[768px]:border-[#C7D2FE] max-[768px]:bg-[#EEF4FF]' : ''}`
     : `${highlight ? 'min-h-[141px] bg-[#050D1F]' : 'bg-[#050D1F]'} ${mobileHighlight ? 'max-[768px]:border-[#0B5C2A] max-[768px]:bg-[#062314]' : ''}`;
   const summaryShellClass = isLightTheme
     ? (summaryState === 'idle'
