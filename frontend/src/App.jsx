@@ -51,6 +51,21 @@ const toBulletTermLabel = (searchTermLabel) => {
   return `${months} months`;
 };
 
+const normalizeBarbellSplit = (value) => {
+  const allowed = [20, 30, 40, 50];
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return 50;
+  return allowed.reduce((closest, current) =>
+    Math.abs(current - numeric) < Math.abs(closest - numeric) ? current : closest
+  , allowed[0]);
+};
+
+const buildBarbellFormData = (formData, barbellControls) => ({
+  ...formData,
+  term_length_months: barbellControls?.term || formData.term_length_months,
+  investment_amount: barbellControls?.amount || formData.investment_amount,
+});
+
 const ALLOWED_TERM_MONTHS = [3, 6, 9, 12, 18, 24, 36, 48, 60];
 const TERM_LENGTH_OPTIONS = [
   '3 Month',
@@ -234,7 +249,13 @@ export default function App() {
   const [barbellError, setBarbellError] = useState(null);
   const [bulletAlternativesByTranche, setBulletAlternativesByTranche] = useState({});
   const [bulletControls, setBulletControls] = useState({ term: '12 months', amount: '20000' });
-  const [barbellControls, setBarbellControls] = useState({ amount: '20000', split: 50 });
+  const [barbellControls, setBarbellControls] = useState({
+    term: '12 months',
+    amount: '20000',
+    split: 50,
+    shortTerm: '3 months',
+    longTerm: '12 months',
+  });
   const aiBase = import.meta.env.VITE_AI_LAYER_URL;
   const [showPrivacy, setShowPrivacy] = useState(false);
   const THEME_STORAGE_KEY = 'smartcd:theme:v1';
@@ -568,10 +589,22 @@ export default function App() {
 
   const fetchBarbellSimulation = async (nextFormData, options = {}) => {
     const effectiveControls = {
+      term:
+        options?.controlsOverride?.term ||
+        barbellControls.term ||
+        toBulletTermLabel(nextFormData.term_length_months),
+      shortTerm:
+        options?.controlsOverride?.shortTerm ||
+        barbellControls.shortTerm ||
+        '3 months',
+      longTerm:
+        options?.controlsOverride?.longTerm ||
+        barbellControls.longTerm ||
+        '12 months',
       amount:
         String(options?.controlsOverride?.amount || barbellControls.amount || nextFormData.investment_amount || '')
           .replace(/[^0-9.]/g, '') || '20000',
-      split: Number(options?.controlsOverride?.split ?? barbellControls.split ?? 50),
+      split: normalizeBarbellSplit(options?.controlsOverride?.split ?? barbellControls.split ?? 50),
     };
     
     const rankBase =
@@ -580,7 +613,7 @@ export default function App() {
       'http://localhost:8001';
 
     
-    const termMonths = parseTermToMonths(nextFormData.term_length_months);
+    const termMonths = parseTermToMonths(effectiveControls.term);
     
     const payload = {
       strategy_type: 'barbell',
@@ -593,6 +626,8 @@ export default function App() {
       time_horizon: String(Math.round((termMonths / 12) * 10) / 10),
       target_maturity_months: termMonths,
       short_term_percentage: effectiveControls.split,
+      short_term_months: parseTermToMonths(effectiveControls.shortTerm),
+      long_term_months: parseTermToMonths(effectiveControls.longTerm),
     };
 
     setBarbellLoading(true);
@@ -606,15 +641,24 @@ export default function App() {
       
       if (!response.ok) {
         const errPayload = await response.json().catch(() => ({}));
-        throw new Error(errPayload.detail || 'Failed to fetch barbell simulation.');
+        const detail = errPayload?.detail;
+        const detailMessage = Array.isArray(detail)
+          ? detail.map((item) => item?.msg || item?.message || JSON.stringify(item)).join(' ')
+          : typeof detail === 'string'
+            ? detail
+            : null;
+        throw new Error(detailMessage || errPayload?.message || 'Failed to fetch barbell simulation.');
       }
       const simulationPayload = await response.json();
       
       
       setBarbellSimulation(simulationPayload);
       setBarbellControls({
+        term: effectiveControls.term,
         amount: effectiveControls.amount,
-        split: Number(simulationPayload?.selected_split?.short_term_percentage ?? effectiveControls.split),
+        split: normalizeBarbellSplit(simulationPayload?.selected_split?.short_term_percentage ?? effectiveControls.split),
+        shortTerm: effectiveControls.shortTerm,
+        longTerm: effectiveControls.longTerm,
       });
      
     } catch (err) {
@@ -698,15 +742,18 @@ export default function App() {
 
   if (tabId === 'barbell' && canAutoRefreshRank(formData)) {
     const syncedControls = {
+      term: toBulletTermLabel(formData.term_length_months),
+      shortTerm: barbellControls.shortTerm || '3 months',
+      longTerm: barbellControls.longTerm || '12 months',
       amount:
         String(formData.investment_amount || '').replace(/[^0-9]/g, '') ||
         barbellControls.amount ||
         '20000',
-      split: Number(barbellControls.split ?? 50),
+      split: normalizeBarbellSplit(barbellControls.split ?? 50),
     };
 
     setBarbellControls(syncedControls);
-    fetchBarbellSimulation(formData, { controlsOverride: syncedControls });
+    fetchBarbellSimulation(buildBarbellFormData(formData, syncedControls), { controlsOverride: syncedControls });
   }
 };
 
@@ -777,14 +824,16 @@ export default function App() {
 
   useEffect(() => {
     if (!showResults || (strategyView !== 'bullet' && strategyView !== 'barbell')) return;
-    if (!canAutoRefreshRank(formData)) return;
 
     if(strategyView === 'bullet'){
+      if (!canAutoRefreshRank(formData)) return;
       fetchBulletSimulation(formData, { silent: false });
       
     }
     if(strategyView === 'barbell'){
-      fetchBarbellSimulation(formData);
+      const nextBarbellFormData = buildBarbellFormData(formData, barbellControls);
+      if (!canAutoRefreshRank(nextBarbellFormData)) return;
+      fetchBarbellSimulation(nextBarbellFormData, { controlsOverride: barbellControls });
     }
     
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -798,10 +847,13 @@ export default function App() {
     formData.city_county,
     formData.tax_filing_status,
     selectedStateCode,
+    barbellControls.term,
     bulletControls.term,
     bulletControls.amount,
     barbellControls.amount,
     barbellControls.split,
+    barbellControls.shortTerm,
+    barbellControls.longTerm,
   ]);
 
   const handleSearchChange = (e) =>{
@@ -880,19 +932,31 @@ export default function App() {
               
                 <BarbellTab
                   embedded
-                  initialTerm={toBulletTermLabel(formData.term_length_months)}
+                  initialTerm={barbellControls.term}
                   initialAmount={barbellControls.amount}
                   initialSplit={barbellControls.split}
+                  initialShortTerm={barbellControls.shortTerm}
+                  initialLongTerm={barbellControls.longTerm}
                   simulationData={barbellSimulation}
                   simulationLoading={barbellLoading}
                   simulationError={barbellError}
+                  onExportPdf={() => window.print()}
                   onControlsChange={(controls) => {
                     setBarbellControls((prev) => {
                       const next = {
+                        term: controls?.term || prev.term,
                         amount: controls?.amount || prev.amount,
-                        split: Number(controls?.split ?? prev.split),
+                        split: normalizeBarbellSplit(controls?.split ?? prev.split),
+                        shortTerm: controls?.shortTerm || prev.shortTerm,
+                        longTerm: controls?.longTerm || prev.longTerm,
                       };
-                      if (next.amount === prev.amount && next.split === prev.split) {
+                      if (
+                        next.term === prev.term &&
+                        next.amount === prev.amount &&
+                        next.split === prev.split &&
+                        next.shortTerm === prev.shortTerm &&
+                        next.longTerm === prev.longTerm
+                      ) {
                         return prev;
                       }
                       return next;

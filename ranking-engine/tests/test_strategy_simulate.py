@@ -95,6 +95,26 @@ class StrategySimulateTests(unittest.TestCase):
         self.assertFalse(body["barbell_eligible"])
         self.assertIn("not recommended", body["message"].lower())
 
+    def test_barbell_respects_selected_short_and_long_terms(self):
+        payload = self._base_payload()
+        payload["target_maturity_months"] = 48
+        payload["short_term_months"] = 6
+        payload["long_term_months"] = 48
+        res = self.client.post("/strategies/simulate", json=payload)
+        self.assertEqual(res.status_code, 200)
+        body = res.json()
+        selected = body["selected_split"]["selected_products"]
+        self.assertEqual(selected["short_term"]["best"]["term_months"], 6)
+        self.assertEqual(selected["long_term"]["best"]["term_months"], 48)
+
+    def test_barbell_rejects_long_term_beyond_target(self):
+        payload = self._base_payload()
+        payload["target_maturity_months"] = 24
+        payload["long_term_months"] = 48
+        res = self.client.post("/strategies/simulate", json=payload)
+        self.assertEqual(res.status_code, 422)
+        self.assertIn("cannot exceed", res.json()["detail"])
+
 
 if __name__ == "__main__":
     unittest.main()

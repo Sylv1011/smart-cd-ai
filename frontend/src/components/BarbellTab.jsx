@@ -15,6 +15,22 @@ const BULLET_TERM_OPTIONS = [
   '60 months',
 ];
 
+const monthsFromLabel = (label) => {
+  const m = String(label || '').trim().match(/^(\d+)\s*months?$/i);
+  if (!m) return 12;
+  const n = Number(m[1]);
+  return Number.isFinite(n) && n > 0 ? n : 12;
+};
+
+const formatDateLong = (d) =>
+  d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+
+const addMonths = (date, months) => {
+  const out = new Date(date);
+  out.setMonth(out.getMonth() + months);
+  return out;
+};
+
 const DESKTOP_GRID = 'md:grid-cols-[330px_180px_150px_170px_130px_254px]';
 
 const DropdownField = ({ label, value, options, onSelect, narrow = false }) => {
@@ -97,27 +113,45 @@ const Row = ({type, name, term, nominal, tax, min, date}) =>{
   )
 }
 
+const getProviderName = (product) =>
+  product?.issuing_bank ||
+  product?.institution_name ||
+  product?.brokerage_firm ||
+  'N/A';
+
+const getFilterLabelForProduct = (product) => {
+  const type = String(product?.product_type || '').trim().toLowerCase();
+  if (type === 'brokered_cd') return 'Brokerage CDs';
+  if (type === 'treasury') return 'Treasuries';
+  return 'Bank CDs';
+};
+
 const BarbellTab = ({
   embedded,
   initialTerm = '3 Month',
   initialAmount = 0,
   initialSplit = 50,
+  initialShortTerm = '3 months',
+  initialLongTerm = '12 months',
   simulationLoading,
   simulationData,
   simulationError,
+  onExportPdf,
   onControlsChange,
 }) => {
     
     const [term, setTerm] = useState(initialTerm);
     const [filterType, setFilterType] = useState('All Products (3)');
     const [amount, setAmount] = useState(initialAmount);
-    const [shortTerm, setShortTerm] = useState('3 months');
-    const [longTerm, setLongTerm] = useState('24 months');
+    const [shortTerm, setShortTerm] = useState(initialShortTerm);
+    const [longTerm, setLongTerm] = useState(initialLongTerm);
     const [split, setSplit] = useState(initialSplit);
     const [isShortTerm, setIsShortTerm] = useState(true);
     const [isShortTermExpanded, setIsShortTermExpanded] = useState(false);
     const [isLongTerm, setIsLongTerm] = useState(true);
     const [isLongTermExpanded, setIsLongTermExpanded] = useState(false);
+    const targetTermMonths = monthsFromLabel(term);
+    const longTermOptions = BULLET_TERM_OPTIONS.filter((option) => monthsFromLabel(option) >= 12 && monthsFromLabel(option) <= targetTermMonths);
 
     useEffect(() => {
       setTerm(initialTerm);
@@ -132,6 +166,20 @@ const BarbellTab = ({
     }, [initialSplit]);
 
     useEffect(() => {
+      setShortTerm(initialShortTerm);
+    }, [initialShortTerm]);
+
+    useEffect(() => {
+      setLongTerm(initialLongTerm);
+    }, [initialLongTerm]);
+
+    useEffect(() => {
+      if (!longTermOptions.includes(longTerm)) {
+        setLongTerm(longTermOptions[longTermOptions.length - 1] || '12 months');
+      }
+    }, [longTerm, longTermOptions]);
+
+    useEffect(() => {
       if (!simulationData?.selected_split) return;
 
       const nextSplit = Number(simulationData.selected_split.short_term_percentage);
@@ -142,10 +190,13 @@ const BarbellTab = ({
 
     useEffect(() => {
       onControlsChange?.({
+        term,
         amount: String(amount || '').replace(/[^0-9]/g, ''),
         split,
+        shortTerm,
+        longTerm,
       });
-    }, [amount, split, onControlsChange]);
+    }, [term, amount, split, shortTerm, longTerm, onControlsChange]);
 
     
 
@@ -164,9 +215,47 @@ const BarbellTab = ({
 
     //Simulated response 
     const {shortTermBest, shortTermAlt, longTermBest, longTermAlt} = extractProducts(simulationData);
+    const hasAnyProducts = Boolean(shortTermBest || shortTermAlt || longTermBest || longTermAlt);
+    const shouldShowResults =
+      simulationLoading ||
+      simulationError ||
+      hasAnyProducts ||
+      (Array.isArray(simulationData?.warnings) && simulationData.warnings.length > 0) ||
+      simulationData?.message;
+    const shortAmount = (Number(amount || 0) * split) / 100;
+    const longAmount = (Number(amount || 0) * (100 - split)) / 100;
+    const sliderFillPercent = ((split - 20) / 30) * 100;
+    const sliderBackground = `linear-gradient(90deg, #A855F7 0%, #A855F7 ${sliderFillPercent}%, #D1D5DB ${sliderFillPercent}%, #D1D5DB 100%)`;
+    const targetMaturityText = formatDateLong(addMonths(new Date(), targetTermMonths));
+    const visibleProducts = [shortTermBest, shortTermAlt, longTermBest, longTermAlt].filter(Boolean);
+    const filterOptions = [
+      `All Products (${visibleProducts.length})`,
+      'Bank CDs',
+      'Brokerage CDs',
+      'Treasuries',
+    ];
+    const getMaturityDate = (product) => formatDateLong(addMonths(new Date(), Number(product?.term_months ?? 0) || 0));
+    const matchesFilter = (product) => filterType.startsWith('All Products') || getFilterLabelForProduct(product) === filterType;
+    const shortSectionVisible = [shortTermBest, shortTermAlt].some((product) => product && matchesFilter(product));
+    const longSectionVisible = [longTermBest, longTermAlt].some((product) => product && matchesFilter(product));
+    const hasFilteredProducts = shortSectionVisible || longSectionVisible;
+    const displayedShortPrimary = matchesFilter(shortTermBest) ? shortTermBest : (matchesFilter(shortTermAlt) ? shortTermAlt : null);
+    const displayedShortAlternative =
+      displayedShortPrimary === shortTermBest && shortTermAlt && matchesFilter(shortTermAlt)
+        ? shortTermAlt
+        : displayedShortPrimary === shortTermAlt && shortTermBest && matchesFilter(shortTermBest)
+          ? shortTermBest
+          : null;
+    const displayedLongPrimary = matchesFilter(longTermBest) ? longTermBest : (matchesFilter(longTermAlt) ? longTermAlt : null);
+    const displayedLongAlternative =
+      displayedLongPrimary === longTermBest && longTermAlt && matchesFilter(longTermAlt)
+        ? longTermAlt
+        : displayedLongPrimary === longTermAlt && longTermBest && matchesFilter(longTermBest)
+          ? longTermBest
+          : null;
     return (
         <div>
-            <section className="group relative mb-8 w-full rounded-[10px] bg-[#122035] p-[30px] transition-all duration-300 hover:brightness-50">
+            <section className="relative mb-8 w-full rounded-[10px] bg-[#122035] p-[30px] transition-all duration-300">
                 <div className="flex w-full flex-col gap-4">
                 <h2 className="text-[16px] font-normal leading-[20px] text-[#9E9E9E]">What is CD Barbell?</h2>
                 <p className="max-w-[900px] text-[14px] font-normal leading-[24px] text-[#D1D5DC]">
@@ -187,12 +276,7 @@ const BarbellTab = ({
                         <DropdownField
                         label="FILTER BY TYPE"
                         value={filterType}
-                        options={[
-                            `All Products (1)`,
-                            'Bank CDs',
-                            'Brokerage CDs',
-                            'Treasuries',
-                        ]}
+                        options={filterOptions}
                         onSelect={setFilterType}
                         />
 
@@ -219,14 +303,14 @@ const BarbellTab = ({
                                 <DropdownField
                                 label="Short Term (Choose a term under 12 months)"
                                 value={shortTerm}
-                                options={['3 months', '6 months', '9 months', '12 months']}
+                                options={['3 months', '6 months', '9 months']}
                                 onSelect={setShortTerm}
                                 />
 
                                 <DropdownField
                                 label="Long Term (Choose a term 12+ months up to 60 months)"
                                 value={longTerm}
-                                options={['12 months', '18 months', '24 months', '36 months', '48 months']}
+                                options={longTermOptions}
                                 onSelect={setLongTerm}
                                 />
                             </div>
@@ -235,7 +319,7 @@ const BarbellTab = ({
                         <div className="flex flex-col gap-[30px] ">
                             <div className="flex flex-col gap-[16px] max-w-[719px]">
                                     <div className="mb-4 text-[12px] text-[#64748B]">
-                                        Short / Long split (Move slider in 10% increment. Default is optimal blended After Tax APY)
+                                        Short / Long split (Supported range: 20% to 50% in 10% increments)
                                     </div>
 
                                     <div className="mb-4 text-center text-[16px] font-semibold">
@@ -253,12 +337,13 @@ const BarbellTab = ({
 
                                     <input
                                         type="range"
-                                        min="0"
-                                        max="100"
+                                        min="20"
+                                        max="50"
                                         step="10"
                                         value={split}
                                         onChange={(e) => setSplit(Number(e.target.value))}
                                         className="h-2 w-full cursor-pointer appearance-none rounded-full bg-[#D1D5DB] "
+                                        style={{ background: sliderBackground }}
                                     />
                             </div>
                             
@@ -270,24 +355,24 @@ const BarbellTab = ({
                             }}>
                                     <StatCard
                                     title="Short Term - Liquidity"
-                                    sub="(3mo)"
-                                    value="4.58%"
-                                    subtitle="(50% · $10,000)"
+                                    sub={`(${shortTermBest?.term_months ?? '--'}mo)`}
+                                    value={shortTermBest ? `${shortTermBest.after_tax_apy}%` : 'N/A'}
+                                    subtitle={`(${split}% · $${shortAmount.toLocaleString()})`}
                                     valueColor="text-[#2EA7FF]"
                                     />
 
                                     <StatCard
                                     title="Long Term - Growth"
-                                    sub="(24 mo)"
-                                    value="3.61%"
-                                    subtitle="(50% · $10,000)"
+                                    sub={`(${longTermBest?.term_months ?? '--'}mo)`}
+                                    value={longTermBest ? `${longTermBest.after_tax_apy}%` : 'N/A'}
+                                    subtitle={`(${100 - split}% · $${longAmount.toLocaleString()})`}
                                     valueColor="text-[#00E396]"
                                     />
 
                                     <StatCard
                                     title="Blended After"
                                     sub="Tax APY"
-                                    value="4.06%"
+                                    value={simulationData?.selected_split?.portfolio ? `${simulationData.selected_split.portfolio.after_tax_blended_apy}%` : 'N/A'}
                                     subtitle="(Estimated)"
                                     valueColor="text-[#2EA7FF]"
                                     />
@@ -295,12 +380,16 @@ const BarbellTab = ({
                                     <StatCard
                                     title="Estimated"
                                     sub="Total Return"
-                                    value="$816"
+                                    value={simulationData?.selected_split?.portfolio ? `$${Number(simulationData.selected_split.portfolio.estimated_after_tax_total_return_usd || 0).toLocaleString()}` : 'N/A'}
                                     subtitle="After Taxes"
                                     valueColor="text-[#00E396]"
                                     last
                                     />
                                 
+                            </div>
+
+                            <div className="text-[11px] leading-[1.35] text-[#64748B]">
+                              <span className="italic">Target maturity date for this barbell is {targetMaturityText}. The short leg matures earlier for liquidity.</span>
                             </div>
                         
                         </div>
@@ -308,16 +397,10 @@ const BarbellTab = ({
 
                     
                 </div>
-
-                <div className="pointer-events-none absolute inset-0 hidden items-center justify-center bg-black/40 group-hover:flex">
-                  <div className="rounded-lg border border-[#A855F7] bg-[#0D1117] px-6 py-3 text-white">
-                    Configuration Not Available
-                  </div>
-                </div>
             </section>
 
             {
-              shortTermAlt && (
+              shouldShowResults && (
                 <div>
                 <section className="flex flex-col gap-[38px] max-w-[1286px] mb-8">
                <div className="text-[20px] text-[#FFFFFF]">Your Barbell Strategy</div>
@@ -343,6 +426,13 @@ const BarbellTab = ({
                 </div>
               )}
 
+              {!hasAnyProducts && simulationData?.message && (
+                <div className="mb-4 rounded-[10px] border border-[#23446A] bg-[#0D1B2D] px-4 py-3 text-[13px] text-[#9FB4D3]">
+                  {simulationData.message}
+                </div>
+              )}
+
+              {hasAnyProducts && hasFilteredProducts && (
                 <div className="overflow-hidden rounded-[12px] border border-[#1E2939] pb-4">
                   <div className={`hidden border-b border-[#1E2939] px-[18px] pt-5 pb-[27px] text-[14px] font-bold leading-[1] text-[#94A3B8] md:grid ${DESKTOP_GRID}`}>
                     <div className="whitespace-nowrap pl-3 text-left">PROVIDER / INSTITUTION</div>
@@ -356,6 +446,7 @@ const BarbellTab = ({
                   
                   <div className="flex flex-col gap-4 ">
                     {/*Short Term */}
+                  {shortSectionVisible && (
                   <div className="bg-[#050D1F] border-b border-[#1E2939] pb-10">
                      <div className="flex items-center justify-between p-3">
                         <div className="flex items-center gap-2 text-[20px] text-[#FFFFFF] cursor-pointer" onClick={() => setIsShortTerm((v) => !v)}>
@@ -377,29 +468,33 @@ const BarbellTab = ({
                         }`}
                       >
                           <div className="rounded-lg border border-[#1E2939]">
-                            <Card info={shortTermBest} primary optionsExpanded={isShortTermExpanded} setOptionsExpanded={setIsShortTermExpanded} />
-                            
-                            <div
-                              className={`overflow-hidden transition-all duration-300 ${
-                                isShortTermExpanded
-                                  ? 'max-h-[1000px] opacity-100'
-                                  : 'max-h-0 opacity-0'
-                              }`}
-                            >
-                                
-                                  <Card info={shortTermAlt} primary={false} />
-                                  
-                            </div>
+                                {displayedShortPrimary && (
+                                  <Card info={displayedShortPrimary} primary optionsExpanded={isShortTermExpanded} setOptionsExpanded={setIsShortTermExpanded} />
+                                )}
+
+                                {displayedShortAlternative && (
+                                  <div
+                                    className={`overflow-hidden transition-all duration-300 ${
+                                      isShortTermExpanded
+                                    ? 'max-h-[1000px] opacity-100'
+                                    : 'max-h-0 opacity-0'
+                                }`}
+                              >
+                                    <Card info={displayedShortAlternative} primary={false} />
+                                  </div>
+                                )}
                           </div>
                       </div> 
                   </div>
+                  )}
                   
                   {/* Long Term */}
+                  {longSectionVisible && (
                   <div className="">
                      <div className="flex items-center justify-between  p-3">
-                        <div className="flex items-center gap-2 text-[20px] text-[#FFFFFF]">
+                        <div className="flex items-center gap-2 text-[20px] text-[#FFFFFF] cursor-pointer" onClick={() => setIsLongTerm((v) => !v)}>
                           <span>Long Term (Growth)</span>
-                          <ChevronDownIcon className="h-[15px] w-[15px]" />
+                          <ChevronDownIcon className={`h-[15px] w-[15px] transition-transform duration-300 ${!isLongTerm ? 'rotate-180' : ''}`} />
                         </div>
 
                         <div className="text-right text-[14px] text-[#99A1AF]">
@@ -410,38 +505,51 @@ const BarbellTab = ({
 
                       <div
                         className={`mx-4 overflow-hidden transition-all duration-300 ${
-                          isShortTerm
+                          isLongTerm
                             ? 'max-h-[1000px] opacity-100'
                             : 'max-h-0 opacity-0'
                         }`}
                       >
                           <div className="rounded-lg border border-[#1E2939]">
-                            <Card info={longTermBest} primary future optionsExpanded={isLongTermExpanded} setOptionsExpanded={setIsLongTermExpanded} />
-                            
-                            <div
-                              className={`overflow-hidden transition-all duration-300 ${
-                                isLongTermExpanded
-                                  ? 'max-h-[1000px] opacity-100'
-                                  : 'max-h-0 opacity-0'
-                              }`}
-                            >
-                                
-                                  <Card info={longTermAlt} future />
-                                  
-                            </div>
+                                {displayedLongPrimary && (
+                                  <Card info={displayedLongPrimary} primary future optionsExpanded={isLongTermExpanded} setOptionsExpanded={setIsLongTermExpanded} />
+                                )}
+
+                                {displayedLongAlternative && (
+                                  <div
+                                    className={`overflow-hidden transition-all duration-300 ${
+                                      isLongTermExpanded
+                                    ? 'max-h-[1000px] opacity-100'
+                                    : 'max-h-0 opacity-0'
+                                }`}
+                              >
+                                    <Card info={displayedLongAlternative} future />
+                                  </div>
+                                )}
                           </div>
                       </div> 
                   </div>
+                  )}
 
                   </div>
                </div>
+               )}
+
+              {hasAnyProducts && !hasFilteredProducts && (
+                <div className="mb-4 rounded-[10px] border border-[#23446A] bg-[#0D1B2D] px-4 py-3 text-[13px] text-[#9FB4D3]">
+                  No products match the selected filter for this strategy output.
+                </div>
+              )}
 
                </section>
 
+                 {hasAnyProducts && (
                  <section className="flex flex-col gap-[30px] max-w-[1286px]">
                   <div className="text-[20px] text-white flex justify-between px-2">
                     <div className='flex-start'>Barbell Strategy Summary</div>
                     <button
+                        type="button"
+                        onClick={onExportPdf || (() => {})}
                         className="flex h-12 w-[140px] items-center gap-[5px] rounded-[10px] border border-[#D886FF] bg-[#0D1117] p-3"
                       >
                         <DocumentIcon className="h-6 w-6 shrink-0 text-white" />
@@ -460,19 +568,20 @@ const BarbellTab = ({
                       <div>TERM</div>
                       <div>NOMINAL</div>
                       <div>AFTER TAX YIELD</div>
-                      <div>MIN. DEPOSITE</div>
-                      <div>MUTUIRITY DATE</div>
+                      <div>MIN. DEPOSIT</div>
+                      <div>MATURITY DATE</div>
                   </div>
                       
                       <div className='mx-3'>
-                          <Row type="Short Term" name={shortTermBest?.issuing_bank || shortTermBest.institution_name} term={shortTermBest.term_months} nominal={shortTermBest.apy_nominal} tax={shortTermBest.after_tax_apy} min={shortTermBest.minimum_deposit} date="2023-10-01" /> 
-                          <Row type="Short Term" name={shortTermAlt?.issuing_bank || shortTermBest.institution_name} term={shortTermAlt.term_months} nominal={shortTermAlt.apy_nominal} tax={shortTermAlt.after_tax_apy} min={shortTermAlt.minimum_deposit} date="2023-10-01" /> 
-                          <Row type="Long Term" name={longTermBest?.issuing_bank} term={longTermBest.term_months} nominal={longTermBest.apy_nominal} tax={longTermBest.after_tax_apy} min={longTermBest.minimum_deposit} date="2023-10-01" /> 
-                          <Row type="Long Term" name={longTermAlt?.issuing_bank} term={longTermAlt.term_months} nominal={longTermAlt.apy_nominal} tax={longTermAlt.after_tax_apy} min={shortTermAlt.minimum_deposit} date="2023-10-01" /> 
+                        {shortTermBest && matchesFilter(shortTermBest) && <Row type="Short Term" name={getProviderName(shortTermBest)} term={shortTermBest.term_months} nominal={shortTermBest.apy_nominal} tax={shortTermBest.after_tax_apy} min={shortTermBest.minimum_deposit} date={getMaturityDate(shortTermBest)} />}
+                        {shortTermAlt && matchesFilter(shortTermAlt) && <Row type="Short Term" name={getProviderName(shortTermAlt)} term={shortTermAlt.term_months} nominal={shortTermAlt.apy_nominal} tax={shortTermAlt.after_tax_apy} min={shortTermAlt.minimum_deposit} date={getMaturityDate(shortTermAlt)} />}
+                        {longTermBest && matchesFilter(longTermBest) && <Row type="Long Term" name={getProviderName(longTermBest)} term={longTermBest.term_months} nominal={longTermBest.apy_nominal} tax={longTermBest.after_tax_apy} min={longTermBest.minimum_deposit} date={getMaturityDate(longTermBest)} />}
+                        {longTermAlt && matchesFilter(longTermAlt) && <Row type="Long Term" name={getProviderName(longTermAlt)} term={longTermAlt.term_months} nominal={longTermAlt.apy_nominal} tax={longTermAlt.after_tax_apy} min={longTermAlt.minimum_deposit} date={getMaturityDate(longTermAlt)} />}
                       </div>
                                 
                   </div>
-                </section>             
+                </section>
+                )}            
                </div>
               )
             }                
