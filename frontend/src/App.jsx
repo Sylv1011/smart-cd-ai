@@ -1535,7 +1535,7 @@ export default function App() {
         {showBulletStrategyMockup ? (
           <div className="mx-auto flex h-[67px] w-full max-w-[1397px] items-center justify-between px-[31px] pt-[6px]">
             <button type="button" className="inline-flex items-center border-0 bg-transparent p-0 cursor-pointer" onClick={navigateToHome}>
-              <img src="/New logo.png" alt="SmartCD.ai" className="h-[46px] w-auto" />
+              <img src="/new-logo.png" alt="SmartCD.ai" className="h-[46px] w-auto" />
             </button>
 
             <div className="flex items-center">
@@ -1554,7 +1554,7 @@ export default function App() {
           <>
             <div className="flex items-center gap-3 cursor-pointer" onClick={navigateToHome}>
               <img
-                src="/New logo.png"
+                src="/new-logo.png"
                 alt="SmartCD.ai Logo"
                 className="h-11 w-auto max-[768px]:h-9"
               />
