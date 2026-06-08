@@ -234,6 +234,7 @@ export default function App() {
   const [barbellError, setBarbellError] = useState(null);
   const [bulletAlternativesByTranche, setBulletAlternativesByTranche] = useState({});
   const [bulletControls, setBulletControls] = useState({ term: '12 months', amount: '20000' });
+  const [barbellControls, setBarbellControls] = useState({ amount: '20000', split: 50 });
   const aiBase = import.meta.env.VITE_AI_LAYER_URL;
   const [showPrivacy, setShowPrivacy] = useState(false);
   const THEME_STORAGE_KEY = 'smartcd:theme:v1';
@@ -565,7 +566,13 @@ export default function App() {
     }
   };
 
-  const fetchBarbellSimulation = async (nextFormData) => {
+  const fetchBarbellSimulation = async (nextFormData, options = {}) => {
+    const effectiveControls = {
+      amount:
+        String(options?.controlsOverride?.amount || barbellControls.amount || nextFormData.investment_amount || '')
+          .replace(/[^0-9.]/g, '') || '20000',
+      split: Number(options?.controlsOverride?.split ?? barbellControls.split ?? 50),
+    };
     
     const rankBase =
       import.meta.env.VITE_RANKING_API_URL ||
@@ -577,17 +584,19 @@ export default function App() {
     
     const payload = {
       strategy_type: 'barbell',
-      investment_amount: parseFloat(nextFormData.investment_amount),
+      investment_amount:
+        parseFloat(effectiveControls.amount) || parseFloat(nextFormData.investment_amount),
       state: nextFormData.state_selection,
       income_range: nextFormData.income_range,
       filing_status: normalizeFilingStatusForRanker(nextFormData.tax_filing_status),
       local_area: nextFormData.city_county || null,
       time_horizon: String(Math.round((termMonths / 12) * 10) / 10),
       target_maturity_months: termMonths,
-      short_term_percentage: 50,
+      short_term_percentage: effectiveControls.split,
     };
 
     setBarbellLoading(true);
+    setBarbellError(null);
     try{
       const response = await fetch(`${rankBase}/strategies/simulate`, {
         method: 'POST',
@@ -603,9 +612,14 @@ export default function App() {
       
       
       setBarbellSimulation(simulationPayload);
+      setBarbellControls({
+        amount: effectiveControls.amount,
+        split: Number(simulationPayload?.selected_split?.short_term_percentage ?? effectiveControls.split),
+      });
      
     } catch (err) {
       console.error('Error fetching barbell simulation:', err);
+      setBarbellError(err.message || 'Unable to fetch barbell simulation.');
     } finally {
       setBarbellLoading(false);
     }
@@ -683,7 +697,16 @@ export default function App() {
   }
 
   if (tabId === 'barbell' && canAutoRefreshRank(formData)) {
-    fetchBarbellSimulation(formData);
+    const syncedControls = {
+      amount:
+        String(formData.investment_amount || '').replace(/[^0-9]/g, '') ||
+        barbellControls.amount ||
+        '20000',
+      split: Number(barbellControls.split ?? 50),
+    };
+
+    setBarbellControls(syncedControls);
+    fetchBarbellSimulation(formData, { controlsOverride: syncedControls });
   }
 };
 
@@ -753,7 +776,7 @@ export default function App() {
   }, [showResults, rankResponse]);
 
   useEffect(() => {
-    if (!showResults || strategyView !== 'bullet' || strategyView !== 'barbell') return;
+    if (!showResults || (strategyView !== 'bullet' && strategyView !== 'barbell')) return;
     if (!canAutoRefreshRank(formData)) return;
 
     if(strategyView === 'bullet'){
@@ -777,6 +800,8 @@ export default function App() {
     selectedStateCode,
     bulletControls.term,
     bulletControls.amount,
+    barbellControls.amount,
+    barbellControls.split,
   ]);
 
   const handleSearchChange = (e) =>{
@@ -855,10 +880,24 @@ export default function App() {
               
                 <BarbellTab
                   embedded
-                  initialTerm={bulletControls.term}
-                  initialAmount={bulletControls.amount}
+                  initialTerm={toBulletTermLabel(formData.term_length_months)}
+                  initialAmount={barbellControls.amount}
+                  initialSplit={barbellControls.split}
                   simulationData={barbellSimulation}
                   simulationLoading={barbellLoading}
+                  simulationError={barbellError}
+                  onControlsChange={(controls) => {
+                    setBarbellControls((prev) => {
+                      const next = {
+                        amount: controls?.amount || prev.amount,
+                        split: Number(controls?.split ?? prev.split),
+                      };
+                      if (next.amount === prev.amount && next.split === prev.split) {
+                        return prev;
+                      }
+                      return next;
+                    });
+                  }}
                 />
               </>
             ) : (

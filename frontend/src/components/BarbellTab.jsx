@@ -97,18 +97,55 @@ const Row = ({type, name, term, nominal, tax, min, date}) =>{
   )
 }
 
-const BarbellTab = ({embedded, initialTerm = '3 Month', initialAmount = 0, simulationLoading, simulationData}) => {
+const BarbellTab = ({
+  embedded,
+  initialTerm = '3 Month',
+  initialAmount = 0,
+  initialSplit = 50,
+  simulationLoading,
+  simulationData,
+  simulationError,
+  onControlsChange,
+}) => {
     
     const [term, setTerm] = useState(initialTerm);
     const [filterType, setFilterType] = useState('All Products (3)');
     const [amount, setAmount] = useState(initialAmount);
     const [shortTerm, setShortTerm] = useState('3 months');
     const [longTerm, setLongTerm] = useState('24 months');
-    const [split, setSplit] = useState(50);
+    const [split, setSplit] = useState(initialSplit);
     const [isShortTerm, setIsShortTerm] = useState(true);
     const [isShortTermExpanded, setIsShortTermExpanded] = useState(false);
     const [isLongTerm, setIsLongTerm] = useState(true);
     const [isLongTermExpanded, setIsLongTermExpanded] = useState(false);
+
+    useEffect(() => {
+      setTerm(initialTerm);
+    }, [initialTerm]);
+
+    useEffect(() => {
+      setAmount(initialAmount);
+    }, [initialAmount]);
+
+    useEffect(() => {
+      setSplit(initialSplit);
+    }, [initialSplit]);
+
+    useEffect(() => {
+      if (!simulationData?.selected_split) return;
+
+      const nextSplit = Number(simulationData.selected_split.short_term_percentage);
+      if (!Number.isNaN(nextSplit)) {
+        setSplit(nextSplit);
+      }
+    }, [simulationData]);
+
+    useEffect(() => {
+      onControlsChange?.({
+        amount: String(amount || '').replace(/[^0-9]/g, ''),
+        split,
+      });
+    }, [amount, split, onControlsChange]);
 
     
 
@@ -203,14 +240,14 @@ const BarbellTab = ({embedded, initialTerm = '3 Month', initialAmount = 0, simul
 
                                     <div className="mb-4 text-center text-[16px] font-semibold">
                                         <span className="text-[#2EA7FF]">
-                                        {split}% · ${((amount * split) / 100).toLocaleString()}
+                                        {split}% · ${((Number(amount || 0) * split) / 100).toLocaleString()}
                                         </span>
 
                                         <span className="mx-2 text-[#64748B]">|</span>
 
                                         <span className="text-[#00E396]">
                                         {100 - split}% · $
-                                        {((amount * (100 - split)) / 100).toLocaleString()}
+                                        {((Number(amount || 0) * (100 - split)) / 100).toLocaleString()}
                                         </span>
                                     </div>
 
@@ -288,6 +325,12 @@ const BarbellTab = ({embedded, initialTerm = '3 Month', initialAmount = 0, simul
                {simulationLoading && (
                 <div className="mb-4 rounded-[10px] border border-[#23446A] bg-[#0D1B2D] px-4 py-3 text-[13px] text-[#9FB4D3]">
                   Loading latest strategy simulation...
+                </div>
+              )}
+
+              {simulationError && (
+                <div className="mb-4 rounded-[10px] border border-[#5A2330] bg-[#2A1017] px-4 py-3 text-[13px] text-[#FCA5A5]">
+                  {simulationError}
                 </div>
               )}
 
