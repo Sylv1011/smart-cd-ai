@@ -4,9 +4,7 @@ import { locationData } from './utils/locationData';
 import { usStates } from './utils/statesData';
 import { stateNameToCode } from './utils/stateCodes';
 import AIAssistant from './AIAssistant';
-import SearchableSelect from './components/SearchableSelect';
-import StrictSelect from './components/StrictSelect';
-import StateAutocomplete from './components/StateAutocomplete';
+import Dropdown from './components/Dropdown';
 import BankBadge from './components/BankBadge';
 import BulletStrategyMockup from './components/BulletStrategyMockup';
 import BarbellTab from './components/BarbellTab';
@@ -146,14 +144,7 @@ const normalizeSavedIncomeLabel = (value) => {
       'Unknown';
 
     const grossInterest = Number(o?.nominal_interest_usd ?? 0);
-    const fedRate = Number(o?.fed_rate ?? 0);
-    const stateRate = productType === 'Treasuries' ? 0 : Number(o?.state_rate ?? 0);
-    const localRate = productType === 'Treasuries' ? 0 : Number(o?.local_rate ?? 0);
-
-    const fedTax = grossInterest * fedRate;
-    const stateTax = grossInterest * stateRate;
-    const localTax = grossInterest * localRate;
-    const totalTax = fedTax + stateTax + localTax;
+    const totalTax = grossInterest - Number(o?.after_tax_interest_usd ?? 0);
     // For treasuries, savings = state+local tax avoided (API returns the user's actual marginal
     // rates even for treasuries, so we use the raw fields here, not the zeroed stateRate/localRate).
     const estimatedSavings = productType === 'Treasuries'
@@ -245,6 +236,7 @@ export default function App() {
   const [sortColumn, setSortColumn] = useState(null); // 'nominalRate' | 'afterTaxYield' | 'minDeposit' | null
   const [sortDirection, setSortDirection] = useState('desc'); // 'asc' | 'desc'
   const latestRequestIdRef = useRef(0);
+  const latestBulletRequestIdRef = useRef(0);
   const didRestoreRef = useRef(false);
   const [selectedStateCode, setSelectedStateCode] = useState('');
   const [whyThisFitsOverrides, setWhyThisFitsOverrides] = useState({});
@@ -371,6 +363,9 @@ export default function App() {
   const [showErrors, setShowErrors] = useState(false);
   const [touchedFields, setTouchedFields] = useState({});
   const refreshTimeoutRef = useRef(null);
+  const cashInputRef = useRef(null);
+  const cashCursorRef = useRef(null);
+  const bulletRefreshTimeoutRef = useRef(null);
 
   const persistLastSearch = (nextFormData, options = {}) => {
     try {
@@ -468,6 +463,7 @@ export default function App() {
   };
 
   const fetchBulletSimulation = async (nextFormData, options = {}) => {
+    const requestId = ++latestBulletRequestIdRef.current;
     const { silent = false, controlsOverride = null } = options;
     const effectiveControls = controlsOverride || bulletControls;
     const controlsAmount = parseFloat(String(effectiveControls.amount || '').replace(/[^0-9.]/g, ''));
@@ -509,12 +505,19 @@ export default function App() {
         body: JSON.stringify(payload),
       });
 
+      if (requestId !== latestBulletRequestIdRef.current) {
+        return;
+      }
+
       if (!response.ok) {
         const errPayload = await response.json().catch(() => ({}));
         throw new Error(errPayload.detail || 'Failed to fetch bullet simulation.');
       }
 
       const simulationPayload = await response.json();
+      if (requestId !== latestBulletRequestIdRef.current) {
+        return;
+      }
       setBulletSimulation(simulationPayload);
       const tranches = Array.isArray(simulationPayload?.tranches) ? simulationPayload.tranches : [];
       const rankBaseForAlternatives =
@@ -544,8 +547,14 @@ export default function App() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(rankReq),
           });
+          if (requestId !== latestBulletRequestIdRef.current) {
+            return;
+          }
           if (rankRes.ok) {
             const rankPayload = await rankRes.json();
+            if (requestId !== latestBulletRequestIdRef.current) {
+              return;
+            }
             altMap[String(t?.tranche)] = Array.isArray(rankPayload?.overall_top) ? rankPayload.overall_top : [];
           } else {
             altMap[String(t?.tranche)] = [];
@@ -554,12 +563,18 @@ export default function App() {
           altMap[String(t?.tranche)] = [];
         }
       }
+      if (requestId !== latestBulletRequestIdRef.current) {
+        return;
+      }
       setBulletAlternativesByTranche(altMap);
     } catch (err) {
+      if (requestId !== latestBulletRequestIdRef.current) {
+        return;
+      }
       setBulletError(err.message || 'Unable to fetch bullet simulation.');
       setBulletAlternativesByTranche({});
     } finally {
-      if (!silent) {
+      if (!silent && requestId === latestBulletRequestIdRef.current) {
         setBulletLoading(false);
       }
     }
@@ -692,6 +707,9 @@ export default function App() {
     return () => {
       if (refreshTimeoutRef.current) {
         clearTimeout(refreshTimeoutRef.current);
+      }
+      if (bulletRefreshTimeoutRef.current) {
+        clearTimeout(bulletRefreshTimeoutRef.current);
       }
     };
   }, []);
