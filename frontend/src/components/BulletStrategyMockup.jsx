@@ -241,6 +241,7 @@ const Rate = ({ value, tone = 'text-white', projected = false, allocationText = 
 );
 
 const DESKTOP_GRID = 'md:grid-cols-[330px_180px_150px_170px_130px_254px]';
+const SUMMARY_GRID = 'md:grid-cols-[1.1fr_2fr_0.9fr_0.9fr_1.1fr_1fr_1.3fr]';
 
 const Row = ({
   row,
@@ -899,12 +900,15 @@ export default function BulletStrategyMockup({
       <section className="mb-3">
         <div className="mb-4 flex items-center justify-between gap-4 max-[520px]:items-start max-[520px]:flex-col">
           <h2 className="text-[20px] font-medium leading-[30px] text-white">Bullet Strategy Summary</h2>
-          <button type="button" onClick={onExportPdf || (() => {})} className="inline-flex items-center gap-2 rounded-[8px] border border-transparent bg-[#0D1117] px-3 py-2 text-[14px] font-medium leading-[20px] text-white shadow-none hover:bg-[#141c2a]">
-            <DocumentIcon className="h-4 w-4" /> Export PDF
+          <button type="button" onClick={onExportPdf || (() => {})} className="flex h-12 w-[140px] items-center gap-[5px] rounded-[10px] border border-[#D886FF] bg-[#0D1117] p-3 text-white hover:bg-[#141c2a]">
+            <DocumentIcon className="h-6 w-6 shrink-0 text-white" />
+            <span className="h-6 w-[86px] text-center text-[16px] font-medium leading-6 text-white">
+              Export PDF
+            </span>
           </button>
         </div>
         <div className="overflow-hidden rounded-[10px] border border-[rgba(245,158,11,0.27)] bg-[#122035]">
-          <div className="hidden border-b border-[#1E2939] px-6 py-4 md:grid md:grid-cols-[190px_360px_130px_140px_180px_140px_170px] md:items-center">
+          <div className={`hidden border-b border-[#1E2939] px-6 py-4 md:grid ${SUMMARY_GRID} md:items-center`}>
             <div className="text-[14px] font-bold leading-[20px] text-[#99A1AF]">TYPE</div>
             <div className="text-[14px] font-bold leading-[20px] text-[#99A1AF]">PROVIDER/INSTITUTION</div>
             <div className="text-[14px] font-bold leading-[20px] text-[#99A1AF]">TERM</div>
@@ -914,14 +918,14 @@ export default function BulletStrategyMockup({
             <div className="text-[14px] font-bold leading-[20px] text-[#99A1AF]">MATURITY DATE</div>
           </div>
           {summaryRows.map((row) => (
-            <div key={row.key} className="hidden min-h-[75px] border-b border-[#1E2939] px-6 py-4 md:grid md:grid-cols-[190px_360px_130px_140px_180px_140px_170px] md:items-center last:border-b-0">
+            <div key={row.key} className={`hidden min-h-[75px] border-b border-[#1E2939] px-6 py-4 md:grid ${SUMMARY_GRID} md:items-center last:border-b-0`}>
               <div className="flex items-center gap-2">
                 <span className="h-2 w-2 rounded-full" style={{ background: row.dot }} />
                 <span className="text-[15px] font-normal leading-[22px] text-white">{row.type}</span>
               </div>
-              <div className="flex min-w-0 items-center gap-3">
+              <div className="flex min-w-0 items-center gap-3 pr-4">
                 <BankBadge result={{ provider: row.provider, productType: row.productType }} />
-                <span className="text-[15px] font-normal leading-[22px] text-white">{row.provider}</span>
+                <span className="truncate text-[15px] font-normal leading-[22px] text-white">{row.provider}</span>
               </div>
               <div className="text-[15px] font-normal leading-[22px] text-white">{row.term}</div>
               <div className="text-[15px] font-normal leading-[22px] text-white">{row.apy}</div>
@@ -936,7 +940,7 @@ export default function BulletStrategyMockup({
                 )}
               </div>
               <div className="text-[15px] font-normal leading-[22px] text-white">{row.allocation}</div>
-              <div className="text-[15px] font-normal leading-[22px] text-[#99A1AF]">{row.date}</div>
+              <div className="whitespace-nowrap text-[15px] font-normal leading-[22px] text-[#99A1AF]">{row.date}</div>
             </div>
           ))}
         </div>

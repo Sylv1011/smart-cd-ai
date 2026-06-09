@@ -150,6 +150,11 @@ const getFilterLabelForProduct = (product) => {
   return 'Bank CDs';
 };
 
+const isSupportedSplit = (value) => {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) && numeric >= 20 && numeric <= 50 && numeric % 10 === 0;
+};
+
 const BarbellTab = ({
   embedded,
   initialTerm = '3 Month',
@@ -162,6 +167,7 @@ const BarbellTab = ({
   simulationError,
   onExportPdf,
   onControlsChange,
+  onSelectStrategy,
 }) => {
     
     const [term, setTerm] = useState(initialTerm);
@@ -238,20 +244,26 @@ const BarbellTab = ({
     };
   }
 
-    //Simulated response 
-    const {shortTermBest, shortTermAlt, longTermBest, longTermAlt} = extractProducts(simulationData);
-    const hasAnyProducts = Boolean(shortTermBest || shortTermAlt || longTermBest || longTermAlt);
-    const shouldShowResults =
-      simulationLoading ||
-      simulationError ||
-      hasAnyProducts ||
-      (Array.isArray(simulationData?.warnings) && simulationData.warnings.length > 0) ||
-      simulationData?.message;
     const shortAmount = (Number(amount || 0) * split) / 100;
     const longAmount = (Number(amount || 0) * (100 - split)) / 100;
-    const sliderFillPercent = ((split - 20) / 30) * 100;
+    const sliderFillPercent = split;
     const sliderBackground = `linear-gradient(90deg, #A855F7 0%, #A855F7 ${sliderFillPercent}%, #D1D5DB ${sliderFillPercent}%, #D1D5DB 100%)`;
     const targetMaturityText = formatDateLong(addMonths(new Date(), targetTermMonths));
+    const isTargetTermSupported = targetTermMonths >= 12;
+    const isSplitInLiveRange = isSupportedSplit(split);
+    const supportsLiveSimulation = isTargetTermSupported && isSplitInLiveRange;
+    const effectiveSimulationData = supportsLiveSimulation ? simulationData : null;
+    // Simulated response
+    const {shortTermBest, shortTermAlt, longTermBest, longTermAlt} = extractProducts(effectiveSimulationData);
+    const hasAnyProducts = Boolean(shortTermBest || shortTermAlt || longTermBest || longTermAlt);
+    const shouldShowResults =
+      supportsLiveSimulation && (
+        simulationLoading ||
+        simulationError ||
+        hasAnyProducts ||
+        (Array.isArray(effectiveSimulationData?.warnings) && effectiveSimulationData.warnings.length > 0) ||
+        effectiveSimulationData?.message
+      );
     const visibleProducts = [shortTermBest, shortTermAlt, longTermBest, longTermAlt].filter(Boolean);
     const filterOptions = [
       `All Products (${visibleProducts.length})`,
@@ -278,6 +290,18 @@ const BarbellTab = ({
         : displayedLongPrimary === longTermAlt && longTermBest && matchesFilter(longTermBest)
           ? longTermBest
           : null;
+    const warningCard = !isTargetTermSupported
+      ? {
+          title: 'CD BARBELL WORKS BEST FOR LONGER TERM HORIZONS (12+ MONTHS)',
+          body: 'Your selected target maturity is under 12 months, which does not provide enough duration separation for an effective barbell strategy.',
+        }
+      : !isSplitInLiveRange
+        ? {
+            title: 'LIVE BARBELL RESULTS CURRENTLY SUPPORT 20% TO 50% SHORT-TERM SPLITS',
+            body: 'You can explore the full 0% to 100% slider range, but live simulation results are only available when the short-term side stays between 20% and 50% in 10% increments.',
+          }
+        : null;
+
     return (
         <div>
             <section className="relative mb-8 w-full rounded-[10px] bg-[#122035] p-[30px] transition-all duration-300">
@@ -343,10 +367,11 @@ const BarbellTab = ({
                             </div>
                         </div>
 
-                        <div className="flex flex-col gap-[30px] ">
+                        <div className={`grid gap-[24px] ${warningCard ? 'xl:grid-cols-[minmax(0,719px)_minmax(320px,1fr)]' : ''}`}>
+                            <div className="flex flex-col gap-[30px] ">
                             <div className="flex flex-col gap-[16px] max-w-[719px]">
                                     <div className="mb-4 text-[12px] text-[#64748B]">
-                                        Short / Long split (Supported range: 20% to 50% in 10% increments)
+                                        Short / Long split (Move slider in 10% increments)
                                     </div>
 
                                     <div className="mb-4 text-center text-[16px] font-semibold">
@@ -364,12 +389,12 @@ const BarbellTab = ({
 
                                     <input
                                         type="range"
-                                        min="20"
-                                        max="50"
+                                        min="0"
+                                        max="100"
                                         step="10"
                                         value={split}
                                         onChange={(e) => setSplit(Number(e.target.value))}
-                                        className="h-2 w-full cursor-pointer appearance-none rounded-full bg-[#D1D5DB] "
+                                        className="barbell-split-slider h-2 w-full cursor-pointer appearance-none rounded-full bg-[#D1D5DB]"
                                         style={{ background: sliderBackground }}
                                     />
                             </div>
@@ -399,7 +424,7 @@ const BarbellTab = ({
                                     <StatCard
                                     title="Blended After"
                                     sub="Tax APY"
-                                    value={simulationData?.selected_split?.portfolio ? `${simulationData.selected_split.portfolio.after_tax_blended_apy}%` : 'N/A'}
+                                    value={effectiveSimulationData?.selected_split?.portfolio ? `${effectiveSimulationData.selected_split.portfolio.after_tax_blended_apy}%` : 'N/A'}
                                     subtitle="(Estimated)"
                                     valueColor="text-[#2EA7FF]"
                                     />
@@ -407,7 +432,7 @@ const BarbellTab = ({
                                     <StatCard
                                     title="Estimated"
                                     sub="Total Return"
-                                    value={simulationData?.selected_split?.portfolio ? `$${Number(simulationData.selected_split.portfolio.estimated_after_tax_total_return_usd || 0).toLocaleString()}` : 'N/A'}
+                                    value={effectiveSimulationData?.selected_split?.portfolio ? `$${Number(effectiveSimulationData.selected_split.portfolio.estimated_after_tax_total_return_usd || 0).toLocaleString()}` : 'N/A'}
                                     subtitle="After Taxes"
                                     valueColor="text-[#00E396]"
                                     last
@@ -418,7 +443,47 @@ const BarbellTab = ({
                             <div className="text-[11px] leading-[1.35] text-[#64748B]">
                               <span className="italic">Target maturity date for this barbell is {targetMaturityText}. The short leg matures earlier for liquidity.</span>
                             </div>
-                        
+
+                            {!isSplitInLiveRange && (
+                              <div className="rounded-[10px] border border-[#5B4A1C] bg-[#2A2411] px-4 py-3 text-[13px] text-[#FCD34D]">
+                                Live results refresh only when the short-term side is between 20% and 50% in 10% increments.
+                              </div>
+                            )}
+                         
+                        </div>
+
+                        {warningCard && (
+                          <aside className="rounded-[14px] border border-[rgba(216,134,255,0.85)] bg-[#17051D] px-6 py-8 text-white shadow-[inset_0_0_0_1px_rgba(216,134,255,0.14)]">
+                            <div className="flex items-start gap-3">
+                              <div className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white text-[#17051D]">
+                                <span className="text-[18px] font-bold">!</span>
+                              </div>
+                              <div>
+                                <h4 className="text-[18px] font-semibold leading-[1.25]">{warningCard.title}</h4>
+                                <p className="mt-5 text-[15px] leading-[1.55] text-[#D8CCE0]">{warningCard.body}</p>
+                              </div>
+                            </div>
+                            <div className="mt-10 text-[15px] text-white">Consider these alternative strategies</div>
+                            <div className="mt-6 grid gap-4 sm:grid-cols-2">
+                              <button
+                                type="button"
+                                onClick={() => onSelectStrategy?.('best-rate')}
+                                className="rounded-[12px] bg-[#0D1B2D] px-5 py-5 text-left transition-colors hover:bg-[#122742]"
+                              >
+                                <div className="text-[15px] font-semibold text-white">Best Rate</div>
+                                <div className="mt-2 text-[14px] leading-[1.45] text-[#A5B4C8]">Highest single after-tax yield</div>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => onSelectStrategy?.('ladder')}
+                                className="rounded-[12px] bg-[#0D1B2D] px-5 py-5 text-left transition-colors hover:bg-[#122742]"
+                              >
+                                <div className="text-[15px] font-semibold text-white">CD Ladder</div>
+                                <div className="mt-2 text-[14px] leading-[1.45] text-[#A5B4C8]">Rolling liquidity every quarter</div>
+                              </button>
+                            </div>
+                          </aside>
+                        )}
                         </div>
                     </div>    
 
@@ -444,18 +509,18 @@ const BarbellTab = ({
                 </div>
               )}
 
-              {simulationData?.warnings?.length > 0 && (
+              {effectiveSimulationData?.warnings?.length > 0 && (
                 <div className="mb-4 rounded-[10px] border border-[#5B4A1C] bg-[#2A2411] px-4 py-3 text-[13px] text-[#FCD34D]">
                   <div className="mb-1 text-[12px] font-semibold uppercase tracking-[0.04em] text-[#FDE68A]">Warnings</div>
-                  {simulationData.warnings.map((w, idx) => (
+                  {effectiveSimulationData.warnings.map((w, idx) => (
                     <div key={`${idx}-${w}`} className="leading-[1.45]">{w}</div>
                   ))}
                 </div>
               )}
 
-              {!hasAnyProducts && simulationData?.message && (
+              {!hasAnyProducts && effectiveSimulationData?.message && (
                 <div className="mb-4 rounded-[10px] border border-[#23446A] bg-[#0D1B2D] px-4 py-3 text-[13px] text-[#9FB4D3]">
-                  {simulationData.message}
+                  {effectiveSimulationData.message}
                 </div>
               )}
 
@@ -482,7 +547,7 @@ const BarbellTab = ({
                         </div>
 
                         <div className="text-right text-[14px] text-[#99A1AF]">
-                          {shortTermBest.term_months} months • {simulationData.selected_split.short_term_percentage}% of total investment • ${simulationData.selected_split.short_term_amount}
+                          {shortTermBest.term_months} months • {effectiveSimulationData.selected_split.short_term_percentage}% of total investment • ${effectiveSimulationData.selected_split.short_term_amount}
                         </div>
                       </div>
                           
@@ -525,7 +590,7 @@ const BarbellTab = ({
                         </div>
 
                         <div className="text-right text-[14px] text-[#99A1AF]">
-                          {longTermBest.term_months} months • {simulationData.selected_split.long_term_percentage}% of total investment • ${simulationData.selected_split.long_term_amount}
+                          {longTermBest.term_months} months • {effectiveSimulationData.selected_split.long_term_percentage}% of total investment • ${effectiveSimulationData.selected_split.long_term_amount}
                         </div>
                       </div>
 

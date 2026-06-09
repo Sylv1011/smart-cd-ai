@@ -206,6 +206,11 @@ const normalizeBarbellSplit = (value) => {
   , allowed[0]);
 };
 
+const isSupportedBarbellSplit = (value) => {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) && numeric >= 20 && numeric <= 50 && numeric % 10 === 0;
+};
+
 const buildBarbellFormData = (formData, barbellControls) => ({
   ...formData,
   term_length_months: barbellControls?.term || formData.term_length_months,
@@ -243,6 +248,21 @@ const FILING_STATUS_OPTIONS = [
 ];
 
 const LAST_SEARCH_STORAGE_KEY = 'smartcd:last_rank_inputs:v1';
+const getSearchStorage = () => window.sessionStorage;
+const clearSearchStorage = () => {
+  try {
+    getSearchStorage().removeItem(LAST_SEARCH_STORAGE_KEY);
+  } catch {
+    // ignore
+  }
+};
+const hasRestorableResultsSession = () => {
+  try {
+    return Boolean(getSearchStorage().getItem(LAST_SEARCH_STORAGE_KEY));
+  } catch {
+    return false;
+  }
+};
 
 const normalizeSavedTermLabel = (value) => {
   const v = (value || '').trim();
@@ -410,6 +430,7 @@ export default function App() {
   const [barbellError, setBarbellError] = useState(null);
   const [bulletAlternativesByTranche, setBulletAlternativesByTranche] = useState({});
   const [bulletControls, setBulletControls] = useState({ term: '12 months', amount: '20000' });
+  const [bulletControlsDirty, setBulletControlsDirty] = useState(false);
   const [barbellControls, setBarbellControls] = useState({
     term: '12 months',
     amount: '20000',
@@ -417,6 +438,7 @@ export default function App() {
     shortTerm: '3 months',
     longTerm: '12 months',
   });
+  const [barbellControlsDirty, setBarbellControlsDirty] = useState(false);
   const aiBase = import.meta.env.VITE_AI_LAYER_URL;
   const [showPrivacy, setShowPrivacy] = useState(false);
   const THEME_STORAGE_KEY = 'smartcd:theme:v1';
@@ -427,7 +449,9 @@ export default function App() {
       return 'dark';
     }
   });
-  const [showResults, setShowResults] = useState(window.location.pathname === '/results');
+  const [showResults, setShowResults] = useState(
+    window.location.pathname === '/results' && hasRestorableResultsSession()
+  );
   const [viewMode, setViewMode] = useState('combined');
   const [strategyView, setStrategyView] = useState('best-rate');
   const [expandedCardId, setExpandedCardId] = useState(null);
@@ -443,6 +467,32 @@ export default function App() {
   const [whyThisFitsLoading, setWhyThisFitsLoading] = useState({});
   const [whyThisFitsFetched, setWhyThisFitsFetched] = useState({});
   const [whyThisFitsExpanded, setWhyThisFitsExpanded] = useState({});
+
+  const resetResultsState = () => {
+    setShowResults(false);
+    setStrategyView('best-rate');
+    setRankResponse(null);
+    setResults([]);
+    setBulletSimulation(null);
+    setBarbellSimulation(null);
+    setBulletLoading(false);
+    setBarbellLoading(false);
+    setBulletError(null);
+    setBarbellError(null);
+    setBulletAlternativesByTranche({});
+    setExpandedCardId(null);
+    setProductTypeFilter('All products');
+    setSortColumn(null);
+    setSortDirection('desc');
+  };
+
+  const pushResultsHistoryState = (nextStrategyView) => {
+    window.history.pushState(
+      { page: 'results', strategyView: nextStrategyView },
+      '',
+      '/results'
+    );
+  };
 
   useEffect(() => {
     try {
@@ -594,11 +644,21 @@ export default function App() {
   };
 
   useEffect(() => {
-    const handlePopState = () => {
-      if (window.location.pathname === '/results') {
+    if (window.location.pathname === '/results' && !hasRestorableResultsSession()) {
+      window.history.replaceState({ page: 'home' }, '', '/');
+      resetResultsState();
+    }
+
+    const handlePopState = (event) => {
+      if (window.location.pathname === '/results' && hasRestorableResultsSession()) {
         setShowResults(true);
+        setStrategyView(event.state?.strategyView || 'best-rate');
       } else {
-        setShowResults(false);
+        if (window.location.pathname === '/results') {
+          window.history.replaceState({ page: 'home' }, '', '/');
+        }
+        clearSearchStorage();
+        resetResultsState();
       }
     };
     window.addEventListener('popstate', handlePopState);
@@ -691,9 +751,10 @@ export default function App() {
 
   const persistLastSearch = (nextFormData, options = {}) => {
     try {
+      const storage = getSearchStorage();
       let existing = null;
       try {
-        existing = JSON.parse(window.localStorage.getItem(LAST_SEARCH_STORAGE_KEY) || 'null');
+        existing = JSON.parse(storage.getItem(LAST_SEARCH_STORAGE_KEY) || 'null');
       } catch {
         existing = null;
       }
@@ -709,7 +770,7 @@ export default function App() {
         termsAgreed: nextTermsAgreed,
         savedAt: Date.now(),
       };
-      window.localStorage.setItem(LAST_SEARCH_STORAGE_KEY, JSON.stringify(payload));
+      storage.setItem(LAST_SEARCH_STORAGE_KEY, JSON.stringify(payload));
     } catch {
       // best-effort only
     }
@@ -765,7 +826,9 @@ export default function App() {
       setResults(adaptRankResponseToUiResults(payload));
 
       if (navigateToResults) {
-        window.history.pushState({ page: 'results' }, '', '/results');
+        setBulletControlsDirty(false);
+        setBarbellControlsDirty(false);
+        pushResultsHistoryState('best-rate');
         setShowResults(true);
         setStrategyView('best-rate');
       }
@@ -920,7 +983,7 @@ export default function App() {
       amount:
         String(options?.controlsOverride?.amount || barbellControls.amount || nextFormData.investment_amount || '')
           .replace(/[^0-9.]/g, '') || '20000',
-      split: normalizeBarbellSplit(options?.controlsOverride?.split ?? barbellControls.split ?? 50),
+      split: Number(options?.controlsOverride?.split ?? barbellControls.split ?? 50),
     };
 
     const rankBase =
@@ -939,7 +1002,7 @@ export default function App() {
       local_area: nextFormData.city_county || null,
       time_horizon: String(Math.round((termMonths / 12) * 10) / 10),
       target_maturity_months: termMonths,
-      short_term_percentage: effectiveControls.split,
+      short_term_percentage: normalizeBarbellSplit(effectiveControls.split),
       short_term_months: parseTermToMonths(effectiveControls.shortTerm),
       long_term_months: parseTermToMonths(effectiveControls.longTerm),
     };
@@ -978,7 +1041,7 @@ export default function App() {
       setBarbellControls({
         term: effectiveControls.term,
         amount: effectiveControls.amount,
-        split: normalizeBarbellSplit(simulationPayload?.selected_split?.short_term_percentage ?? effectiveControls.split),
+        split: effectiveControls.split,
         shortTerm: effectiveControls.shortTerm,
         longTerm: effectiveControls.longTerm,
       });
@@ -1041,13 +1104,19 @@ export default function App() {
   };
 
   const handleTabChange = (tabId) => {
+    if (showResults && strategyView !== tabId) {
+      pushResultsHistoryState(tabId);
+    }
+
     setStrategyView(tabId);
 
     if (tabId === 'bullet' && canAutoRefreshRank(formData)) {
-      const syncedControls = {
-        term: toBulletTermLabel(formData.term_length_months),
-        amount: String(formData.investment_amount || '').replace(/[^0-9]/g, '') || '20000',
-      };
+      const syncedControls = bulletControlsDirty
+        ? bulletControls
+        : {
+            term: toBulletTermLabel(formData.term_length_months),
+            amount: String(formData.investment_amount || '').replace(/[^0-9]/g, '') || '20000',
+          };
       setBulletControls(syncedControls);
       fetchBulletSimulation(formData, {
         silent: false,
@@ -1057,21 +1126,25 @@ export default function App() {
     }
 
     if (tabId === 'barbell' && canAutoRefreshRank(formData)) {
-      const syncedControls = {
-        term: toBulletTermLabel(formData.term_length_months),
-        shortTerm: barbellControls.shortTerm || '3 months',
-        longTerm: barbellControls.longTerm || '12 months',
-        amount:
-          String(formData.investment_amount || '').replace(/[^0-9]/g, '') ||
-          barbellControls.amount ||
-          '20000',
-        split: normalizeBarbellSplit(barbellControls.split ?? 50),
-      };
+      const syncedControls = barbellControlsDirty
+        ? barbellControls
+        : {
+            term: toBulletTermLabel(formData.term_length_months),
+            shortTerm: barbellControls.shortTerm || '3 months',
+            longTerm: barbellControls.longTerm || '12 months',
+            amount:
+              String(formData.investment_amount || '').replace(/[^0-9]/g, '') ||
+              barbellControls.amount ||
+              '20000',
+            split: Number(barbellControls.split ?? 50),
+          };
 
       setBarbellControls(syncedControls);
-      fetchBarbellSimulation(buildBarbellFormData(formData, syncedControls), {
-        controlsOverride: syncedControls,
-      });
+      if (isSupportedBarbellSplit(syncedControls.split)) {
+        fetchBarbellSimulation(buildBarbellFormData(formData, syncedControls), {
+          controlsOverride: syncedControls,
+        });
+      }
     }
   };
 
@@ -1100,7 +1173,7 @@ export default function App() {
 
     let saved = null;
     try {
-      saved = JSON.parse(window.localStorage.getItem(LAST_SEARCH_STORAGE_KEY) || 'null');
+      saved = JSON.parse(getSearchStorage().getItem(LAST_SEARCH_STORAGE_KEY) || 'null');
     } catch {
       saved = null;
     }
@@ -1164,6 +1237,7 @@ export default function App() {
     if (strategyView === 'barbell') {
       const nextBarbellFormData = buildBarbellFormData(formData, barbellControls);
       if (!canAutoRefreshRank(nextBarbellFormData)) return;
+      if (!isSupportedBarbellSplit(barbellControls.split)) return;
       fetchBarbellSimulation(nextBarbellFormData, { controlsOverride: barbellControls });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1568,7 +1642,8 @@ export default function App() {
 
   const navigateToHome = () => {
     window.history.pushState({ page: 'home' }, '', '/');
-    setShowResults(false);
+    clearSearchStorage();
+    resetResultsState();
   };
 
   const isBulletResultsView = showResults && strategyView === 'bullet';
@@ -1980,6 +2055,7 @@ export default function App() {
                   simulationError={bulletError}
                   onExportPdf={() => window.print()}
                   onControlsChange={(controls) => {
+                    setBulletControlsDirty(true);
                     setBulletControls((prev) => {
                       const next = {
                         term: controls?.term || prev.term,
@@ -2006,12 +2082,14 @@ export default function App() {
                 simulationLoading={barbellLoading}
                 simulationError={barbellError}
                 onExportPdf={() => window.print()}
+                onSelectStrategy={handleTabChange}
                 onControlsChange={(controls) => {
+                  setBarbellControlsDirty(true);
                   setBarbellControls((prev) => {
                     const next = {
                       term: controls?.term || prev.term,
                       amount: controls?.amount || prev.amount,
-                      split: normalizeBarbellSplit(controls?.split ?? prev.split),
+                      split: Number(controls?.split ?? prev.split),
                       shortTerm: controls?.shortTerm || prev.shortTerm,
                       longTerm: controls?.longTerm || prev.longTerm,
                     };
