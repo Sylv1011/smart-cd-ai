@@ -203,6 +203,8 @@ class StrategySimulateRequest(BaseModel):
     time_horizon: Optional[str] = None
     target_maturity_months: Optional[int] = Field(default=None, gt=0, le=120)
     short_term_percentage: Optional[int] = Field(default=None, ge=20, le=50)
+    short_term_months: Optional[int] = Field(default=None, gt=0, lt=12)
+    long_term_months: Optional[int] = Field(default=None, ge=12, le=60)
     liquidity_preference: Optional[Literal["low", "medium", "high"]] = None
     rate_outlook: Optional[Literal["rising", "stable", "falling"]] = None
 
@@ -353,6 +355,8 @@ def simulate_strategy(req: StrategySimulateRequest) -> Dict[str, Any]:
                 time_horizon=req.time_horizon,
                 target_maturity_months=req.target_maturity_months,
                 short_term_percentage=req.short_term_percentage,
+                short_term_months=req.short_term_months,
+                long_term_months=req.long_term_months,
             )
 
         if strategy_type == "ladder":

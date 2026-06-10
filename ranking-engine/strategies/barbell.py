@@ -176,6 +176,8 @@ def simulate_barbell(
     time_horizon: Optional[str] = None,
     target_maturity_months: Optional[int] = None,
     short_term_percentage: Optional[int] = None,
+    short_term_months: Optional[int] = None,
+    long_term_months: Optional[int] = None,
 ) -> Dict[str, Any]:
     _ = (liquidity_preference, rate_outlook)  # kept for backward-compatible request shape
     warnings: List[str] = []
@@ -195,6 +197,20 @@ def simulate_barbell(
 
     short_terms = [m for m in AVAILABLE_TERMS_MONTHS if m < 12]
     long_terms = [m for m in AVAILABLE_TERMS_MONTHS if m >= 12 and m <= target_months]
+
+    if short_term_months is not None:
+        selected_short = int(short_term_months)
+        if selected_short not in short_terms:
+            raise RankingEngineError("short_term_months must be one of: 3, 6, 9")
+        short_terms = [selected_short]
+
+    if long_term_months is not None:
+        selected_long = int(long_term_months)
+        if selected_long not in AVAILABLE_TERMS_MONTHS or selected_long < 12:
+            raise RankingEngineError("long_term_months must be one of: 12, 18, 24, 36, 48, 60")
+        if selected_long > target_months:
+            raise RankingEngineError("long_term_months cannot exceed target_maturity_months")
+        long_terms = [selected_long]
 
     if not short_terms:
         warnings.append("No short-term products found under 12 months.")

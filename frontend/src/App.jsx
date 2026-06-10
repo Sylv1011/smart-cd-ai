@@ -7,6 +7,7 @@ import AIAssistant from './AIAssistant';
 import Dropdown from './components/Dropdown';
 import BankBadge from './components/BankBadge';
 import BulletStrategyMockup from './components/BulletStrategyMockup';
+import BarbellTab from './components/BarbellTab';
 
 const SparkleIcon = ({ className, style }) => (
   <svg className={className} style={style} width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -188,6 +189,26 @@ const toBulletTermLabel = (searchTermLabel) => {
   return `${months} months`;
 };
 
+const normalizeBarbellSplit = (value) => {
+  const allowed = [20, 30, 40, 50];
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return 50;
+  return allowed.reduce((closest, current) =>
+    Math.abs(current - numeric) < Math.abs(closest - numeric) ? current : closest
+  , allowed[0]);
+};
+
+const isSupportedBarbellSplit = (value) => {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) && numeric >= 20 && numeric <= 50 && numeric % 10 === 0;
+};
+
+const buildBarbellFormData = (formData, barbellControls) => ({
+  ...formData,
+  term_length_months: barbellControls?.term || formData.term_length_months,
+  investment_amount: barbellControls?.amount || formData.investment_amount,
+});
+
 const ALLOWED_TERM_MONTHS = [3, 6, 9, 12, 18, 24, 36, 48, 60];
 const TERM_LENGTH_OPTIONS = [
   '3 Month',
@@ -219,6 +240,21 @@ const FILING_STATUS_OPTIONS = [
 ];
 
 const LAST_SEARCH_STORAGE_KEY = 'smartcd:last_rank_inputs:v1';
+const getSearchStorage = () => window.sessionStorage;
+const clearSearchStorage = () => {
+  try {
+    getSearchStorage().removeItem(LAST_SEARCH_STORAGE_KEY);
+  } catch {
+    // ignore
+  }
+};
+const hasRestorableResultsSession = () => {
+  try {
+    return Boolean(getSearchStorage().getItem(LAST_SEARCH_STORAGE_KEY));
+  } catch {
+    return false;
+  }
+};
 
 const normalizeSavedTermLabel = (value) => {
   const v = (value || '').trim();
@@ -379,10 +415,23 @@ export default function App() {
   const [results, setResults] = useState([]);
   const [rankResponse, setRankResponse] = useState(null);
   const [bulletSimulation, setBulletSimulation] = useState(null);
+  const [barbellSimulation, setBarbellSimulation] = useState(null);
   const [bulletLoading, setBulletLoading] = useState(false);
+  const [barbellLoading, setBarbellLoading] = useState(false);
   const [bulletError, setBulletError] = useState(null);
+  const [barbellError, setBarbellError] = useState(null);
   const [bulletAlternativesByTranche, setBulletAlternativesByTranche] = useState({});
   const [bulletControls, setBulletControls] = useState({ term: '12 months', amount: '20000' });
+  const [bulletControlsDirty, setBulletControlsDirty] = useState(false);
+  const [barbellControls, setBarbellControls] = useState({
+    term: '12 months',
+    amount: '20000',
+    split: 50,
+    shortTerm: '3 months',
+    longTerm: '12 months',
+  });
+  const [barbellControlsDirty, setBarbellControlsDirty] = useState(false);
+  const [barbellTermOverrides, setBarbellTermOverrides] = useState({ shortTerm: null, longTerm: null });
   const aiBase = import.meta.env.VITE_AI_LAYER_URL;
   const [showPrivacy, setShowPrivacy] = useState(false);
   const THEME_STORAGE_KEY = 'smartcd:theme:v1';
@@ -393,7 +442,9 @@ export default function App() {
       return 'dark';
     }
   });
-  const [showResults, setShowResults] = useState(window.location.pathname === '/results');
+  const [showResults, setShowResults] = useState(
+    window.location.pathname === '/results' && hasRestorableResultsSession()
+  );
   const [viewMode, setViewMode] = useState('combined');
   const [strategyView, setStrategyView] = useState('best-rate');
   const [expandedCardId, setExpandedCardId] = useState(null);
@@ -402,12 +453,40 @@ export default function App() {
   const [sortDirection, setSortDirection] = useState('desc'); // 'asc' | 'desc'
   const latestRequestIdRef = useRef(0);
   const latestBulletRequestIdRef = useRef(0);
+  const latestBarbellRequestIdRef = useRef(0);
   const didRestoreRef = useRef(false);
   const [selectedStateCode, setSelectedStateCode] = useState('');
   const [whyThisFitsOverrides, setWhyThisFitsOverrides] = useState({});
   const [whyThisFitsLoading, setWhyThisFitsLoading] = useState({});
   const [whyThisFitsFetched, setWhyThisFitsFetched] = useState({});
   const [whyThisFitsExpanded, setWhyThisFitsExpanded] = useState({});
+
+  const resetResultsState = () => {
+    setShowResults(false);
+    setStrategyView('best-rate');
+    setRankResponse(null);
+    setResults([]);
+    setBulletSimulation(null);
+    setBarbellSimulation(null);
+    setBulletLoading(false);
+    setBarbellLoading(false);
+    setBulletError(null);
+    setBarbellError(null);
+    setBulletAlternativesByTranche({});
+    setBarbellTermOverrides({ shortTerm: null, longTerm: null });
+    setExpandedCardId(null);
+    setProductTypeFilter('All products');
+    setSortColumn(null);
+    setSortDirection('desc');
+  };
+
+  const pushResultsHistoryState = (nextStrategyView) => {
+    window.history.pushState(
+      { page: 'results', strategyView: nextStrategyView },
+      '',
+      '/results'
+    );
+  };
 
   useEffect(() => {
     try {
@@ -559,11 +638,21 @@ export default function App() {
   };
 
   useEffect(() => {
-    const handlePopState = () => {
-      if (window.location.pathname === '/results') {
+    if (window.location.pathname === '/results' && !hasRestorableResultsSession()) {
+      window.history.replaceState({ page: 'home' }, '', '/');
+      resetResultsState();
+    }
+
+    const handlePopState = (event) => {
+      if (window.location.pathname === '/results' && hasRestorableResultsSession()) {
         setShowResults(true);
+        setStrategyView(event.state?.strategyView || 'best-rate');
       } else {
-        setShowResults(false);
+        if (window.location.pathname === '/results') {
+          window.history.replaceState({ page: 'home' }, '', '/');
+        }
+        clearSearchStorage();
+        resetResultsState();
       }
     };
     window.addEventListener('popstate', handlePopState);
@@ -656,9 +745,10 @@ export default function App() {
 
   const persistLastSearch = (nextFormData, options = {}) => {
     try {
+      const storage = getSearchStorage();
       let existing = null;
       try {
-        existing = JSON.parse(window.localStorage.getItem(LAST_SEARCH_STORAGE_KEY) || 'null');
+        existing = JSON.parse(storage.getItem(LAST_SEARCH_STORAGE_KEY) || 'null');
       } catch {
         existing = null;
       }
@@ -674,7 +764,7 @@ export default function App() {
         termsAgreed: nextTermsAgreed,
         savedAt: Date.now(),
       };
-      window.localStorage.setItem(LAST_SEARCH_STORAGE_KEY, JSON.stringify(payload));
+      storage.setItem(LAST_SEARCH_STORAGE_KEY, JSON.stringify(payload));
     } catch {
       // best-effort only
     }
@@ -730,7 +820,9 @@ export default function App() {
       setResults(adaptRankResponseToUiResults(payload));
 
       if (navigateToResults) {
-        window.history.pushState({ page: 'results' }, '', '/results');
+        setBulletControlsDirty(false);
+        setBarbellControlsDirty(false);
+        pushResultsHistoryState('best-rate');
         setShowResults(true);
         setStrategyView('best-rate');
       }
@@ -867,6 +959,95 @@ export default function App() {
     }
   };
 
+  const fetchBarbellSimulation = async (nextFormData, options = {}) => {
+    const requestId = ++latestBarbellRequestIdRef.current;
+    const effectiveControls = {
+      term:
+        options?.controlsOverride?.term ||
+        barbellControls.term ||
+        toBulletTermLabel(nextFormData.term_length_months),
+      amount:
+        String(options?.controlsOverride?.amount || barbellControls.amount || nextFormData.investment_amount || '')
+          .replace(/[^0-9.]/g, '') || '20000',
+      split: Number(options?.controlsOverride?.split ?? barbellControls.split ?? 50),
+    };
+
+    const rankBase =
+      import.meta.env.VITE_RANKING_API_URL ||
+      import.meta.env.VITE_API_URL ||
+      'http://localhost:8001';
+
+    const termMonths = parseTermToMonths(effectiveControls.term);
+    const payload = {
+      strategy_type: 'barbell',
+      investment_amount:
+        parseFloat(effectiveControls.amount) || parseFloat(nextFormData.investment_amount),
+      state: selectedStateCode || stateNameToCode[nextFormData.state_selection] || nextFormData.state_selection,
+      income_range: nextFormData.income_range,
+      filing_status: normalizeFilingStatusForRanker(nextFormData.tax_filing_status),
+      local_area: nextFormData.city_county || null,
+      time_horizon: String(Math.round((termMonths / 12) * 10) / 10),
+      target_maturity_months: termMonths,
+      short_term_percentage: normalizeBarbellSplit(effectiveControls.split),
+      ...(barbellTermOverrides.shortTerm !== null && {
+        short_term_months: parseTermToMonths(barbellTermOverrides.shortTerm),
+      }),
+      ...(barbellTermOverrides.longTerm !== null && {
+        long_term_months: parseTermToMonths(barbellTermOverrides.longTerm),
+      }),
+    };
+
+    setBarbellLoading(true);
+    setBarbellError(null);
+
+    try {
+      const response = await fetch(`${rankBase}/strategies/simulate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      if (requestId !== latestBarbellRequestIdRef.current) {
+        return;
+      }
+
+      if (!response.ok) {
+        const errPayload = await response.json().catch(() => ({}));
+        const detail = errPayload?.detail;
+        const detailMessage = Array.isArray(detail)
+          ? detail.map((item) => item?.msg || item?.message || JSON.stringify(item)).join(' ')
+          : typeof detail === 'string'
+            ? detail
+            : null;
+        throw new Error(detailMessage || errPayload?.message || 'Failed to fetch barbell simulation.');
+      }
+
+      const simulationPayload = await response.json();
+      if (requestId !== latestBarbellRequestIdRef.current) {
+        return;
+      }
+
+      setBarbellSimulation(simulationPayload);
+      setBarbellControls({
+        term: effectiveControls.term,
+        amount: effectiveControls.amount,
+        split: effectiveControls.split,
+        shortTerm: barbellControls.shortTerm,
+        longTerm: barbellControls.longTerm,
+      });
+    } catch (err) {
+      if (requestId !== latestBarbellRequestIdRef.current) {
+        return;
+      }
+      console.error('Error fetching barbell simulation:', err);
+      setBarbellError(err.message || 'Unable to fetch barbell simulation.');
+    } finally {
+      if (requestId === latestBarbellRequestIdRef.current) {
+        setBarbellLoading(false);
+      }
+    }
+  };
+
   const canAutoRefreshRank = (nextFormData) => {
     const amt = parseFloat(nextFormData.investment_amount);
     const state = (nextFormData.state_selection || '').trim();
@@ -912,6 +1093,51 @@ export default function App() {
     }, 250);
   };
 
+  const handleTabChange = (tabId) => {
+    if (showResults && strategyView !== tabId) {
+      pushResultsHistoryState(tabId);
+    }
+
+    setStrategyView(tabId);
+
+    if (tabId === 'bullet' && canAutoRefreshRank(formData)) {
+      const syncedControls = bulletControlsDirty
+        ? bulletControls
+        : {
+            term: toBulletTermLabel(formData.term_length_months),
+            amount: String(formData.investment_amount || '').replace(/[^0-9]/g, '') || '20000',
+          };
+      setBulletControls(syncedControls);
+      fetchBulletSimulation(formData, {
+        silent: false,
+        controlsOverride: syncedControls,
+      });
+      return;
+    }
+
+    if (tabId === 'barbell' && canAutoRefreshRank(formData)) {
+      const syncedControls = barbellControlsDirty
+        ? barbellControls
+        : {
+            term: toBulletTermLabel(formData.term_length_months),
+            shortTerm: barbellControls.shortTerm || '3 months',
+            longTerm: barbellControls.longTerm || '12 months',
+            amount:
+              String(formData.investment_amount || '').replace(/[^0-9]/g, '') ||
+              barbellControls.amount ||
+              '20000',
+            split: Number(barbellControls.split ?? 50),
+          };
+
+      setBarbellControls(syncedControls);
+      if (isSupportedBarbellSplit(syncedControls.split)) {
+        fetchBarbellSimulation(buildBarbellFormData(formData, syncedControls), {
+          controlsOverride: syncedControls,
+        });
+      }
+    }
+  };
+
   useEffect(() => {
     return () => {
       if (refreshTimeoutRef.current) {
@@ -937,7 +1163,7 @@ export default function App() {
 
     let saved = null;
     try {
-      saved = JSON.parse(window.localStorage.getItem(LAST_SEARCH_STORAGE_KEY) || 'null');
+      saved = JSON.parse(getSearchStorage().getItem(LAST_SEARCH_STORAGE_KEY) || 'null');
     } catch {
       saved = null;
     }
@@ -980,14 +1206,30 @@ export default function App() {
   }, [showResults, rankResponse]);
 
   useEffect(() => {
-    if (!showResults || strategyView !== 'bullet') return;
-    if (!canAutoRefreshRank(formData)) return;
+    if (!showResults) return;
+
+    if (strategyView === 'bullet') {
+      if (!canAutoRefreshRank(formData)) return;
+      if (bulletRefreshTimeoutRef.current) {
+        clearTimeout(bulletRefreshTimeoutRef.current);
+      }
+      bulletRefreshTimeoutRef.current = setTimeout(() => {
+        fetchBulletSimulation(formData, { silent: false });
+      }, 500);
+      return;
+    }
+
     if (bulletRefreshTimeoutRef.current) {
       clearTimeout(bulletRefreshTimeoutRef.current);
+      bulletRefreshTimeoutRef.current = null;
     }
-    bulletRefreshTimeoutRef.current = setTimeout(() => {
-      fetchBulletSimulation(formData, { silent: false });
-    }, 500);
+
+    if (strategyView === 'barbell') {
+      const nextBarbellFormData = buildBarbellFormData(formData, barbellControls);
+      if (!canAutoRefreshRank(nextBarbellFormData)) return;
+      if (!isSupportedBarbellSplit(barbellControls.split)) return;
+      fetchBarbellSimulation(nextBarbellFormData, { controlsOverride: barbellControls });
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     strategyView,
@@ -999,8 +1241,13 @@ export default function App() {
     formData.city_county,
     formData.tax_filing_status,
     selectedStateCode,
+    barbellControls.term,
     bulletControls.term,
     bulletControls.amount,
+    barbellControls.amount,
+    barbellControls.split,
+    barbellControls.shortTerm,
+    barbellControls.longTerm,
   ]);
 
   useEffect(() => {
@@ -1413,7 +1660,8 @@ export default function App() {
 
   const navigateToHome = () => {
     window.history.pushState({ page: 'home' }, '', '/');
-    setShowResults(false);
+    clearSearchStorage();
+    resetResultsState();
   };
 
   const isBulletResultsView = showResults && strategyView === 'bullet';
@@ -1779,20 +2027,7 @@ export default function App() {
                     <button
                       key={tab.id}
                       type="button"
-                      onClick={() => {
-                        setStrategyView(tab.id);
-                        if (tab.id === 'bullet' && canAutoRefreshRank(formData)) {
-                          const syncedControls = {
-                            term: toBulletTermLabel(formData.term_length_months),
-                            amount: String(formData.investment_amount || '').replace(/[^0-9]/g, '') || '20000',
-                          };
-                          setBulletControls({
-                            term: syncedControls.term,
-                            amount: syncedControls.amount,
-                          });
-                          fetchBulletSimulation(formData, { silent: false, controlsOverride: syncedControls });
-                        }
-                      }}
+                      onClick={() => handleTabChange(tab.id)}
                       className={`w-[273px] flex h-[67px] shrink-0 items-center gap-3 border-0 bg-transparent text-left transition-all duration-300 ease-out ${
                         active
                           ? 'rounded-[12px] border border-[#F59E0C] bg-[#0D1B2E] px-6 shadow-[inset_0_0_0_1px_rgba(245,158,11,0.28),0_0_0_1px_rgba(245,158,11,0.2)]'
@@ -1825,6 +2060,7 @@ export default function App() {
                   simulationError={bulletError}
                   onExportPdf={() => window.print()}
                   onControlsChange={(controls) => {
+                    setBulletControlsDirty(true);
                     setBulletControls((prev) => {
                       const next = {
                         term: controls?.term || prev.term,
@@ -1839,6 +2075,48 @@ export default function App() {
                 />
                 <AIAssistant rankResponse={rankResponse} />
               </>
+            ) : strategyView === 'barbell' ? (
+              <BarbellTab
+                embedded
+                initialTerm={barbellControls.term}
+                initialAmount={barbellControls.amount}
+                initialSplit={barbellControls.split}
+                initialShortTerm={barbellControls.shortTerm}
+                initialLongTerm={barbellControls.longTerm}
+                simulationData={barbellSimulation}
+                simulationLoading={barbellLoading}
+                simulationError={barbellError}
+                onExportPdf={() => window.print()}
+                onSelectStrategy={handleTabChange}
+                onControlsChange={(controls) => {
+                  setBarbellControlsDirty(true);
+                  if (controls?.shortTerm && controls.shortTerm !== barbellControls.shortTerm) {
+                    setBarbellTermOverrides((prev) => ({ ...prev, shortTerm: controls.shortTerm }));
+                  }
+                  if (controls?.longTerm && controls.longTerm !== barbellControls.longTerm) {
+                    setBarbellTermOverrides((prev) => ({ ...prev, longTerm: controls.longTerm }));
+                  }
+                  setBarbellControls((prev) => {
+                    const next = {
+                      term: controls?.term || prev.term,
+                      amount: controls?.amount || prev.amount,
+                      split: Number(controls?.split ?? prev.split),
+                      shortTerm: controls?.shortTerm || prev.shortTerm,
+                      longTerm: controls?.longTerm || prev.longTerm,
+                    };
+                    if (
+                      next.term === prev.term &&
+                      next.amount === prev.amount &&
+                      next.split === prev.split &&
+                      next.shortTerm === prev.shortTerm &&
+                      next.longTerm === prev.longTerm
+                    ) {
+                      return prev;
+                    }
+                    return next;
+                  });
+                }}
+              />
             ) : (
               <>
             <div className="mb-6 flex items-start justify-between max-[768px]:mb-4 max-[768px]:flex-col max-[768px]:items-stretch max-[768px]:gap-3">
