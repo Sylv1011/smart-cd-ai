@@ -2075,6 +2075,18 @@ export default function App() {
                 />
                 <AIAssistant rankResponse={rankResponse} />
               </>
+            ) : strategyView === 'ladder' ? (
+              <div className="flex flex-col items-center justify-center py-24 text-center">
+                <div className="mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-[#1E3A5F]">
+                  <svg className="h-8 w-8 text-[#0077FF]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+                <h2 className="mb-2 text-[22px] font-semibold text-white">CD Ladder — Coming Soon</h2>
+                <p className="max-w-[420px] text-[15px] leading-relaxed text-[#6B7280]">
+                  Stagger your CDs across multiple maturity dates to keep liquidity rolling while maximizing your after-tax yield. This strategy is currently in development.
+                </p>
+              </div>
             ) : strategyView === 'barbell' ? (
               <BarbellTab
                 embedded
