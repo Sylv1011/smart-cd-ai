@@ -439,6 +439,7 @@ export default function App() {
     longTerm: '12 months',
   });
   const [barbellControlsDirty, setBarbellControlsDirty] = useState(false);
+  const [barbellTermOverrides, setBarbellTermOverrides] = useState({ shortTerm: null, longTerm: null });
   const aiBase = import.meta.env.VITE_AI_LAYER_URL;
   const [showPrivacy, setShowPrivacy] = useState(false);
   const THEME_STORAGE_KEY = 'smartcd:theme:v1';
@@ -480,6 +481,7 @@ export default function App() {
     setBulletError(null);
     setBarbellError(null);
     setBulletAlternativesByTranche({});
+    setBarbellTermOverrides({ shortTerm: null, longTerm: null });
     setExpandedCardId(null);
     setProductTypeFilter('All products');
     setSortColumn(null);
@@ -972,14 +974,6 @@ export default function App() {
         options?.controlsOverride?.term ||
         barbellControls.term ||
         toBulletTermLabel(nextFormData.term_length_months),
-      shortTerm:
-        options?.controlsOverride?.shortTerm ||
-        barbellControls.shortTerm ||
-        '3 months',
-      longTerm:
-        options?.controlsOverride?.longTerm ||
-        barbellControls.longTerm ||
-        '12 months',
       amount:
         String(options?.controlsOverride?.amount || barbellControls.amount || nextFormData.investment_amount || '')
           .replace(/[^0-9.]/g, '') || '20000',
@@ -1003,8 +997,12 @@ export default function App() {
       time_horizon: String(Math.round((termMonths / 12) * 10) / 10),
       target_maturity_months: termMonths,
       short_term_percentage: normalizeBarbellSplit(effectiveControls.split),
-      short_term_months: parseTermToMonths(effectiveControls.shortTerm),
-      long_term_months: parseTermToMonths(effectiveControls.longTerm),
+      ...(barbellTermOverrides.shortTerm !== null && {
+        short_term_months: parseTermToMonths(barbellTermOverrides.shortTerm),
+      }),
+      ...(barbellTermOverrides.longTerm !== null && {
+        long_term_months: parseTermToMonths(barbellTermOverrides.longTerm),
+      }),
     };
 
     setBarbellLoading(true);
@@ -1042,8 +1040,8 @@ export default function App() {
         term: effectiveControls.term,
         amount: effectiveControls.amount,
         split: effectiveControls.split,
-        shortTerm: effectiveControls.shortTerm,
-        longTerm: effectiveControls.longTerm,
+        shortTerm: barbellControls.shortTerm,
+        longTerm: barbellControls.longTerm,
       });
     } catch (err) {
       if (requestId !== latestBarbellRequestIdRef.current) {
@@ -2085,6 +2083,12 @@ export default function App() {
                 onSelectStrategy={handleTabChange}
                 onControlsChange={(controls) => {
                   setBarbellControlsDirty(true);
+                  if (controls?.shortTerm && controls.shortTerm !== barbellControls.shortTerm) {
+                    setBarbellTermOverrides((prev) => ({ ...prev, shortTerm: controls.shortTerm }));
+                  }
+                  if (controls?.longTerm && controls.longTerm !== barbellControls.longTerm) {
+                    setBarbellTermOverrides((prev) => ({ ...prev, longTerm: controls.longTerm }));
+                  }
                   setBarbellControls((prev) => {
                     const next = {
                       term: controls?.term || prev.term,

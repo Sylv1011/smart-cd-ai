@@ -220,6 +220,12 @@ const BarbellTab = ({
     }, [simulationData]);
 
     useEffect(() => {
+      setFilterType((current) =>
+        current.startsWith('All Products') ? `All Products (${visibleProducts.length})` : current
+      );
+    }, [simulationData]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    useEffect(() => {
       onControlsChange?.({
         term,
         amount: String(amount || '').replace(/[^0-9]/g, ''),
@@ -547,7 +553,7 @@ const BarbellTab = ({
                         </div>
 
                         <div className="text-right text-[14px] text-[#99A1AF]">
-                          {shortTermBest.term_months} months • {effectiveSimulationData.selected_split.short_term_percentage}% of total investment • ${effectiveSimulationData.selected_split.short_term_amount}
+                          {displayedShortPrimary?.term_months ?? '--'} months • {effectiveSimulationData.selected_split.short_term_percentage}% of total investment • ${effectiveSimulationData.selected_split.short_term_amount}
                         </div>
                       </div>
                           
@@ -590,7 +596,7 @@ const BarbellTab = ({
                         </div>
 
                         <div className="text-right text-[14px] text-[#99A1AF]">
-                          {longTermBest.term_months} months • {effectiveSimulationData.selected_split.long_term_percentage}% of total investment • ${effectiveSimulationData.selected_split.long_term_amount}
+                          {displayedLongPrimary?.term_months ?? '--'} months • {effectiveSimulationData.selected_split.long_term_percentage}% of total investment • ${effectiveSimulationData.selected_split.long_term_amount}
                         </div>
                       </div>
 
