@@ -93,13 +93,6 @@ const FilterIcon = ({ className }) => (
   </svg>
 );
 
-const HeaderSearchIcon = ({ className }) => (
-  <svg className={className} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-    <circle cx="11" cy="11" r="7"></circle>
-    <line x1="20" y1="20" x2="16.6" y2="16.6"></line>
-  </svg>
-);
-
 const ClockIcon = ({ className }) => (
   <svg className={className} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <circle cx="12" cy="12" r="10"></circle>
@@ -115,32 +108,31 @@ const ExternalLinkIcon = ({ className }) => (
   </svg>
 );
 
-const StrategyTabIcon = ({ id, active }) => {
-  const color = '#FFFFFF';
+const StrategyTabIcon = ({ id }) => {
   if (id === 'best-rate') {
     return (
-      <svg className="h-5 w-5" viewBox="0 0 24 24" fill={color} aria-hidden="true">
+      <svg className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
         <path d="m12 2.4 2.92 5.92 6.54.95-4.73 4.61 1.12 6.51L12 17.31l-5.85 3.08 1.12-6.51-4.73-4.61 6.54-.95L12 2.4Z" />
       </svg>
     );
   }
   if (id === 'ladder') {
     return (
-      <svg className="h-5 w-5" viewBox="0 0 24 24" fill={color} aria-hidden="true">
+      <svg className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
         <path d="M13 2 4 14h7l-1 8 10-13h-7V2Z" />
       </svg>
     );
   }
   if (id === 'barbell') {
     return (
-      <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" aria-hidden="true">
+      <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
         <path d="m12 3 9 9-9 9-9-9 9-9Z" />
         <path d="m12 7 5 5-5 5-5-5 5-5Z" />
       </svg>
     );
   }
   return (
-    <svg className="h-5 w-5" viewBox="0 0 24 24" fill={color} aria-hidden="true">
+    <svg className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
       <path d="M8 5v14l11-7L8 5Z" />
     </svg>
   );
@@ -1396,12 +1388,52 @@ export default function App() {
       window.open(url, '_blank', 'noopener,noreferrer');
     };
 
+    const rowSurfaceClass = isExpanded
+      ? (theme === 'light' ? 'bg-[#F8FAFC] border-b-0' : 'bg-[#0A1E14] border-b-0')
+      : result.isTopPick
+        ? (theme === 'light' ? 'bg-[#EEF4FF] border-b border-[#E2E8F0]' : 'bg-[#062314] border-b border-[#1E293B]')
+        : (theme === 'light' ? 'bg-white border-b border-[#E2E8F0]' : 'bg-[#081329] border-b border-[#1E293B]');
+    const expandedSurfaceClass = theme === 'light' ? 'bg-[#F8FAFC]' : 'bg-[#050d1f]';
+    const expandedBorderClass = theme === 'light' ? 'border-t border-[#E2E8F0]' : 'border-t border-[rgba(255,255,255,0.2)]';
+    const taxCardClass = theme === 'light'
+      ? 'rounded-[10px] border border-[#D7E7D9] bg-[linear-gradient(105deg,#F8FFFA_0%,#ECFDF3_68%)] p-4'
+      : 'rounded-[10px] border border-[#0B5C2A] bg-[linear-gradient(105deg,rgba(6,50,31,0.88)_0%,rgba(2,14,22,0.95)_68%)] p-4';
+    const taxHeadingClass = theme === 'light'
+      ? 'mb-3 border-b border-[rgba(34,197,94,0.12)] pb-3 text-[13px] font-bold leading-none text-[#0F172A]'
+      : 'mb-3 border-b border-[rgba(34,197,94,0.14)] pb-3 text-[13px] font-bold leading-none text-[#F8FAFC]';
+    const taxLabelClass = theme === 'light' ? 'text-[#475569]' : 'text-[#8FB3C4]';
+    const taxDividerClass = theme === 'light' ? 'my-4 border-t border-[rgba(34,197,94,0.10)]' : 'my-4 border-t border-[rgba(34,197,94,0.12)]';
+    const netReturnClass = theme === 'light'
+      ? 'flex items-center justify-between rounded-[10px] border border-[#B7E2C4] bg-[linear-gradient(92deg,#F0FDF4_0%,#DCFCE7_100%)] px-3 py-2 text-[13px] font-bold'
+      : 'flex items-center justify-between rounded-[10px] border border-[#0B5C2A] bg-[linear-gradient(92deg,rgba(8,58,36,0.85)_0%,rgba(3,36,23,0.9)_100%)] px-3 py-2 text-[13px] font-bold';
+    const whyPanelClass = theme === 'light'
+      ? (
+          isWhyExpanded
+            ? 'h-[231px] border border-[#BFDBFE] bg-[linear-gradient(180deg,#FFFFFF_0%,#EFF6FF_100%)] shadow-[inset_0_0_0_1px_rgba(21,87,245,0.08)]'
+            : 'h-[52px] border border-[#BFDBFE] bg-[#F8FBFF] shadow-[inset_0_0_0_1px_rgba(21,87,245,0.12)]'
+        )
+      : (
+          isWhyExpanded
+            ? 'h-[231px] border border-[#1557F5] bg-[linear-gradient(180deg,#07170F_0%,#06120D_100%)] shadow-[inset_0_0_0_1px_rgba(140,194,255,0.18)]'
+            : 'h-[52px] border border-[#1557F5] bg-[#07170F] shadow-[inset_0_0_0_1px_rgba(140,194,255,0.26)]'
+        );
+    const whyHeaderClass = theme === 'light'
+      ? (isWhyExpanded
+          ? 'relative mt-[6px] h-[52px] rounded-[12px] border border-[rgba(21,87,245,0.18)] bg-[#F8FBFF]'
+          : 'relative h-full')
+      : (isWhyExpanded
+          ? 'relative mt-[6px] h-[52px] rounded-[12px] border border-[rgba(21,87,245,0.45)] bg-[#07170F]'
+          : 'relative h-full');
+    const whyBodyClass = theme === 'light'
+      ? 'rounded-xl border border-[rgba(21,87,245,0.14)] bg-white px-4 py-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] max-[768px]:px-3 max-[768px]:py-3'
+      : 'rounded-xl border border-[rgba(29,141,238,0.22)] bg-[rgba(2,10,22,0.55)] px-4 py-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] max-[768px]:px-3 max-[768px]:py-3';
+
     return (
       <div key={result.id}>
         <div
-          className={`smartcd-result-row ${result.isTopPick ? 'smartcd-top-pick' : ''} relative transition-colors max-[768px]:flex max-[768px]:flex-col max-[768px]:items-stretch max-[768px]:gap-3 max-[768px]:px-4 max-[768px]:py-3 md:grid md:items-center md:gap-4 md:px-5 md:hover:bg-[rgba(29,141,238,0.05)] ${result.isTopPick ? 'md:pt-8 md:pb-5' : 'md:py-5'} ${showProductType ? 'md:grid-cols-[minmax(220px,2.05fr)_minmax(145px,1.12fr)_minmax(118px,0.9fr)_minmax(150px,1.02fr)_minmax(130px,0.9fr)_220px]' : 'md:grid-cols-[minmax(220px,2.2fr)_minmax(118px,0.95fr)_minmax(150px,1.05fr)_minmax(130px,0.95fr)_220px]'} ${isExpanded ? 'bg-[#0A1E14] border-b-0' : result.isTopPick ? 'bg-[#062314] border-b border-[#1E293B]' : 'bg-[#081329] border-b border-[#1E293B]'}`}
+          className={`smartcd-result-row ${result.isTopPick ? 'smartcd-top-pick' : ''} relative transition-colors max-[768px]:flex max-[768px]:flex-col max-[768px]:items-stretch max-[768px]:gap-3 max-[768px]:px-4 max-[768px]:py-3 md:grid md:items-center md:gap-4 md:px-5 md:hover:bg-[rgba(29,141,238,0.05)] ${result.isTopPick ? 'md:pt-8 md:pb-5' : 'md:py-5'} ${showProductType ? 'md:grid-cols-[minmax(220px,2.05fr)_minmax(145px,1.12fr)_minmax(118px,0.9fr)_minmax(150px,1.02fr)_minmax(130px,0.9fr)_220px]' : 'md:grid-cols-[minmax(220px,2.2fr)_minmax(118px,0.95fr)_minmax(150px,1.05fr)_minmax(130px,0.95fr)_220px]'} ${rowSurfaceClass}`}
         >
-          <div className="flex items-center max-[768px]:order-1 max-[768px]:flex-col max-[768px]:items-start max-[768px]:gap-2 max-[768px]:border-b max-[768px]:border-[#1E293B] max-[768px]:pb-3">
+          <div className={`flex items-center max-[768px]:order-1 max-[768px]:flex-col max-[768px]:items-start max-[768px]:gap-2 max-[768px]:border-b max-[768px]:pb-3 ${theme === 'light' ? 'max-[768px]:border-[#E2E8F0]' : 'max-[768px]:border-[#1E293B]'}`}>
             {result.isTopPick && <span className="theme-keep-white inline-flex shrink-0 rounded-full bg-[linear-gradient(180deg,#22C55E_0%,#16A34A_100%)] px-3 py-1 text-[0.64rem] font-extrabold uppercase tracking-[0.04em] text-white md:hidden">★ TOP PICK</span>}
             <div className="flex w-full min-w-0 items-center gap-3 md:pr-3">
               <BankBadge result={result} />
@@ -1466,55 +1498,43 @@ export default function App() {
         </div>
 
         {isExpanded && (
-          <div className="bg-[#050d1f] px-0 pb-0 pt-0">
-            <div className="grid grid-cols-2 gap-4 border-t border-[rgba(255,255,255,0.2)] px-6 py-5 max-[768px]:grid-cols-1 max-[768px]:px-3 max-[768px]:py-3">
-              <div className="rounded-[10px] border border-[#0B5C2A] bg-[linear-gradient(105deg,rgba(6,50,31,0.88)_0%,rgba(2,14,22,0.95)_68%)] p-4">
-                <div className="mb-3 border-b border-[rgba(34,197,94,0.14)] pb-3 text-[13px] font-bold leading-none text-[#F8FAFC]">
-                  Read Tax Break down
+          <div className={`${expandedSurfaceClass} px-0 pb-0 pt-0`}>
+            <div className={`grid grid-cols-2 gap-4 px-6 py-5 max-[768px]:grid-cols-1 max-[768px]:px-3 max-[768px]:py-3 ${expandedBorderClass}`}>
+              <div className={taxCardClass}>
+                <div className={taxHeadingClass}>
+                  Read Tax Breakdown
                 </div>
                 <div className="space-y-4 text-[12.5px]">
                   <div className="flex items-center justify-between">
-                    <span className="text-[#8FB3C4]">Interest Earned :</span>
+                    <span className={taxLabelClass}>Interest Earned :</span>
                     <span className="font-bold text-[#22C55E]">{result.taxBreakdown.interestEarned}</span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-[#8FB3C4]">Total Tax :</span>
+                    <span className={taxLabelClass}>Total Tax :</span>
                     <span className="font-bold text-[#FF3B3B]">{result.taxBreakdown.totalTax}</span>
                   </div>
                 </div>
-                <div className="my-4 border-t border-[rgba(34,197,94,0.12)]"></div>
-                <div className="flex items-center justify-between rounded-[10px] border border-[#0B5C2A] bg-[linear-gradient(92deg,rgba(8,58,36,0.85)_0%,rgba(3,36,23,0.9)_100%)] px-3 py-2 text-[13px] font-bold">
-                  <span className="text-[#E2E8F0]">Net Return :</span>
+                <div className={taxDividerClass}></div>
+                <div className={netReturnClass}>
+                  <span className={theme === 'light' ? 'text-[#0F172A]' : 'text-[#E2E8F0]'}>Net Return :</span>
                   <span className="text-[17px] text-[#22C55E]">{result.netReturn}</span>
                 </div>
                 {result.productType === 'Treasuries' && (
                   <div className="mt-3 flex items-center justify-between gap-3 text-[0.78rem]">
-                    <span className="text-[#6B7280]">Includes <span className="font-bold text-[#22C55E]">{result.taxBreakdown.totalSavings}</span> in state &amp; local tax savings</span>
+                    <span className={theme === 'light' ? 'text-[#64748B]' : 'text-[#6B7280]'}>Includes <span className="font-bold text-[#22C55E]">{result.taxBreakdown.totalSavings}</span> in state &amp; local tax savings</span>
                   </div>
                 )}
               </div>
 
-              <div
-                className={`overflow-hidden rounded-[12px] ${
-                  isWhyExpanded
-                    ? 'h-[231px] border border-[#1557F5] bg-[linear-gradient(180deg,#07170F_0%,#06120D_100%)] shadow-[inset_0_0_0_1px_rgba(140,194,255,0.18)]'
-                    : 'h-[52px] border border-[#1557F5] bg-[#07170F] shadow-[inset_0_0_0_1px_rgba(140,194,255,0.26)]'
-                }`}
-              >
-                <div
-                  className={`flex items-center ${
-                    isWhyExpanded
-                      ? 'relative mt-[6px] h-[52px] rounded-[12px] border border-[rgba(21,87,245,0.45)] bg-[#07170F]'
-                      : 'relative h-full'
-                  }`}
-                >
+              <div className={`overflow-hidden rounded-[12px] ${whyPanelClass}`}>
+                <div className={`flex items-center ${whyHeaderClass}`}>
                   {!isWhyExpanded ? (
                     <>
-                      <div className="absolute left-[16px] top-1/2 -translate-y-1/2 text-[14px] font-bold leading-none text-white">Why this Fits</div>
+                      <div className={`absolute left-[16px] top-1/2 -translate-y-1/2 text-[14px] font-bold leading-none ${theme === 'light' ? 'text-[#0F172A]' : 'text-white'}`}>Why this Fits</div>
                       <div className="absolute left-[212px] top-1/2 -translate-y-1/2 text-[14px] font-bold leading-none text-[#22C55E]">{safeMatch}% Match</div>
                       <button
                         type="button"
-                        className="absolute left-[411px] top-1/2 inline-flex h-[28px] w-[155px] -translate-y-1/2 items-center justify-center gap-1 rounded-[8px] border border-[#6A9ABE] bg-transparent px-[6px] py-[5px] text-[12px] font-bold leading-none text-[#6A9ABE] shadow-[inset_0_0_0_1px_rgba(106,154,190,0.35)] hover:bg-[#0f2a1f]"
+                        className={`absolute left-[411px] top-1/2 inline-flex h-[28px] w-[155px] -translate-y-1/2 items-center justify-center gap-1 rounded-[8px] border border-[#6A9ABE] bg-transparent px-[6px] py-[5px] text-[12px] font-bold leading-none text-[#6A9ABE] shadow-[inset_0_0_0_1px_rgba(106,154,190,0.35)] ${theme === 'light' ? 'hover:bg-[#EAF2FF]' : 'hover:bg-[#0f2a1f]'}`}
                         onClick={(e) => {
                           e.preventDefault();
                           e.stopPropagation();
@@ -1529,9 +1549,9 @@ export default function App() {
                     </>
                   ) : (
                     <>
-                      <div className="absolute left-[16px] top-1/2 -translate-y-1/2 whitespace-nowrap text-[14px] font-bold leading-none text-white">Why this Fits</div>
-                      <div className="absolute left-[244px] top-1/2 -translate-y-1/2 text-[12px] font-bold leading-none text-[#3A6090]">Match Score</div>
-                      <div className="absolute left-[352px] top-1/2 h-[6px] w-[180px] -translate-y-1/2 rounded-full bg-[#0D2A1F]">
+                      <div className={`absolute left-[16px] top-1/2 -translate-y-1/2 whitespace-nowrap text-[14px] font-bold leading-none ${theme === 'light' ? 'text-[#0F172A]' : 'text-white'}`}>Why this Fits</div>
+                      <div className={`absolute left-[244px] top-1/2 -translate-y-1/2 text-[12px] font-bold leading-none ${theme === 'light' ? 'text-[#64748B]' : 'text-[#3A6090]'}`}>Match Score</div>
+                      <div className={`absolute left-[352px] top-1/2 h-[6px] w-[180px] -translate-y-1/2 rounded-full ${theme === 'light' ? 'bg-[#DBEAFE]' : 'bg-[#0D2A1F]'}`}>
                         <div className="h-[6px] rounded-full bg-[#22C55E]" style={{ width: `${Math.max(0, Math.min(100, safeMatch))}%` }} />
                       </div>
                       <div className="absolute right-[18px] top-1/2 -translate-y-1/2 text-[18px] font-bold leading-none text-[#22C55E]">{safeMatch}%</div>
@@ -1541,7 +1561,7 @@ export default function App() {
 
                 {isWhyExpanded && (
                   <div className="pb-4 pt-3">
-                    <div className="rounded-xl border border-[rgba(29,141,238,0.22)] bg-[rgba(2,10,22,0.55)] px-4 py-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] max-[768px]:px-3 max-[768px]:py-3">
+                    <div className={whyBodyClass}>
                       <div className="grid grid-cols-[20px_1fr] items-start gap-x-2 gap-y-3 text-left">
                         {isWhyLoading ? (
                           <>
@@ -1763,17 +1783,10 @@ export default function App() {
         {showBulletStrategyMockup ? (
           <div className="mx-auto flex h-[67px] w-full max-w-[1397px] items-center justify-between px-[31px] pt-[6px]">
             <button type="button" className="inline-flex items-center border-0 bg-transparent p-0 cursor-pointer" onClick={navigateToHome}>
-              <img src="/logo-new.png" alt="SmartCD.ai" className="h-[46px] w-auto" />
+              <img src="/new-logo.png" alt="SmartCD.ai" className="h-[46px] w-auto" />
             </button>
 
-            <div className="flex items-center gap-[13px]">
-              <label className="hidden h-[46px] w-[294px] items-center gap-2 rounded-[8px] border border-[#1E3A5A] bg-[rgba(11,27,53,0.25)] px-3 text-[#94A3B8] shadow-[inset_0_0_0_1px_rgba(30,58,90,0.2)] md:inline-flex">
-                <HeaderSearchIcon className="h-4 w-4 shrink-0 text-[#94A3B8]" />
-                <span style={{ color: '#94A3B8', fontSize: 14, fontFamily: 'Inter, sans-serif', fontWeight: 400, lineHeight: '20px' }}>
-                  Search Institution like Citi Bank
-                </span>
-              </label>
-
+            <div className="flex items-center">
               <button
                 type="button"
                 aria-label={theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode'}
@@ -1789,25 +1802,17 @@ export default function App() {
           <>
             <div className="flex items-center gap-3 cursor-pointer" onClick={navigateToHome}>
               <img
-                src="/logo-new.png"
+                src="/new-logo.png"
                 alt="SmartCD.ai Logo"
                 className="h-11 w-auto max-[768px]:h-9"
               />
-            </div>
-            <div className="ml-auto flex items-center gap-3">
-              <label className="hidden h-[38px] w-[294px] items-center gap-2 rounded-[8px] border border-[#1E3A5A] bg-[rgba(11,27,53,0.25)] px-3 text-[#94A3B8] shadow-[inset_0_0_0_1px_rgba(30,58,90,0.2)] lg:inline-flex">
-                <HeaderSearchIcon className="h-4 w-4 shrink-0 text-[#94A3B8]" />
-                <span style={{ color: '#94A3B8', fontSize: 14, fontFamily: 'Inter, sans-serif', fontWeight: 400, lineHeight: '20px' }}>
-                  Search Institution like Citi Bank
-                </span>
-              </label>
             </div>
             <button
               type="button"
               aria-label={theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode'}
               aria-pressed={theme === 'light'}
               onClick={() => setTheme((prev) => (prev === 'light' ? 'dark' : 'light'))}
-              className={`inline-flex items-center justify-center rounded-full border transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 ${
+              className={`ml-auto inline-flex items-center justify-center rounded-full border transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 ${
                 theme === 'light'
                   ? 'h-10 w-10 border-[#CBD5E1] bg-[#EFF6FF] text-[#1E2941] focus:ring-[#1557F5] focus:ring-offset-white'
                   : 'h-10 w-10 border-[rgba(255,255,255,0.22)] bg-[rgba(255,255,255,0.08)] text-white focus:ring-[#92C5F9] focus:ring-offset-[#101b30]'
@@ -1822,7 +1827,7 @@ export default function App() {
       {/* Main Content - Dark Background */}
       <main className="main-content">
         {showBulletStrategyMockup ? (
-          <BulletStrategyMockup />
+          <BulletStrategyMockup theme={theme} />
         ) : !showResults ? (
           <>
             <div className="text-center max-w-[900px] mb-[60px] flex flex-col items-center max-[768px]:mb-7">
@@ -2017,6 +2022,7 @@ export default function App() {
               <div className="mx-auto flex w-full max-w-[1226px] flex-wrap items-center gap-x-[30px] gap-y-3 lg:flex-nowrap">
                 {strategyTabs.map((tab) => {
                   const active = strategyView === tab.id;
+                  const textColorClass = active ? 'text-[#F59E0C]' : 'text-[#94A3B8]';
                   return (
                     <button
                       key={tab.id}
@@ -2028,12 +2034,12 @@ export default function App() {
                           : 'px-0 hover:opacity-90'
                       }`}
                     >
-                      <span className="inline-flex h-5 w-5 items-center justify-center">
-                        <StrategyTabIcon id={tab.id} active={active} />
+                      <span className={`inline-flex h-5 w-5 items-center justify-center ${textColorClass}`}>
+                        <StrategyTabIcon id={tab.id} />
                       </span>
                       <span className="relative h-[42px] w-[204px]">
-                        <span className={`absolute left-0 top-0 text-[18px] font-semibold leading-[20px] ${active ? 'text-[#F59E0C]' : 'text-[#94A3B8]'}`}>{tab.title}</span>
-                        <span className={`absolute left-0 top-6 w-[200px] text-[14px] font-normal leading-[20px] ${active ? 'text-[#F59E0C]' : 'text-[#94A3B8]'}`}>{tab.subtitle}</span>
+                        <span className={`absolute left-0 top-0 text-[18px] font-semibold leading-[20px] ${textColorClass}`}>{tab.title}</span>
+                        <span className={`absolute left-0 top-6 w-[200px] text-[14px] font-normal leading-[20px] ${textColorClass}`}>{tab.subtitle}</span>
                       </span>
                     </button>
                   );
@@ -2043,6 +2049,7 @@ export default function App() {
             {strategyView === 'bullet' ? (
               <>
                 <BulletStrategyMockup
+                  theme={theme}
                   embedded
                   hideTitle
                   initialTerm={bulletControls.term}
@@ -2183,28 +2190,28 @@ export default function App() {
               </div>
             </div>
 
-              <div className="overflow-hidden rounded-2xl border border-[#1D8DEE] bg-[#081329] shadow-[0_10px_30px_rgba(0,0,0,0.5)] max-[768px]:overflow-visible max-[768px]:rounded-xl">
+              <div className={`overflow-hidden rounded-2xl max-[768px]:overflow-visible max-[768px]:rounded-xl ${theme === 'light' ? 'border border-[#CBD5E1] bg-white shadow-[0_12px_30px_rgba(15,23,42,0.08)]' : 'border border-[#1D8DEE] bg-[#081329] shadow-[0_10px_30px_rgba(0,0,0,0.5)]'}`}>
               {/* Mobile sort controls */}
-              <div className="flex items-center justify-between gap-2 border-b border-[#1E293B] bg-[#0A1429] px-[14px] py-3 md:hidden">
+              <div className={`flex items-center justify-between gap-2 border-b px-[14px] py-3 md:hidden ${theme === 'light' ? 'border-[#E2E8F0] bg-[#F8FAFC]' : 'border-[#1E293B] bg-[#0A1429]'}`}>
                 <div className="text-[0.72rem] font-bold uppercase tracking-[0.05em] text-[#94A3B8]">Sort</div>
                 <div className="flex flex-1 flex-wrap items-center justify-end gap-1.5">
                   <button
                     type="button"
-                    className="flex min-w-0 flex-1 items-center justify-center gap-1 rounded-md border border-[#1A3050] bg-[#0D1B2D] px-2 py-2 text-[0.72rem] font-bold uppercase tracking-[0.05em] text-[#E2E8F0]"
+                    className={`flex min-w-0 flex-1 items-center justify-center gap-1 rounded-md border px-2 py-2 text-[0.72rem] font-bold uppercase tracking-[0.05em] ${theme === 'light' ? 'border-[#CBD5E1] bg-white text-[#334155]' : 'border-[#1A3050] bg-[#0D1B2D] text-[#E2E8F0]'}`}
                     onClick={() => toggleSort('nominalRate')}
                   >
                     Nominal <SortIcon active={sortColumn === 'nominalRate'} direction={sortDirection} />
                   </button>
                   <button
                     type="button"
-                    className="flex min-w-0 flex-1 items-center justify-center gap-1 rounded-md border border-[#1A3050] bg-[#0D1B2D] px-2 py-2 text-[0.72rem] font-bold uppercase tracking-[0.05em] text-[#E2E8F0]"
+                    className={`flex min-w-0 flex-1 items-center justify-center gap-1 rounded-md border px-2 py-2 text-[0.72rem] font-bold uppercase tracking-[0.05em] ${theme === 'light' ? 'border-[#CBD5E1] bg-white text-[#334155]' : 'border-[#1A3050] bg-[#0D1B2D] text-[#E2E8F0]'}`}
                     onClick={() => toggleSort('afterTaxYield')}
                   >
                     After-Tax <SortIcon active={sortColumn === 'afterTaxYield'} direction={sortDirection} />
                   </button>
                   <button
                     type="button"
-                    className="flex min-w-0 flex-1 items-center justify-center gap-1 rounded-md border border-[#1A3050] bg-[#0D1B2D] px-2 py-2 text-[0.72rem] font-bold uppercase tracking-[0.05em] text-[#E2E8F0]"
+                    className={`flex min-w-0 flex-1 items-center justify-center gap-1 rounded-md border px-2 py-2 text-[0.72rem] font-bold uppercase tracking-[0.05em] ${theme === 'light' ? 'border-[#CBD5E1] bg-white text-[#334155]' : 'border-[#1A3050] bg-[#0D1B2D] text-[#E2E8F0]'}`}
                     onClick={() => toggleSort('minDeposit')}
                   >
                     Deposit <SortIcon active={sortColumn === 'minDeposit'} direction={sortDirection} />
@@ -2212,7 +2219,7 @@ export default function App() {
                 </div>
               </div>
 
-              <div className={`hidden border-b border-[#1E293B] bg-[#0A1429] md:grid md:gap-4 ${viewMode === 'combined' ? 'md:grid-cols-[minmax(220px,2.05fr)_minmax(145px,1.12fr)_minmax(118px,0.9fr)_minmax(150px,1.02fr)_minmax(130px,0.9fr)_220px]' : 'md:grid-cols-[minmax(220px,2.2fr)_minmax(118px,0.95fr)_minmax(150px,1.05fr)_minmax(130px,0.95fr)_220px]'}`}>
+              <div className={`hidden md:grid md:gap-4 ${theme === 'light' ? 'border-b border-[#E2E8F0] bg-[#F8FAFC]' : 'border-b border-[#1E293B] bg-[#0A1429]'} ${viewMode === 'combined' ? 'md:grid-cols-[minmax(220px,2.05fr)_minmax(145px,1.12fr)_minmax(118px,0.9fr)_minmax(150px,1.02fr)_minmax(130px,0.9fr)_220px]' : 'md:grid-cols-[minmax(220px,2.2fr)_minmax(118px,0.95fr)_minmax(150px,1.05fr)_minmax(130px,0.95fr)_220px]'}`}>
                 <div className="flex items-center justify-center py-4 text-center text-xs font-bold uppercase tracking-[0.05em] text-[#94A3B8]">PROVIDER / INSTITUTION</div>
                 {viewMode === 'combined' && <div className="flex items-center justify-center py-4 text-center text-xs font-bold uppercase tracking-[0.05em] text-[#94A3B8]">PRODUCT TYPE</div>}
                 <div className="flex items-center justify-center gap-2 py-4 text-center text-xs font-bold uppercase tracking-[0.05em] text-[#94A3B8] whitespace-nowrap">
@@ -2262,13 +2269,13 @@ export default function App() {
                   } else {
                     return (
                       <>
-                        <div className="border-y border-[#1E293B] bg-[#0A1429] px-6 py-4 text-[0.9rem] font-bold text-[#E2E8F0] max-[768px]:px-[14px] max-[768px]:py-3 max-[768px]:text-[0.82rem]">Bank CDs</div>
+                        <div className={`border-y px-6 py-4 text-[0.9rem] font-bold max-[768px]:px-[14px] max-[768px]:py-3 max-[768px]:text-[0.82rem] ${theme === 'light' ? 'border-[#E2E8F0] bg-[#F8FAFC] text-[#334155]' : 'border-[#1E293B] bg-[#0A1429] text-[#E2E8F0]'}`}>Bank CDs</div>
                         {sortResults(filtered.filter(r => r.productType === 'Bank CDs')).map(r => renderResultCard(r, false))}
 
-                        <div className="mt-8 border-y border-[#1E293B] bg-[#0A1429] px-6 py-4 text-[0.9rem] font-bold text-[#E2E8F0] max-[768px]:px-[14px] max-[768px]:py-3 max-[768px]:text-[0.82rem]">Brokerage CDs</div>
+                        <div className={`mt-8 border-y px-6 py-4 text-[0.9rem] font-bold max-[768px]:px-[14px] max-[768px]:py-3 max-[768px]:text-[0.82rem] ${theme === 'light' ? 'border-[#E2E8F0] bg-[#F8FAFC] text-[#334155]' : 'border-[#1E293B] bg-[#0A1429] text-[#E2E8F0]'}`}>Brokerage CDs</div>
                         {sortResults(filtered.filter(r => r.productType === 'Brokerage CDs')).map(r => renderResultCard(r, false))}
 
-                        <div className="mt-8 border-y border-[#1E293B] bg-[#0A1429] px-6 py-4 text-[0.9rem] font-bold text-[#E2E8F0] max-[768px]:px-[14px] max-[768px]:py-3 max-[768px]:text-[0.82rem]">US Treasury</div>
+                        <div className={`mt-8 border-y px-6 py-4 text-[0.9rem] font-bold max-[768px]:px-[14px] max-[768px]:py-3 max-[768px]:text-[0.82rem] ${theme === 'light' ? 'border-[#E2E8F0] bg-[#F8FAFC] text-[#334155]' : 'border-[#1E293B] bg-[#0A1429] text-[#E2E8F0]'}`}>US Treasury</div>
                         {sortResults(filtered.filter(r => r.productType === 'Treasuries')).map(r => renderResultCard(r, false))}
                       </>
                     );

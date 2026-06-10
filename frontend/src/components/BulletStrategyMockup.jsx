@@ -215,19 +215,19 @@ const DropdownField = ({ label, value, options, onSelect, narrow = false }) => {
   );
 };
 
-const SectionHeader = ({ title, badge, note, collapsed = false, onToggle }) => (
+const SectionHeader = ({ title, badge, note, collapsed = false, onToggle, isLightTheme = false }) => (
   <button
     type="button"
     onClick={onToggle}
     aria-expanded={!collapsed}
     className="flex w-full items-center justify-between gap-4 border-0 bg-transparent p-0 text-left outline-none transition-opacity hover:opacity-95 max-[760px]:items-start max-[760px]:flex-col"
   >
-    <div className="flex min-w-0 items-center gap-2 text-[20px] font-medium leading-[28px] text-white max-[520px]:text-[17px]">
+    <div className={`flex min-w-0 items-center gap-2 text-[20px] font-medium leading-[28px] max-[520px]:text-[17px] ${isLightTheme ? 'text-[#0F172A]' : 'text-white'}`}>
       <span>{title}</span>
-      <span className={`rounded-[4px] px-2 py-1 text-[11px] font-medium leading-[16px] text-white ${badge === 'Live Rates' ? 'bg-[#00A63E]' : 'bg-[#0077FF]'}`}>{badge}</span>
+      <span className={`theme-keep-white rounded-[4px] px-2 py-1 text-[11px] font-medium leading-[16px] text-white ${badge === 'Live Rates' ? 'bg-[#00A63E]' : 'bg-[#0077FF]'}`}>{badge}</span>
       <ChevronDownIcon className={`h-4 w-4 text-[#6A7282] transition-transform duration-200 ${collapsed ? '-rotate-90' : ''}`} />
     </div>
-    <div className="text-[14px] leading-[20px] text-[#99A1AF] max-[520px]:text-[12px]">{note}</div>
+    <div className={`text-[14px] leading-[20px] max-[520px]:text-[12px] ${isLightTheme ? 'text-[#64748B]' : 'text-[#99A1AF]'}`}>{note}</div>
   </button>
 );
 
@@ -256,24 +256,42 @@ const Row = ({
   summaryState = 'idle',
   onGenerateSummary,
   onSetReminder,
+  isLightTheme = false,
 }) => {
   const result = { provider: row.provider, productType: row.type };
   const mobileHighlight = highlight && !future;
+  const rowSurfaceClass = isLightTheme
+    ? `border-[#E2E8F0] ${highlight ? 'min-h-[141px] bg-[#EEF4FF]' : 'bg-white'} ${mobileHighlight ? 'max-[768px]:border-[#C7D2FE] max-[768px]:bg-[#EEF4FF]' : ''}`
+    : `${highlight ? 'min-h-[141px] bg-[#050D1F]' : 'bg-[#050D1F]'} ${mobileHighlight ? 'max-[768px]:border-[#0B5C2A] max-[768px]:bg-[#062314]' : ''}`;
+  const summaryShellClass = isLightTheme
+    ? (summaryState === 'idle'
+        ? 'top-[28px] h-[52px] border border-[#BFDBFE] bg-[#F8FBFF] shadow-[inset_0_0_0_1px_rgba(21,87,245,0.12)]'
+        : 'top-[22px] h-[231px] border border-[#BFDBFE] bg-[linear-gradient(180deg,#FFFFFF_0%,#EFF6FF_100%)] shadow-[inset_0_0_0_1px_rgba(21,87,245,0.08)]')
+    : (summaryState === 'idle'
+        ? 'top-[28px] h-[52px] border border-[#1557F5] bg-[#07170F] shadow-[inset_0_0_0_1px_rgba(140,194,255,0.26)]'
+        : 'top-[22px] h-[231px] border border-[#1557F5] bg-[linear-gradient(180deg,#07170F_0%,#06120D_100%)] shadow-[inset_0_0_0_1px_rgba(140,194,255,0.18)]');
+  const summaryHeaderClass = isLightTheme
+    ? (summaryState === 'idle'
+        ? 'relative h-full pl-0 pr-0'
+        : 'relative mt-[6px] h-[52px] rounded-[12px] border border-[rgba(21,87,245,0.18)] bg-[#F8FBFF] pl-0 pr-0')
+    : (summaryState === 'idle'
+        ? 'relative h-full pl-0 pr-0'
+        : 'relative mt-[6px] h-[52px] rounded-[12px] border border-[rgba(21,87,245,0.45)] bg-[#07170F] pl-0 pr-0');
 
   return (
-    <div className={`transition-colors md:hover:bg-[rgba(29,141,238,0.05)] ${seamless ? 'rounded-none border-0 border-b border-[#253E5C] px-[8px] py-5 last:border-b-0 max-[768px]:px-4 max-[768px]:py-4' : 'rounded-[10px] border border-[#1E2939] px-3 py-3 max-[768px]:px-4 max-[768px]:py-4'} ${highlight ? 'min-h-[141px] bg-[#050D1F]' : 'bg-[#050D1F]'} ${mobileHighlight ? 'max-[768px]:border-[#0B5C2A] max-[768px]:bg-[#062314]' : ''}`}>
-      {future && row.slot && <div className="mb-3 inline-flex rounded-full bg-[#0077FF] px-3 py-1 text-[12px] leading-none text-white">{row.slot}</div>}
-      {!future && row.badge && <div className={`mb-3 inline-flex rounded-full px-3 py-1 text-[12px] leading-none text-white ${mobileHighlight ? 'bg-[linear-gradient(180deg,#22C55E_0%,#16A34A_100%)]' : 'bg-[#22C55E]'}`}>{row.badge}</div>}
+    <div className={`transition-colors md:hover:bg-[rgba(29,141,238,0.05)] ${seamless ? `rounded-none border-0 border-b ${isLightTheme ? 'border-[#E2E8F0]' : 'border-[#253E5C]'} px-[8px] py-5 last:border-b-0 max-[768px]:px-4 max-[768px]:py-4` : `rounded-[10px] border ${isLightTheme ? 'border-[#E2E8F0]' : 'border-[#1E2939]'} px-3 py-3 max-[768px]:px-4 max-[768px]:py-4`} ${rowSurfaceClass}`}>
+      {future && row.slot && <div className="theme-keep-white mb-3 inline-flex rounded-full bg-[#0077FF] px-3 py-1 text-[12px] leading-none text-white">{row.slot}</div>}
+      {!future && row.badge && <div className={`theme-keep-white mb-3 inline-flex rounded-full px-3 py-1 text-[12px] leading-none text-white ${mobileHighlight ? 'bg-[linear-gradient(180deg,#22C55E_0%,#16A34A_100%)]' : 'bg-[#22C55E]'}`}>{row.badge}</div>}
       <div className={`grid items-center gap-0 max-[768px]:gap-3 ${DESKTOP_GRID} ${highlight ? 'min-h-[82px]' : ''}`}>
-        <div className="flex min-w-0 items-center gap-3 max-[768px]:border-b max-[768px]:border-[#1E293B] max-[768px]:pb-3">
+        <div className={`flex min-w-0 items-center gap-3 max-[768px]:border-b max-[768px]:pb-3 ${isLightTheme ? 'max-[768px]:border-[#E2E8F0]' : 'max-[768px]:border-[#1E293B]'}`}>
           <div className={`${highlight ? 'h-[100px] opacity-100' : 'h-[68px] opacity-0'} w-1 shrink-0 rounded ${future ? 'bg-[#22C55E]' : 'bg-[linear-gradient(180deg,#22C55E_0%,#16A34A_100%)]'} max-[768px]:h-[56px]`} />
           <BankBadge result={result} />
           <div className="min-w-0">
-            <div className="text-[16px] font-bold leading-[20px] text-white max-[480px]:text-[0.95rem]">{row.provider}</div>
+            <div className={`text-[16px] font-bold leading-[20px] max-[480px]:text-[0.95rem] ${isLightTheme ? 'text-[#0F172A]' : 'text-white'}`}>{row.provider}</div>
             <div className="text-[11px] font-normal leading-[16px] text-[#4A7A9A]">{row.sub}</div>
           </div>
         </div>
-        <div className="flex w-full justify-between text-left text-[0.9rem] font-medium text-[#E2E8F0] md:text-[16px] md:font-bold md:text-white md:text-left">
+        <div className={`flex w-full justify-between text-left text-[0.9rem] font-medium md:text-[16px] md:font-bold md:text-left ${isLightTheme ? 'text-[#334155] md:text-[#0F172A]' : 'text-[#E2E8F0] md:text-white'}`}>
           <span className="text-[0.74rem] font-bold uppercase tracking-[0.04em] text-[#94A3B8] md:hidden">Product Type</span>
           <span>{row.type}</span>
         </div>
@@ -292,7 +310,7 @@ const Row = ({
         <div className="flex w-full justify-between text-left md:block">
           <span className="text-[0.74rem] font-bold uppercase tracking-[0.04em] text-[#94A3B8] md:hidden">Allocation</span>
           <div className="text-right md:text-left max-[760px]:text-right">
-            <div className="text-[18px] font-bold text-white">{row.allocation}</div>
+            <div className={`text-[18px] font-bold ${isLightTheme ? 'text-[#0F172A]' : 'text-white'}`}>{row.allocation}</div>
             <div className="mt-1 text-[11px] leading-[14px] text-[#7D93AF]">Min. {row.minimumDeposit}</div>
           </div>
         </div>
@@ -302,7 +320,7 @@ const Row = ({
           <button
             type="button"
             onClick={onToggleTax}
-            className={`inline-flex h-11 w-full items-center justify-center gap-2 rounded-[14px] border-0 px-4 py-2 text-[0.82rem] font-bold leading-[24px] shadow-[0_4px_4px_rgba(0,0,0,0.25)] outline-none ring-0 transition-colors md:h-[43px] md:w-[145px] md:px-2 md:text-[14px] md:font-semibold ${
+            className={`theme-keep-white inline-flex h-11 w-full items-center justify-center gap-2 rounded-[14px] border-0 px-4 py-2 text-[0.82rem] font-bold leading-[24px] shadow-[0_4px_4px_rgba(0,0,0,0.25)] outline-none ring-0 transition-colors md:h-[43px] md:w-[145px] md:px-2 md:text-[14px] md:font-semibold ${
               taxOpen ? 'bg-[#0D1B2E] text-[#F59E0C] shadow-[inset_0_0_0_1px_#F59E0C,0_4px_4px_rgba(0,0,0,0.25)]' : 'bg-[#1A3050] text-white hover:bg-[#254873]'
             }`}
           >
@@ -328,49 +346,37 @@ const Row = ({
         </div>
       </div>
       {taxOpen && (
-        <div className="relative mt-2 h-[264px] w-full border border-[#071710] bg-[#050D1F]">
-          <div className="absolute left-[22px] top-[22px] h-[231px] w-[572px] rounded-xl border border-[#0E2818] bg-[linear-gradient(180deg,#071810_0%,#050E0A_100%)]">
-            <div className="px-[20px] pt-[12px] text-[13px] font-bold text-white">Read Tax Break down</div>
+        <div className={`relative mt-2 h-[264px] w-full border ${isLightTheme ? 'border-[#E2E8F0] bg-[#F8FAFC]' : 'border-[#071710] bg-[#050D1F]'}`}>
+          <div className={`absolute left-[22px] top-[22px] h-[231px] w-[572px] rounded-xl ${isLightTheme ? 'border border-[#D7E7D9] bg-[linear-gradient(180deg,#F8FFFA_0%,#ECFDF3_100%)]' : 'border border-[#0E2818] bg-[linear-gradient(180deg,#071810_0%,#050E0A_100%)]'}`}>
+            <div className={`px-[20px] pt-[12px] text-[13px] font-bold ${isLightTheme ? 'text-[#0F172A]' : 'text-white'}`}>Read Tax Breakdown</div>
             <div className="px-[20px] pt-[24px]">
               <div className="flex h-[14px] items-center justify-between text-[12.5px] leading-none">
-                <span className="font-normal text-[#7AAAC0]">Interest Earned :</span>
+                <span className={`font-normal ${isLightTheme ? 'text-[#475569]' : 'text-[#7AAAC0]'}`}>Interest Earned :</span>
                 <span className="w-[80px] text-right font-bold text-[#22C55E]">{row.taxBreakdown?.interestEarned || '$0.00'}</span>
               </div>
               <div className="mt-[21px] flex h-[14px] items-center justify-between text-[12.5px] leading-none">
-                <span className="font-normal text-[#7AAAC0]">Total Tax :</span>
+                <span className={`font-normal ${isLightTheme ? 'text-[#475569]' : 'text-[#7AAAC0]'}`}>Total Tax :</span>
                 <span className="w-[80px] text-right font-bold text-[#EF4444]">{row.taxBreakdown?.totalTax || '$0.00'}</span>
               </div>
             </div>
-            <div className="mx-[12px] mt-[69px] rounded-[10px] border border-[#1A4A28] bg-[linear-gradient(180deg,#0A2A18_0%,#071E10_100%)] px-[10px] py-[9px] shadow-[inset_0_0_0_1px_rgba(34,197,94,0.22)]">
+            <div className={`mx-[12px] mt-[69px] rounded-[10px] px-[10px] py-[9px] ${isLightTheme ? 'border border-[#B7E2C4] bg-[linear-gradient(180deg,#F0FDF4_0%,#DCFCE7_100%)] shadow-[inset_0_0_0_1px_rgba(34,197,94,0.12)]' : 'border border-[#1A4A28] bg-[linear-gradient(180deg,#0A2A18_0%,#071E10_100%)] shadow-[inset_0_0_0_1px_rgba(34,197,94,0.22)]'}`}>
               <div className="flex items-center justify-between">
-                <span className="text-[13px] font-bold text-white">Net Return :</span>
+                <span className={`text-[13px] font-bold ${isLightTheme ? 'text-[#0F172A]' : 'text-white'}`}>Net Return :</span>
                 <span className="text-[17px] font-bold text-[#22C55E]">{row.taxBreakdown?.netReturn || '$0.00'}</span>
               </div>
             </div>
           </div>
 
-          <div
-            className={`absolute left-[617px] w-[628px] overflow-hidden rounded-[12px] p-0 ${
-              summaryState === 'idle'
-                ? 'top-[28px] h-[52px] border border-[#1557F5] bg-[#07170F] shadow-[inset_0_0_0_1px_rgba(140,194,255,0.26)]'
-                : 'top-[22px] h-[231px] border border-[#1557F5] bg-[linear-gradient(180deg,#07170F_0%,#06120D_100%)] shadow-[inset_0_0_0_1px_rgba(140,194,255,0.18)]'
-            }`}
-          >
-            <div
-              className={`flex items-center pl-[27px] pr-[62px] ${
-                summaryState === 'idle'
-                  ? 'relative h-full pl-0 pr-0'
-                  : 'relative mt-[6px] h-[52px] rounded-[12px] border border-[rgba(21,87,245,0.45)] bg-[#07170F] pl-0 pr-0'
-              }`}
-            >
+          <div className={`absolute left-[617px] w-[628px] overflow-hidden rounded-[12px] p-0 ${summaryShellClass}`}>
+            <div className={`flex items-center pl-[27px] pr-[62px] ${summaryHeaderClass}`}>
               {summaryState === 'idle' ? (
                 <>
-                  <div className="absolute left-[16px] top-1/2 -translate-y-1/2 text-[14px] font-bold leading-none text-white">Why this Fits</div>
+                  <div className={`absolute left-[16px] top-1/2 -translate-y-1/2 text-[14px] font-bold leading-none ${isLightTheme ? 'text-[#0F172A]' : 'text-white'}`}>Why this Fits</div>
                   <div className="absolute left-[212px] top-1/2 -translate-y-1/2 text-[14px] font-bold leading-none text-[#22C55E]">99% Match</div>
                   <button
                     type="button"
                     onClick={onGenerateSummary}
-                    className="absolute left-[411px] top-1/2 inline-flex h-[28px] w-[155px] -translate-y-1/2 items-center justify-center gap-1 rounded-[8px] border border-[#6A9ABE] bg-transparent px-[6px] py-[5px] text-[12px] font-bold leading-none text-[#6A9ABE] shadow-[inset_0_0_0_1px_rgba(106,154,190,0.35)] hover:bg-[#0f2a1f]"
+                    className={`absolute left-[411px] top-1/2 inline-flex h-[28px] w-[155px] -translate-y-1/2 items-center justify-center gap-1 rounded-[8px] border border-[#6A9ABE] bg-transparent px-[6px] py-[5px] text-[12px] font-bold leading-none text-[#6A9ABE] shadow-[inset_0_0_0_1px_rgba(106,154,190,0.35)] ${isLightTheme ? 'hover:bg-[#EAF2FF]' : 'hover:bg-[#0f2a1f]'}`}
                   >
                     <SparkleIcon className="h-[11px] w-[11px] text-[#6A9ABE]" />
                     <span>Generate Summary</span>
@@ -378,9 +384,9 @@ const Row = ({
                 </>
               ) : (
                 <>
-                  <div className="absolute left-[16px] top-1/2 -translate-y-1/2 whitespace-nowrap text-[14px] font-bold leading-none text-white">Why this Fits</div>
-                  <div className="absolute left-[244px] top-1/2 -translate-y-1/2 text-[12px] font-bold leading-none text-[#3A6090]">Match Score</div>
-                  <div className="absolute left-[352px] top-1/2 h-[6px] w-[180px] -translate-y-1/2 rounded-full bg-[#0D2A1F]">
+                  <div className={`absolute left-[16px] top-1/2 -translate-y-1/2 whitespace-nowrap text-[14px] font-bold leading-none ${isLightTheme ? 'text-[#0F172A]' : 'text-white'}`}>Why this Fits</div>
+                  <div className={`absolute left-[244px] top-1/2 -translate-y-1/2 text-[12px] font-bold leading-none ${isLightTheme ? 'text-[#64748B]' : 'text-[#3A6090]'}`}>Match Score</div>
+                  <div className={`absolute left-[352px] top-1/2 h-[6px] w-[180px] -translate-y-1/2 rounded-full ${isLightTheme ? 'bg-[#DBEAFE]' : 'bg-[#0D2A1F]'}`}>
                     <div className="h-[6px] w-[99%] rounded-full bg-[#22C55E]" />
                   </div>
                   <div className="absolute right-[18px] top-1/2 -translate-y-1/2 text-[18px] font-bold leading-none text-[#22C55E]">99%</div>
@@ -426,7 +432,7 @@ const Row = ({
         <button
           type="button"
           onClick={onToggleOther}
-          className={`inline-flex appearance-none items-center gap-1 border-0 bg-transparent pl-1 text-[14px] font-normal leading-[20px] text-white shadow-none outline-none transition-colors hover:text-[#c7d7ee] ${highlight ? 'mt-1' : 'mt-2'}`}
+          className={`inline-flex appearance-none items-center gap-1 border-0 bg-transparent pl-1 text-[14px] font-normal leading-[20px] shadow-none outline-none transition-colors ${isLightTheme ? 'text-[#0F172A] hover:text-[#1557F5]' : 'text-white hover:text-[#c7d7ee]'} ${highlight ? 'mt-1' : 'mt-2'}`}
         >
           Other great options
           <ChevronDownIcon className={`h-4 w-4 transition-transform ${expanded ? 'rotate-180' : ''}`} />
@@ -437,6 +443,7 @@ const Row = ({
 };
 
 export default function BulletStrategyMockup({
+  theme = 'dark',
   embedded = false,
   hideTitle = false,
   onControlsChange = null,
@@ -448,6 +455,7 @@ export default function BulletStrategyMockup({
   simulationError = null,
   onExportPdf = null,
 }) {
+  const isLightTheme = theme === 'light';
   const [term, setTerm] = useState(initialTerm);
   const [filterType, setFilterType] = useState('All Products (3)');
   const [amount, setAmount] = useState(initialAmount);
@@ -713,7 +721,7 @@ export default function BulletStrategyMockup({
   }, [derived.purchaseNowOthers?.length]);
 
   return (
-    <div className="mx-auto w-full max-w-[1288px] text-white">
+    <div className={`mx-auto w-full max-w-[1288px] ${isLightTheme ? 'text-[#0F172A]' : 'text-white'}`}>
       {!hideTitle && (
         <div className={`${embedded ? 'mb-6' : 'mb-8'}`}>
           <h1 className="text-[20px] font-bold leading-[28px]">Bullet Strategy</h1>
@@ -793,8 +801,8 @@ export default function BulletStrategyMockup({
             ))}
           </div>
         )}
-        <div className="overflow-hidden rounded-[12px] border border-[#1E2939] bg-[#050D1F]">
-          <div className={`hidden border-b border-[#1E2939] px-[18px] pt-5 pb-[27px] text-[14px] font-bold leading-[1] text-[#94A3B8] md:grid ${DESKTOP_GRID}`}>
+        <div className={`overflow-hidden rounded-[12px] border ${isLightTheme ? 'border-[#E2E8F0] bg-white' : 'border-[#1E2939] bg-[#050D1F]'}`}>
+          <div className={`hidden border-b px-[18px] pt-5 pb-[27px] text-[14px] font-bold leading-[1] text-[#94A3B8] md:grid ${isLightTheme ? 'border-[#E2E8F0]' : 'border-[#1E2939]'} ${DESKTOP_GRID}`}>
             <div className="whitespace-nowrap pl-3 text-left">PROVIDER / INSTITUTION</div>
             <div className="whitespace-nowrap text-left">PRODUCT TYPE</div>
             <div className="whitespace-nowrap text-left">NOMINAL RATE <ChevronDownIcon className="inline h-[10px] w-[10px]" /></div>
@@ -810,9 +818,10 @@ export default function BulletStrategyMockup({
               note="Buy now to lock in today's rates"
               collapsed={nowCollapsed}
               onToggle={() => setNowCollapsed((v) => !v)}
+              isLightTheme={isLightTheme}
             />
             {!nowCollapsed && (
-              <div className="mt-3 overflow-hidden rounded-[12px] border border-[#1E2939] bg-[#050D1F] shadow-none">
+              <div className={`mt-3 overflow-hidden rounded-[12px] shadow-none ${isLightTheme ? 'border border-[#E2E8F0] bg-white' : 'border border-[#1E2939] bg-[#050D1F]'}`}>
                 {matchFilter(derived.purchaseNowPrimary) && (
                   <Row
                     row={derived.purchaseNowPrimary}
@@ -826,6 +835,7 @@ export default function BulletStrategyMockup({
                     onSetReminder={() => setShowReminderModal(true)}
                     highlight
                     seamless
+                    isLightTheme={isLightTheme}
                   />
                 )}
                 {showOtherNow && derived.purchaseNowOthers.filter(matchFilter).map((row) => (
@@ -838,24 +848,26 @@ export default function BulletStrategyMockup({
                     onGenerateSummary={() => generateSummary(row.id)}
                     onSetReminder={() => setShowReminderModal(true)}
                     seamless
+                    isLightTheme={isLightTheme}
                   />
                 ))}
               </div>
             )}
           </div>
 
-          <div className="mx-4 border-t border-[#1E3A5F]" />
+          <div className={`mx-4 border-t ${isLightTheme ? 'border-[#E2E8F0]' : 'border-[#1E3A5F]'}`} />
 
-          <div className="bg-[#080F1C] px-4 pb-5 pt-4">
+          <div className={`${isLightTheme ? 'bg-[#F8FAFC]' : 'bg-[#080F1C]'} px-4 pb-5 pt-4`}>
             <SectionHeader
               title="Purchase in the Future"
               badge="Projected Rates"
               note="Rates are projected and may change"
               collapsed={futureCollapsed}
               onToggle={() => setFutureCollapsed((v) => !v)}
+              isLightTheme={isLightTheme}
             />
             {!futureCollapsed && derived.futureGroups.map((group) => (
-              <div key={group.id} className="mb-3 overflow-hidden rounded-[12px] border border-[#1E2939] bg-[#050D1F] last:mb-0">
+              <div key={group.id} className={`mb-3 overflow-hidden rounded-[12px] last:mb-0 ${isLightTheme ? 'border border-[#E2E8F0] bg-white' : 'border border-[#1E2939] bg-[#050D1F]'}`}>
                 {matchFilter(group.primary) && (
                   <Row
                     row={{ ...group.primary, slot: group.slot }}
@@ -870,6 +882,7 @@ export default function BulletStrategyMockup({
                     onSetReminder={() => setShowReminderModal(true)}
                     highlight
                     seamless
+                    isLightTheme={isLightTheme}
                   />
                 )}
                 {Boolean(showOtherFuture[group.id]) &&
@@ -884,6 +897,7 @@ export default function BulletStrategyMockup({
                       onGenerateSummary={() => generateSummary(row.id)}
                       onSetReminder={() => setShowReminderModal(true)}
                       seamless
+                      isLightTheme={isLightTheme}
                     />
                   ))}
               </div>
@@ -954,9 +968,9 @@ export default function BulletStrategyMockup({
         <div className="fixed inset-0 z-[80] flex items-center justify-center bg-[rgba(255,255,255,0.20)] backdrop-blur-[3px] p-4">
           <div className="w-full max-w-[380px] rounded-[10px] border-4 border-[#1E3A5F] bg-[#152341] px-6 py-6 text-center shadow-[0_4px_4px_rgba(0,0,0,0.25),0_4px_4px_rgba(0,0,0,0.20)]">
             <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-[#1E3A5F]">
-              <BellIcon className="h-7 w-7 text-white" />
+              <BellIcon className="theme-keep-white h-7 w-7 text-white" />
             </div>
-            <h3 className="text-[18px] font-medium leading-[26px] text-white">Reminder notifications are coming soon.</h3>
+            <h3 className="theme-keep-white text-[18px] font-medium leading-[26px] text-white">Reminder notifications are coming soon.</h3>
             <p className="mx-auto mt-2 max-w-[320px] text-[13px] font-normal leading-5 text-[#99A1AF]">
               We&apos;re building this feature to help you get notified when projected purchases are close.
               <br />
@@ -965,7 +979,7 @@ export default function BulletStrategyMockup({
             <button
               type="button"
               onClick={() => setShowReminderModal(false)}
-              className="mt-5 inline-flex h-10 min-w-[96px] items-center justify-center rounded-[8px] bg-[#0077FF] px-5 text-[15px] font-medium leading-6 text-white transition-colors hover:bg-[#1D83FF]"
+              className="theme-keep-white mt-5 inline-flex h-10 min-w-[96px] items-center justify-center rounded-[8px] bg-[#0077FF] px-5 text-[15px] font-medium leading-6 text-white transition-colors hover:bg-[#1D83FF]"
             >
               Got it
             </button>
