@@ -1653,8 +1653,8 @@ export default function App() {
   const strategyTabs = [
     { id: 'best-rate', title: 'Best Rate', subtitle: 'Highest single after-tax yield' },
     { id: 'ladder', title: 'CD Ladder', subtitle: 'Rolling liquidity every quarter' },
-    { id: 'barbell', title: 'Barbell', subtitle: 'Short + long, skip the middle' },
-    { id: 'bullet', title: 'Bullet', subtitle: 'All mature on your target date' },
+    { id: 'barbell', title: 'CD Barbell', subtitle: 'Short + long, skip the middle' },
+    { id: 'bullet', title: 'CD Bullet', subtitle: 'All mature on your target date' },
   ];
   const showBulletStrategyMockup = false;
 
@@ -2031,7 +2031,7 @@ export default function App() {
                       className={`w-[273px] flex h-[67px] shrink-0 items-center gap-3 border-0 bg-transparent text-left transition-all duration-300 ease-out ${
                         active
                           ? 'rounded-[12px] border border-[#F59E0C] bg-[#0D1B2E] px-6 shadow-[inset_0_0_0_1px_rgba(245,158,11,0.28),0_0_0_1px_rgba(245,158,11,0.2)]'
-                          : 'px-0 hover:opacity-90'
+                          : 'cursor-pointer px-0 hover:rounded-[12px] hover:border hover:border-[#F59E0C]/25 hover:bg-[#0D1B2E] hover:px-4 hover:shadow-[0_0_22px_rgba(245,158,11,0.07),inset_0_0_0_1px_rgba(245,158,11,0.12)]'
                       }`}
                     >
                       <span className={`inline-flex h-5 w-5 items-center justify-center ${textColorClass}`}>
@@ -2075,6 +2075,18 @@ export default function App() {
                 />
                 <AIAssistant rankResponse={rankResponse} />
               </>
+            ) : strategyView === 'ladder' ? (
+              <div className="flex flex-col items-center justify-center py-24 text-center">
+                <div className="mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-[#1E3A5F]">
+                  <svg className="h-8 w-8 text-[#0077FF]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+                <h2 className="mb-2 text-[22px] font-semibold text-white">CD Ladder — Coming Soon</h2>
+                <p className="max-w-[420px] text-[15px] leading-relaxed text-[#6B7280]">
+                  Stagger your CDs across multiple maturity dates to keep liquidity rolling while maximizing your after-tax yield. This strategy is currently in development.
+                </p>
+              </div>
             ) : strategyView === 'barbell' ? (
               <BarbellTab
                 embedded
