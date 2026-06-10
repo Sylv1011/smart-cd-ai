@@ -3,8 +3,8 @@ import {StrategyTabIcon} from './Icons/index';
 const strategyTabs = [
     { id: 'best-rate', title: 'Best Rate', subtitle: 'Highest single after-tax yield' },
     { id: 'ladder', title: 'CD Ladder', subtitle: 'Rolling liquidity every quarter' },
-    { id: 'barbell', title: 'Barbell', subtitle: 'Short + long, skip the middle' },
-    { id: 'bullet', title: 'Bullet', subtitle: 'All mature on your target date' },
+    { id: 'barbell', title: 'CD Barbell', subtitle: 'Short + long, skip the middle' },
+    { id: 'bullet', title: 'CD Bullet', subtitle: 'All mature on your target date' },
   ];
 
 const TAB_COLORS = {
