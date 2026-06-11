@@ -2088,47 +2088,17 @@ export default function App() {
                 </p>
               </div>
             ) : strategyView === 'barbell' ? (
-              <BarbellTab
-                embedded
-                initialTerm={barbellControls.term}
-                initialAmount={barbellControls.amount}
-                initialSplit={barbellControls.split}
-                initialShortTerm={barbellControls.shortTerm}
-                initialLongTerm={barbellControls.longTerm}
-                simulationData={barbellSimulation}
-                simulationLoading={barbellLoading}
-                simulationError={barbellError}
-                onExportPdf={() => window.print()}
-                onSelectStrategy={handleTabChange}
-                onControlsChange={(controls) => {
-                  setBarbellControlsDirty(true);
-                  if (controls?.shortTerm && controls.shortTerm !== barbellControls.shortTerm) {
-                    setBarbellTermOverrides((prev) => ({ ...prev, shortTerm: controls.shortTerm }));
-                  }
-                  if (controls?.longTerm && controls.longTerm !== barbellControls.longTerm) {
-                    setBarbellTermOverrides((prev) => ({ ...prev, longTerm: controls.longTerm }));
-                  }
-                  setBarbellControls((prev) => {
-                    const next = {
-                      term: controls?.term || prev.term,
-                      amount: controls?.amount || prev.amount,
-                      split: Number(controls?.split ?? prev.split),
-                      shortTerm: controls?.shortTerm || prev.shortTerm,
-                      longTerm: controls?.longTerm || prev.longTerm,
-                    };
-                    if (
-                      next.term === prev.term &&
-                      next.amount === prev.amount &&
-                      next.split === prev.split &&
-                      next.shortTerm === prev.shortTerm &&
-                      next.longTerm === prev.longTerm
-                    ) {
-                      return prev;
-                    }
-                    return next;
-                  });
-                }}
-              />
+              <div className="flex flex-col items-center justify-center py-24 text-center">
+                <div className="mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-[#1E3A5F]">
+                  <svg className="h-8 w-8 text-[#0077FF]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+                <h2 className="mb-2 text-[22px] font-semibold text-white">CD Barbell — Coming Soon</h2>
+                <p className="max-w-[420px] text-[15px] leading-relaxed text-[#6B7280]">
+                  Split your investment between short and long-term CDs to balance liquidity and maximize your after-tax yield. This strategy is currently in development.
+                </p>
+              </div>
             ) : (
               <>
             <div className="mb-6 flex items-start justify-between max-[768px]:mb-4 max-[768px]:flex-col max-[768px]:items-stretch max-[768px]:gap-3">
