@@ -149,17 +149,14 @@ def _clamp_0_100(x: float) -> int:
     return max(0, min(100, v))
 
 
-def _interest_simple(principal: float, apy: float, term_months: int) -> Tuple[float, float]:
-    """Simple-interest estimate.
-    This is a simplification for ranking purposes; actual interest may differ based on compounding frequency and bank policies.
-    """
+def _interest_compound(principal: float, apy: float, term_months: int) -> Tuple[float, float]:
     term_months = int(term_months)
     if term_months <= 0:
         raise RankingEngineError("term_months must be > 0")
     if principal <= 0:
         raise RankingEngineError("investment_amount must be > 0")
     term_years = float(term_months) / 12.0
-    interest = principal * (float(apy) / 100.0) * term_years
+    interest = principal * ((1.0 + float(apy) / 100.0) ** term_years - 1.0)
     return term_years, interest
 
 
@@ -183,8 +180,8 @@ def _rank_group(
 
         after_tax_apy, total_rate, fed, st, loc = after_tax_rate_for_offer(o, tax_ctx)
 
-        term_years, nominal_interest = _interest_simple(principal, o.apy, term_months)
-        _, after_tax_interest = _interest_simple(principal, after_tax_apy, term_months)
+        term_years, nominal_interest = _interest_compound(principal, o.apy, term_months)
+        _, after_tax_interest = _interest_compound(principal, after_tax_apy, term_months)
 
         # Normalize financial outputs to avoid floating point artifacts
         nominal_interest = round(nominal_interest, 2)

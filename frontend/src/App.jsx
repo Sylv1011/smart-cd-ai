@@ -4,11 +4,10 @@ import { locationData } from './utils/locationData';
 import { usStates } from './utils/statesData';
 import { stateNameToCode } from './utils/stateCodes';
 import AIAssistant from './AIAssistant';
-import SearchableSelect from './components/SearchableSelect';
-import StrictSelect from './components/StrictSelect';
-import StateAutocomplete from './components/StateAutocomplete';
+import Dropdown from './components/Dropdown';
 import BankBadge from './components/BankBadge';
 import BulletStrategyMockup from './components/BulletStrategyMockup';
+import BarbellTab from './components/BarbellTab';
 
 const SparkleIcon = ({ className, style }) => (
   <svg className={className} style={style} width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -94,13 +93,6 @@ const FilterIcon = ({ className }) => (
   </svg>
 );
 
-const HeaderSearchIcon = ({ className }) => (
-  <svg className={className} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-    <circle cx="11" cy="11" r="7"></circle>
-    <line x1="20" y1="20" x2="16.6" y2="16.6"></line>
-  </svg>
-);
-
 const ClockIcon = ({ className }) => (
   <svg className={className} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <circle cx="12" cy="12" r="10"></circle>
@@ -116,32 +108,31 @@ const ExternalLinkIcon = ({ className }) => (
   </svg>
 );
 
-const StrategyTabIcon = ({ id, active }) => {
-  const color = active ? '#FFFFFF' : id === 'ladder' ? '#FACC15' : '#FFFFFF';
+const StrategyTabIcon = ({ id }) => {
   if (id === 'best-rate') {
     return (
-      <svg className="h-5 w-5" viewBox="0 0 24 24" fill={color} aria-hidden="true">
+      <svg className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
         <path d="m12 2.4 2.92 5.92 6.54.95-4.73 4.61 1.12 6.51L12 17.31l-5.85 3.08 1.12-6.51-4.73-4.61 6.54-.95L12 2.4Z" />
       </svg>
     );
   }
   if (id === 'ladder') {
     return (
-      <svg className="h-5 w-5" viewBox="0 0 24 24" fill={color} aria-hidden="true">
+      <svg className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
         <path d="M13 2 4 14h7l-1 8 10-13h-7V2Z" />
       </svg>
     );
   }
   if (id === 'barbell') {
     return (
-      <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" aria-hidden="true">
+      <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
         <path d="m12 3 9 9-9 9-9-9 9-9Z" />
         <path d="m12 7 5 5-5 5-5-5 5-5Z" />
       </svg>
     );
   }
   return (
-    <svg className="h-5 w-5" viewBox="0 0 24 24" fill={color} aria-hidden="true">
+    <svg className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
       <path d="M8 5v14l11-7L8 5Z" />
     </svg>
   );
@@ -198,6 +189,26 @@ const toBulletTermLabel = (searchTermLabel) => {
   return `${months} months`;
 };
 
+const normalizeBarbellSplit = (value) => {
+  const allowed = [20, 30, 40, 50];
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return 50;
+  return allowed.reduce((closest, current) =>
+    Math.abs(current - numeric) < Math.abs(closest - numeric) ? current : closest
+  , allowed[0]);
+};
+
+const isSupportedBarbellSplit = (value) => {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) && numeric >= 20 && numeric <= 50 && numeric % 10 === 0;
+};
+
+const buildBarbellFormData = (formData, barbellControls) => ({
+  ...formData,
+  term_length_months: barbellControls?.term || formData.term_length_months,
+  investment_amount: barbellControls?.amount || formData.investment_amount,
+});
+
 const ALLOWED_TERM_MONTHS = [3, 6, 9, 12, 18, 24, 36, 48, 60];
 const TERM_LENGTH_OPTIONS = [
   '3 Month',
@@ -229,6 +240,21 @@ const FILING_STATUS_OPTIONS = [
 ];
 
 const LAST_SEARCH_STORAGE_KEY = 'smartcd:last_rank_inputs:v1';
+const getSearchStorage = () => window.sessionStorage;
+const clearSearchStorage = () => {
+  try {
+    getSearchStorage().removeItem(LAST_SEARCH_STORAGE_KEY);
+  } catch {
+    // ignore
+  }
+};
+const hasRestorableResultsSession = () => {
+  try {
+    return Boolean(getSearchStorage().getItem(LAST_SEARCH_STORAGE_KEY));
+  } catch {
+    return false;
+  }
+};
 
 const normalizeSavedTermLabel = (value) => {
   const v = (value || '').trim();
@@ -315,14 +341,7 @@ const normalizeSavedIncomeLabel = (value) => {
       'Unknown';
 
     const grossInterest = Number(o?.nominal_interest_usd ?? 0);
-    const fedRate = Number(o?.fed_rate ?? 0);
-    const stateRate = productType === 'Treasuries' ? 0 : Number(o?.state_rate ?? 0);
-    const localRate = productType === 'Treasuries' ? 0 : Number(o?.local_rate ?? 0);
-
-    const fedTax = grossInterest * fedRate;
-    const stateTax = grossInterest * stateRate;
-    const localTax = grossInterest * localRate;
-    const totalTax = fedTax + stateTax + localTax;
+    const totalTax = grossInterest - Number(o?.after_tax_interest_usd ?? 0);
     // For treasuries, savings = state+local tax avoided (API returns the user's actual marginal
     // rates even for treasuries, so we use the raw fields here, not the zeroed stateRate/localRate).
     const estimatedSavings = productType === 'Treasuries'
@@ -396,10 +415,23 @@ export default function App() {
   const [results, setResults] = useState([]);
   const [rankResponse, setRankResponse] = useState(null);
   const [bulletSimulation, setBulletSimulation] = useState(null);
+  const [barbellSimulation, setBarbellSimulation] = useState(null);
   const [bulletLoading, setBulletLoading] = useState(false);
+  const [barbellLoading, setBarbellLoading] = useState(false);
   const [bulletError, setBulletError] = useState(null);
+  const [barbellError, setBarbellError] = useState(null);
   const [bulletAlternativesByTranche, setBulletAlternativesByTranche] = useState({});
   const [bulletControls, setBulletControls] = useState({ term: '12 months', amount: '20000' });
+  const [bulletControlsDirty, setBulletControlsDirty] = useState(false);
+  const [barbellControls, setBarbellControls] = useState({
+    term: '12 months',
+    amount: '20000',
+    split: 50,
+    shortTerm: '3 months',
+    longTerm: '12 months',
+  });
+  const [barbellControlsDirty, setBarbellControlsDirty] = useState(false);
+  const [barbellTermOverrides, setBarbellTermOverrides] = useState({ shortTerm: null, longTerm: null });
   const aiBase = import.meta.env.VITE_AI_LAYER_URL;
   const [showPrivacy, setShowPrivacy] = useState(false);
   const THEME_STORAGE_KEY = 'smartcd:theme:v1';
@@ -410,7 +442,9 @@ export default function App() {
       return 'dark';
     }
   });
-  const [showResults, setShowResults] = useState(window.location.pathname === '/results');
+  const [showResults, setShowResults] = useState(
+    window.location.pathname === '/results' && hasRestorableResultsSession()
+  );
   const [viewMode, setViewMode] = useState('combined');
   const [strategyView, setStrategyView] = useState('best-rate');
   const [expandedCardId, setExpandedCardId] = useState(null);
@@ -418,12 +452,41 @@ export default function App() {
   const [sortColumn, setSortColumn] = useState(null); // 'nominalRate' | 'afterTaxYield' | 'minDeposit' | null
   const [sortDirection, setSortDirection] = useState('desc'); // 'asc' | 'desc'
   const latestRequestIdRef = useRef(0);
+  const latestBulletRequestIdRef = useRef(0);
+  const latestBarbellRequestIdRef = useRef(0);
   const didRestoreRef = useRef(false);
   const [selectedStateCode, setSelectedStateCode] = useState('');
   const [whyThisFitsOverrides, setWhyThisFitsOverrides] = useState({});
   const [whyThisFitsLoading, setWhyThisFitsLoading] = useState({});
   const [whyThisFitsFetched, setWhyThisFitsFetched] = useState({});
   const [whyThisFitsExpanded, setWhyThisFitsExpanded] = useState({});
+
+  const resetResultsState = () => {
+    setShowResults(false);
+    setStrategyView('best-rate');
+    setRankResponse(null);
+    setResults([]);
+    setBulletSimulation(null);
+    setBarbellSimulation(null);
+    setBulletLoading(false);
+    setBarbellLoading(false);
+    setBulletError(null);
+    setBarbellError(null);
+    setBulletAlternativesByTranche({});
+    setBarbellTermOverrides({ shortTerm: null, longTerm: null });
+    setExpandedCardId(null);
+    setProductTypeFilter('All products');
+    setSortColumn(null);
+    setSortDirection('desc');
+  };
+
+  const pushResultsHistoryState = (nextStrategyView) => {
+    window.history.pushState(
+      { page: 'results', strategyView: nextStrategyView },
+      '',
+      '/results'
+    );
+  };
 
   useEffect(() => {
     try {
@@ -575,11 +638,21 @@ export default function App() {
   };
 
   useEffect(() => {
-    const handlePopState = () => {
-      if (window.location.pathname === '/results') {
+    if (window.location.pathname === '/results' && !hasRestorableResultsSession()) {
+      window.history.replaceState({ page: 'home' }, '', '/');
+      resetResultsState();
+    }
+
+    const handlePopState = (event) => {
+      if (window.location.pathname === '/results' && hasRestorableResultsSession()) {
         setShowResults(true);
+        setStrategyView(event.state?.strategyView || 'best-rate');
       } else {
-        setShowResults(false);
+        if (window.location.pathname === '/results') {
+          window.history.replaceState({ page: 'home' }, '', '/');
+        }
+        clearSearchStorage();
+        resetResultsState();
       }
     };
     window.addEventListener('popstate', handlePopState);
@@ -599,6 +672,9 @@ export default function App() {
   const [showErrors, setShowErrors] = useState(false);
   const [touchedFields, setTouchedFields] = useState({});
   const refreshTimeoutRef = useRef(null);
+  const cashInputRef = useRef(null);
+  const cashCursorRef = useRef(null);
+  const bulletRefreshTimeoutRef = useRef(null);
 
   const getAllowedAreas = (stateSelection) => {
     const state = (stateSelection || '').trim();
@@ -669,9 +745,10 @@ export default function App() {
 
   const persistLastSearch = (nextFormData, options = {}) => {
     try {
+      const storage = getSearchStorage();
       let existing = null;
       try {
-        existing = JSON.parse(window.localStorage.getItem(LAST_SEARCH_STORAGE_KEY) || 'null');
+        existing = JSON.parse(storage.getItem(LAST_SEARCH_STORAGE_KEY) || 'null');
       } catch {
         existing = null;
       }
@@ -687,7 +764,7 @@ export default function App() {
         termsAgreed: nextTermsAgreed,
         savedAt: Date.now(),
       };
-      window.localStorage.setItem(LAST_SEARCH_STORAGE_KEY, JSON.stringify(payload));
+      storage.setItem(LAST_SEARCH_STORAGE_KEY, JSON.stringify(payload));
     } catch {
       // best-effort only
     }
@@ -743,7 +820,9 @@ export default function App() {
       setResults(adaptRankResponseToUiResults(payload));
 
       if (navigateToResults) {
-        window.history.pushState({ page: 'results' }, '', '/results');
+        setBulletControlsDirty(false);
+        setBarbellControlsDirty(false);
+        pushResultsHistoryState('best-rate');
         setShowResults(true);
         setStrategyView('best-rate');
       }
@@ -763,6 +842,7 @@ export default function App() {
   };
 
   const fetchBulletSimulation = async (nextFormData, options = {}) => {
+    const requestId = ++latestBulletRequestIdRef.current;
     const { silent = false, controlsOverride = null } = options;
     const effectiveControls = controlsOverride || bulletControls;
     const controlsAmount = parseFloat(String(effectiveControls.amount || '').replace(/[^0-9.]/g, ''));
@@ -804,12 +884,19 @@ export default function App() {
         body: JSON.stringify(payload),
       });
 
+      if (requestId !== latestBulletRequestIdRef.current) {
+        return;
+      }
+
       if (!response.ok) {
         const errPayload = await response.json().catch(() => ({}));
         throw new Error(errPayload.detail || 'Failed to fetch bullet simulation.');
       }
 
       const simulationPayload = await response.json();
+      if (requestId !== latestBulletRequestIdRef.current) {
+        return;
+      }
       setBulletSimulation(simulationPayload);
       const tranches = Array.isArray(simulationPayload?.tranches) ? simulationPayload.tranches : [];
       const rankBaseForAlternatives =
@@ -839,8 +926,14 @@ export default function App() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(rankReq),
           });
+          if (requestId !== latestBulletRequestIdRef.current) {
+            return;
+          }
           if (rankRes.ok) {
             const rankPayload = await rankRes.json();
+            if (requestId !== latestBulletRequestIdRef.current) {
+              return;
+            }
             altMap[String(t?.tranche)] = Array.isArray(rankPayload?.overall_top) ? rankPayload.overall_top : [];
           } else {
             altMap[String(t?.tranche)] = [];
@@ -849,13 +942,108 @@ export default function App() {
           altMap[String(t?.tranche)] = [];
         }
       }
+      if (requestId !== latestBulletRequestIdRef.current) {
+        return;
+      }
       setBulletAlternativesByTranche(altMap);
     } catch (err) {
+      if (requestId !== latestBulletRequestIdRef.current) {
+        return;
+      }
       setBulletError(err.message || 'Unable to fetch bullet simulation.');
       setBulletAlternativesByTranche({});
     } finally {
-      if (!silent) {
+      if (!silent && requestId === latestBulletRequestIdRef.current) {
         setBulletLoading(false);
+      }
+    }
+  };
+
+  const fetchBarbellSimulation = async (nextFormData, options = {}) => {
+    const requestId = ++latestBarbellRequestIdRef.current;
+    const effectiveControls = {
+      term:
+        options?.controlsOverride?.term ||
+        barbellControls.term ||
+        toBulletTermLabel(nextFormData.term_length_months),
+      amount:
+        String(options?.controlsOverride?.amount || barbellControls.amount || nextFormData.investment_amount || '')
+          .replace(/[^0-9.]/g, '') || '20000',
+      split: Number(options?.controlsOverride?.split ?? barbellControls.split ?? 50),
+    };
+
+    const rankBase =
+      import.meta.env.VITE_RANKING_API_URL ||
+      import.meta.env.VITE_API_URL ||
+      'http://localhost:8001';
+
+    const termMonths = parseTermToMonths(effectiveControls.term);
+    const payload = {
+      strategy_type: 'barbell',
+      investment_amount:
+        parseFloat(effectiveControls.amount) || parseFloat(nextFormData.investment_amount),
+      state: selectedStateCode || stateNameToCode[nextFormData.state_selection] || nextFormData.state_selection,
+      income_range: nextFormData.income_range,
+      filing_status: normalizeFilingStatusForRanker(nextFormData.tax_filing_status),
+      local_area: nextFormData.city_county || null,
+      time_horizon: String(Math.round((termMonths / 12) * 10) / 10),
+      target_maturity_months: termMonths,
+      short_term_percentage: normalizeBarbellSplit(effectiveControls.split),
+      ...(barbellTermOverrides.shortTerm !== null && {
+        short_term_months: parseTermToMonths(barbellTermOverrides.shortTerm),
+      }),
+      ...(barbellTermOverrides.longTerm !== null && {
+        long_term_months: parseTermToMonths(barbellTermOverrides.longTerm),
+      }),
+    };
+
+    setBarbellLoading(true);
+    setBarbellError(null);
+
+    try {
+      const response = await fetch(`${rankBase}/strategies/simulate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      if (requestId !== latestBarbellRequestIdRef.current) {
+        return;
+      }
+
+      if (!response.ok) {
+        const errPayload = await response.json().catch(() => ({}));
+        const detail = errPayload?.detail;
+        const detailMessage = Array.isArray(detail)
+          ? detail.map((item) => item?.msg || item?.message || JSON.stringify(item)).join(' ')
+          : typeof detail === 'string'
+            ? detail
+            : null;
+        throw new Error(detailMessage || errPayload?.message || 'Failed to fetch barbell simulation.');
+      }
+
+      const simulationPayload = await response.json();
+      if (requestId !== latestBarbellRequestIdRef.current) {
+        return;
+      }
+
+      setBarbellSimulation(simulationPayload);
+      setBarbellControls({
+        term: effectiveControls.term,
+        amount: effectiveControls.amount,
+        split: effectiveControls.split,
+        shortTerm: barbellControls.shortTerm,
+        longTerm: barbellControls.longTerm,
+      });
+    } catch (err) {
+      if (requestId !== latestBarbellRequestIdRef.current) {
+        return;
+      }
+      console.error('Error fetching barbell simulation:', err);
+      setBarbellError(err.message || 'Unable to fetch barbell simulation.');
+    } finally {
+      if (requestId === latestBarbellRequestIdRef.current) {
+        setBarbellLoading(false);
       }
     }
   };
@@ -905,10 +1093,58 @@ export default function App() {
     }, 250);
   };
 
+  const handleTabChange = (tabId) => {
+    if (showResults && strategyView !== tabId) {
+      pushResultsHistoryState(tabId);
+    }
+
+    setStrategyView(tabId);
+
+    if (tabId === 'bullet' && canAutoRefreshRank(formData)) {
+      const syncedControls = bulletControlsDirty
+        ? bulletControls
+        : {
+            term: toBulletTermLabel(formData.term_length_months),
+            amount: String(formData.investment_amount || '').replace(/[^0-9]/g, '') || '20000',
+          };
+      setBulletControls(syncedControls);
+      fetchBulletSimulation(formData, {
+        silent: false,
+        controlsOverride: syncedControls,
+      });
+      return;
+    }
+
+    if (tabId === 'barbell' && canAutoRefreshRank(formData)) {
+      const syncedControls = barbellControlsDirty
+        ? barbellControls
+        : {
+            term: toBulletTermLabel(formData.term_length_months),
+            shortTerm: barbellControls.shortTerm || '3 months',
+            longTerm: barbellControls.longTerm || '12 months',
+            amount:
+              String(formData.investment_amount || '').replace(/[^0-9]/g, '') ||
+              barbellControls.amount ||
+              '20000',
+            split: Number(barbellControls.split ?? 50),
+          };
+
+      setBarbellControls(syncedControls);
+      if (isSupportedBarbellSplit(syncedControls.split)) {
+        fetchBarbellSimulation(buildBarbellFormData(formData, syncedControls), {
+          controlsOverride: syncedControls,
+        });
+      }
+    }
+  };
+
   useEffect(() => {
     return () => {
       if (refreshTimeoutRef.current) {
         clearTimeout(refreshTimeoutRef.current);
+      }
+      if (bulletRefreshTimeoutRef.current) {
+        clearTimeout(bulletRefreshTimeoutRef.current);
       }
     };
   }, []);
@@ -927,7 +1163,7 @@ export default function App() {
 
     let saved = null;
     try {
-      saved = JSON.parse(window.localStorage.getItem(LAST_SEARCH_STORAGE_KEY) || 'null');
+      saved = JSON.parse(getSearchStorage().getItem(LAST_SEARCH_STORAGE_KEY) || 'null');
     } catch {
       saved = null;
     }
@@ -970,9 +1206,30 @@ export default function App() {
   }, [showResults, rankResponse]);
 
   useEffect(() => {
-    if (!showResults || strategyView !== 'bullet') return;
-    if (!canAutoRefreshRank(formData)) return;
-    fetchBulletSimulation(formData, { silent: false });
+    if (!showResults) return;
+
+    if (strategyView === 'bullet') {
+      if (!canAutoRefreshRank(formData)) return;
+      if (bulletRefreshTimeoutRef.current) {
+        clearTimeout(bulletRefreshTimeoutRef.current);
+      }
+      bulletRefreshTimeoutRef.current = setTimeout(() => {
+        fetchBulletSimulation(formData, { silent: false });
+      }, 500);
+      return;
+    }
+
+    if (bulletRefreshTimeoutRef.current) {
+      clearTimeout(bulletRefreshTimeoutRef.current);
+      bulletRefreshTimeoutRef.current = null;
+    }
+
+    if (strategyView === 'barbell') {
+      const nextBarbellFormData = buildBarbellFormData(formData, barbellControls);
+      if (!canAutoRefreshRank(nextBarbellFormData)) return;
+      if (!isSupportedBarbellSplit(barbellControls.split)) return;
+      fetchBarbellSimulation(nextBarbellFormData, { controlsOverride: barbellControls });
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     strategyView,
@@ -984,11 +1241,25 @@ export default function App() {
     formData.city_county,
     formData.tax_filing_status,
     selectedStateCode,
+    barbellControls.term,
     bulletControls.term,
     bulletControls.amount,
+    barbellControls.amount,
+    barbellControls.split,
+    barbellControls.shortTerm,
+    barbellControls.longTerm,
   ]);
 
+  useEffect(() => {
+    if (cashCursorRef.current !== null && cashInputRef.current) {
+      const pos = cashInputRef.current.value.length - cashCursorRef.current;
+      cashInputRef.current.setSelectionRange(pos, pos);
+      cashCursorRef.current = null;
+    }
+  }, [formData.investment_amount]);
+
   const isAutoRefreshField = (name) => (
+    name === 'investment_amount' ||
     name === 'term_length_months' ||
     name === 'income_range' ||
     name === 'state_selection' ||
@@ -1117,12 +1388,52 @@ export default function App() {
       window.open(url, '_blank', 'noopener,noreferrer');
     };
 
+    const rowSurfaceClass = isExpanded
+      ? (theme === 'light' ? 'bg-[#F8FAFC] border-b-0' : 'bg-[#0A1E14] border-b-0')
+      : result.isTopPick
+        ? (theme === 'light' ? 'bg-[#EEF4FF] border-b border-[#E2E8F0]' : 'bg-[#062314] border-b border-[#1E293B]')
+        : (theme === 'light' ? 'bg-white border-b border-[#E2E8F0]' : 'bg-[#081329] border-b border-[#1E293B]');
+    const expandedSurfaceClass = theme === 'light' ? 'bg-[#F8FAFC]' : 'bg-[#050d1f]';
+    const expandedBorderClass = theme === 'light' ? 'border-t border-[#E2E8F0]' : 'border-t border-[rgba(255,255,255,0.2)]';
+    const taxCardClass = theme === 'light'
+      ? 'rounded-[10px] border border-[#D7E7D9] bg-[linear-gradient(105deg,#F8FFFA_0%,#ECFDF3_68%)] p-4'
+      : 'rounded-[10px] border border-[#0B5C2A] bg-[linear-gradient(105deg,rgba(6,50,31,0.88)_0%,rgba(2,14,22,0.95)_68%)] p-4';
+    const taxHeadingClass = theme === 'light'
+      ? 'mb-3 border-b border-[rgba(34,197,94,0.12)] pb-3 text-[13px] font-bold leading-none text-[#0F172A]'
+      : 'mb-3 border-b border-[rgba(34,197,94,0.14)] pb-3 text-[13px] font-bold leading-none text-[#F8FAFC]';
+    const taxLabelClass = theme === 'light' ? 'text-[#475569]' : 'text-[#8FB3C4]';
+    const taxDividerClass = theme === 'light' ? 'my-4 border-t border-[rgba(34,197,94,0.10)]' : 'my-4 border-t border-[rgba(34,197,94,0.12)]';
+    const netReturnClass = theme === 'light'
+      ? 'flex items-center justify-between rounded-[10px] border border-[#B7E2C4] bg-[linear-gradient(92deg,#F0FDF4_0%,#DCFCE7_100%)] px-3 py-2 text-[13px] font-bold'
+      : 'flex items-center justify-between rounded-[10px] border border-[#0B5C2A] bg-[linear-gradient(92deg,rgba(8,58,36,0.85)_0%,rgba(3,36,23,0.9)_100%)] px-3 py-2 text-[13px] font-bold';
+    const whyPanelClass = theme === 'light'
+      ? (
+          isWhyExpanded
+            ? 'h-[231px] border border-[#BFDBFE] bg-[linear-gradient(180deg,#FFFFFF_0%,#EFF6FF_100%)] shadow-[inset_0_0_0_1px_rgba(21,87,245,0.08)]'
+            : 'h-[52px] border border-[#BFDBFE] bg-[#F8FBFF] shadow-[inset_0_0_0_1px_rgba(21,87,245,0.12)]'
+        )
+      : (
+          isWhyExpanded
+            ? 'h-[231px] border border-[#1557F5] bg-[linear-gradient(180deg,#07170F_0%,#06120D_100%)] shadow-[inset_0_0_0_1px_rgba(140,194,255,0.18)]'
+            : 'h-[52px] border border-[#1557F5] bg-[#07170F] shadow-[inset_0_0_0_1px_rgba(140,194,255,0.26)]'
+        );
+    const whyHeaderClass = theme === 'light'
+      ? (isWhyExpanded
+          ? 'relative mt-[6px] h-[52px] rounded-[12px] border border-[rgba(21,87,245,0.18)] bg-[#F8FBFF]'
+          : 'relative h-full')
+      : (isWhyExpanded
+          ? 'relative mt-[6px] h-[52px] rounded-[12px] border border-[rgba(21,87,245,0.45)] bg-[#07170F]'
+          : 'relative h-full');
+    const whyBodyClass = theme === 'light'
+      ? 'rounded-xl border border-[rgba(21,87,245,0.14)] bg-white px-4 py-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] max-[768px]:px-3 max-[768px]:py-3'
+      : 'rounded-xl border border-[rgba(29,141,238,0.22)] bg-[rgba(2,10,22,0.55)] px-4 py-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] max-[768px]:px-3 max-[768px]:py-3';
+
     return (
       <div key={result.id}>
         <div
-          className={`smartcd-result-row ${result.isTopPick ? 'smartcd-top-pick' : ''} relative transition-colors max-[768px]:flex max-[768px]:flex-col max-[768px]:items-stretch max-[768px]:gap-3 max-[768px]:px-4 max-[768px]:py-3 md:grid md:items-center md:gap-4 md:px-5 md:hover:bg-[rgba(29,141,238,0.05)] ${result.isTopPick ? 'md:pt-8 md:pb-5' : 'md:py-5'} ${showProductType ? 'md:grid-cols-[minmax(220px,2.05fr)_minmax(145px,1.12fr)_minmax(118px,0.9fr)_minmax(150px,1.02fr)_minmax(130px,0.9fr)_220px]' : 'md:grid-cols-[minmax(220px,2.2fr)_minmax(118px,0.95fr)_minmax(150px,1.05fr)_minmax(130px,0.95fr)_220px]'} ${isExpanded ? 'bg-[#0A1E14] border-b-0' : result.isTopPick ? 'bg-[#062314] border-b border-[#1E293B]' : 'bg-[#081329] border-b border-[#1E293B]'}`}
+          className={`smartcd-result-row ${result.isTopPick ? 'smartcd-top-pick' : ''} relative transition-colors max-[768px]:flex max-[768px]:flex-col max-[768px]:items-stretch max-[768px]:gap-3 max-[768px]:px-4 max-[768px]:py-3 md:grid md:items-center md:gap-4 md:px-5 md:hover:bg-[rgba(29,141,238,0.05)] ${result.isTopPick ? 'md:pt-8 md:pb-5' : 'md:py-5'} ${showProductType ? 'md:grid-cols-[minmax(220px,2.05fr)_minmax(145px,1.12fr)_minmax(118px,0.9fr)_minmax(150px,1.02fr)_minmax(130px,0.9fr)_220px]' : 'md:grid-cols-[minmax(220px,2.2fr)_minmax(118px,0.95fr)_minmax(150px,1.05fr)_minmax(130px,0.95fr)_220px]'} ${rowSurfaceClass}`}
         >
-          <div className="flex items-center max-[768px]:order-1 max-[768px]:flex-col max-[768px]:items-start max-[768px]:gap-2 max-[768px]:border-b max-[768px]:border-[#1E293B] max-[768px]:pb-3">
+          <div className={`flex items-center max-[768px]:order-1 max-[768px]:flex-col max-[768px]:items-start max-[768px]:gap-2 max-[768px]:border-b max-[768px]:pb-3 ${theme === 'light' ? 'max-[768px]:border-[#E2E8F0]' : 'max-[768px]:border-[#1E293B]'}`}>
             {result.isTopPick && <span className="theme-keep-white inline-flex shrink-0 rounded-full bg-[linear-gradient(180deg,#22C55E_0%,#16A34A_100%)] px-3 py-1 text-[0.64rem] font-extrabold uppercase tracking-[0.04em] text-white md:hidden">★ TOP PICK</span>}
             <div className="flex w-full min-w-0 items-center gap-3 md:pr-3">
               <BankBadge result={result} />
@@ -1187,55 +1498,43 @@ export default function App() {
         </div>
 
         {isExpanded && (
-          <div className="bg-[#050d1f] px-0 pb-0 pt-0">
-            <div className="grid grid-cols-2 gap-4 border-t border-[rgba(255,255,255,0.2)] px-6 py-5 max-[768px]:grid-cols-1 max-[768px]:px-3 max-[768px]:py-3">
-              <div className="rounded-[10px] border border-[#0B5C2A] bg-[linear-gradient(105deg,rgba(6,50,31,0.88)_0%,rgba(2,14,22,0.95)_68%)] p-4">
-                <div className="mb-3 border-b border-[rgba(34,197,94,0.14)] pb-3 text-[13px] font-bold leading-none text-[#F8FAFC]">
-                  Read Tax Break down
+          <div className={`${expandedSurfaceClass} px-0 pb-0 pt-0`}>
+            <div className={`grid grid-cols-2 gap-4 px-6 py-5 max-[768px]:grid-cols-1 max-[768px]:px-3 max-[768px]:py-3 ${expandedBorderClass}`}>
+              <div className={taxCardClass}>
+                <div className={taxHeadingClass}>
+                  Read Tax Breakdown
                 </div>
                 <div className="space-y-4 text-[12.5px]">
                   <div className="flex items-center justify-between">
-                    <span className="text-[#8FB3C4]">Interest Earned :</span>
+                    <span className={taxLabelClass}>Interest Earned :</span>
                     <span className="font-bold text-[#22C55E]">{result.taxBreakdown.interestEarned}</span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-[#8FB3C4]">Total Tax :</span>
+                    <span className={taxLabelClass}>Total Tax :</span>
                     <span className="font-bold text-[#FF3B3B]">{result.taxBreakdown.totalTax}</span>
                   </div>
                 </div>
-                <div className="my-4 border-t border-[rgba(34,197,94,0.12)]"></div>
-                <div className="flex items-center justify-between rounded-[10px] border border-[#0B5C2A] bg-[linear-gradient(92deg,rgba(8,58,36,0.85)_0%,rgba(3,36,23,0.9)_100%)] px-3 py-2 text-[13px] font-bold">
-                  <span className="text-[#E2E8F0]">Net Return :</span>
+                <div className={taxDividerClass}></div>
+                <div className={netReturnClass}>
+                  <span className={theme === 'light' ? 'text-[#0F172A]' : 'text-[#E2E8F0]'}>Net Return :</span>
                   <span className="text-[17px] text-[#22C55E]">{result.netReturn}</span>
                 </div>
                 {result.productType === 'Treasuries' && (
                   <div className="mt-3 flex items-center justify-between gap-3 text-[0.78rem]">
-                    <span className="text-[#6B7280]">Includes <span className="font-bold text-[#22C55E]">{result.taxBreakdown.totalSavings}</span> in state &amp; local tax savings</span>
+                    <span className={theme === 'light' ? 'text-[#64748B]' : 'text-[#6B7280]'}>Includes <span className="font-bold text-[#22C55E]">{result.taxBreakdown.totalSavings}</span> in state &amp; local tax savings</span>
                   </div>
                 )}
               </div>
 
-              <div
-                className={`overflow-hidden rounded-[12px] ${
-                  isWhyExpanded
-                    ? 'h-[231px] border border-[#1557F5] bg-[linear-gradient(180deg,#07170F_0%,#06120D_100%)] shadow-[inset_0_0_0_1px_rgba(140,194,255,0.18)]'
-                    : 'h-[52px] border border-[#1557F5] bg-[#07170F] shadow-[inset_0_0_0_1px_rgba(140,194,255,0.26)]'
-                }`}
-              >
-                <div
-                  className={`flex items-center ${
-                    isWhyExpanded
-                      ? 'relative mt-[6px] h-[52px] rounded-[12px] border border-[rgba(21,87,245,0.45)] bg-[#07170F]'
-                      : 'relative h-full'
-                  }`}
-                >
+              <div className={`overflow-hidden rounded-[12px] ${whyPanelClass}`}>
+                <div className={`flex items-center ${whyHeaderClass}`}>
                   {!isWhyExpanded ? (
                     <>
-                      <div className="absolute left-[16px] top-1/2 -translate-y-1/2 text-[14px] font-bold leading-none text-white">Why this Fits</div>
+                      <div className={`absolute left-[16px] top-1/2 -translate-y-1/2 text-[14px] font-bold leading-none ${theme === 'light' ? 'text-[#0F172A]' : 'text-white'}`}>Why this Fits</div>
                       <div className="absolute left-[212px] top-1/2 -translate-y-1/2 text-[14px] font-bold leading-none text-[#22C55E]">{safeMatch}% Match</div>
                       <button
                         type="button"
-                        className="absolute left-[411px] top-1/2 inline-flex h-[28px] w-[155px] -translate-y-1/2 items-center justify-center gap-1 rounded-[8px] border border-[#6A9ABE] bg-transparent px-[6px] py-[5px] text-[12px] font-bold leading-none text-[#6A9ABE] shadow-[inset_0_0_0_1px_rgba(106,154,190,0.35)] hover:bg-[#0f2a1f]"
+                        className={`absolute left-[411px] top-1/2 inline-flex h-[28px] w-[155px] -translate-y-1/2 items-center justify-center gap-1 rounded-[8px] border border-[#6A9ABE] bg-transparent px-[6px] py-[5px] text-[12px] font-bold leading-none text-[#6A9ABE] shadow-[inset_0_0_0_1px_rgba(106,154,190,0.35)] ${theme === 'light' ? 'hover:bg-[#EAF2FF]' : 'hover:bg-[#0f2a1f]'}`}
                         onClick={(e) => {
                           e.preventDefault();
                           e.stopPropagation();
@@ -1250,9 +1549,9 @@ export default function App() {
                     </>
                   ) : (
                     <>
-                      <div className="absolute left-[16px] top-1/2 -translate-y-1/2 whitespace-nowrap text-[14px] font-bold leading-none text-white">Why this Fits</div>
-                      <div className="absolute left-[244px] top-1/2 -translate-y-1/2 text-[12px] font-bold leading-none text-[#3A6090]">Match Score</div>
-                      <div className="absolute left-[352px] top-1/2 h-[6px] w-[180px] -translate-y-1/2 rounded-full bg-[#0D2A1F]">
+                      <div className={`absolute left-[16px] top-1/2 -translate-y-1/2 whitespace-nowrap text-[14px] font-bold leading-none ${theme === 'light' ? 'text-[#0F172A]' : 'text-white'}`}>Why this Fits</div>
+                      <div className={`absolute left-[244px] top-1/2 -translate-y-1/2 text-[12px] font-bold leading-none ${theme === 'light' ? 'text-[#64748B]' : 'text-[#3A6090]'}`}>Match Score</div>
+                      <div className={`absolute left-[352px] top-1/2 h-[6px] w-[180px] -translate-y-1/2 rounded-full ${theme === 'light' ? 'bg-[#DBEAFE]' : 'bg-[#0D2A1F]'}`}>
                         <div className="h-[6px] rounded-full bg-[#22C55E]" style={{ width: `${Math.max(0, Math.min(100, safeMatch))}%` }} />
                       </div>
                       <div className="absolute right-[18px] top-1/2 -translate-y-1/2 text-[18px] font-bold leading-none text-[#22C55E]">{safeMatch}%</div>
@@ -1262,7 +1561,7 @@ export default function App() {
 
                 {isWhyExpanded && (
                   <div className="pb-4 pt-3">
-                    <div className="rounded-xl border border-[rgba(29,141,238,0.22)] bg-[rgba(2,10,22,0.55)] px-4 py-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] max-[768px]:px-3 max-[768px]:py-3">
+                    <div className={whyBodyClass}>
                       <div className="grid grid-cols-[20px_1fr] items-start gap-x-2 gap-y-3 text-left">
                         {isWhyLoading ? (
                           <>
@@ -1354,14 +1653,15 @@ export default function App() {
   const strategyTabs = [
     { id: 'best-rate', title: 'Best Rate', subtitle: 'Highest single after-tax yield' },
     { id: 'ladder', title: 'CD Ladder', subtitle: 'Rolling liquidity every quarter' },
-    { id: 'barbell', title: 'Barbell', subtitle: 'Short + long, skip the middle' },
-    { id: 'bullet', title: 'Bullet', subtitle: 'All mature on your target date' },
+    { id: 'barbell', title: 'CD Barbell', subtitle: 'Short + long, skip the middle' },
+    { id: 'bullet', title: 'CD Bullet', subtitle: 'All mature on your target date' },
   ];
   const showBulletStrategyMockup = false;
 
   const navigateToHome = () => {
     window.history.pushState({ page: 'home' }, '', '/');
-    setShowResults(false);
+    clearSearchStorage();
+    resetResultsState();
   };
 
   const isBulletResultsView = showResults && strategyView === 'bullet';
@@ -1483,17 +1783,10 @@ export default function App() {
         {showBulletStrategyMockup ? (
           <div className="mx-auto flex h-[67px] w-full max-w-[1397px] items-center justify-between px-[31px] pt-[6px]">
             <button type="button" className="inline-flex items-center border-0 bg-transparent p-0 cursor-pointer" onClick={navigateToHome}>
-              <img src="/logo-new.png" alt="SmartCD.ai" className="h-[46px] w-auto" />
+              <img src="/new-logo.png" alt="SmartCD.ai" className="h-[46px] w-auto" />
             </button>
 
-            <div className="flex items-center gap-[13px]">
-              <label className="hidden h-[46px] w-[294px] items-center gap-2 rounded-[8px] border border-[#1E3A5A] bg-[rgba(11,27,53,0.25)] px-3 text-[#94A3B8] shadow-[inset_0_0_0_1px_rgba(30,58,90,0.2)] md:inline-flex">
-                <HeaderSearchIcon className="h-4 w-4 shrink-0 text-[#94A3B8]" />
-                <span style={{ color: '#94A3B8', fontSize: 14, fontFamily: 'Inter, sans-serif', fontWeight: 400, lineHeight: '20px' }}>
-                  Search Institution like Citi Bank
-                </span>
-              </label>
-
+            <div className="flex items-center">
               <button
                 type="button"
                 aria-label={theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode'}
@@ -1509,25 +1802,17 @@ export default function App() {
           <>
             <div className="flex items-center gap-3 cursor-pointer" onClick={navigateToHome}>
               <img
-                src="/logo-new.png"
+                src="/new-logo.png"
                 alt="SmartCD.ai Logo"
                 className="h-11 w-auto max-[768px]:h-9"
               />
-            </div>
-            <div className="ml-auto flex items-center gap-3">
-              <label className="hidden h-[38px] w-[294px] items-center gap-2 rounded-[8px] border border-[#1E3A5A] bg-[rgba(11,27,53,0.25)] px-3 text-[#94A3B8] shadow-[inset_0_0_0_1px_rgba(30,58,90,0.2)] lg:inline-flex">
-                <HeaderSearchIcon className="h-4 w-4 shrink-0 text-[#94A3B8]" />
-                <span style={{ color: '#94A3B8', fontSize: 14, fontFamily: 'Inter, sans-serif', fontWeight: 400, lineHeight: '20px' }}>
-                  Search Institution like Citi Bank
-                </span>
-              </label>
             </div>
             <button
               type="button"
               aria-label={theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode'}
               aria-pressed={theme === 'light'}
               onClick={() => setTheme((prev) => (prev === 'light' ? 'dark' : 'light'))}
-              className={`inline-flex items-center justify-center rounded-full border transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 ${
+              className={`ml-auto inline-flex items-center justify-center rounded-full border transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 ${
                 theme === 'light'
                   ? 'h-10 w-10 border-[#CBD5E1] bg-[#EFF6FF] text-[#1E2941] focus:ring-[#1557F5] focus:ring-offset-white'
                   : 'h-10 w-10 border-[rgba(255,255,255,0.22)] bg-[rgba(255,255,255,0.08)] text-white focus:ring-[#92C5F9] focus:ring-offset-[#101b30]'
@@ -1542,7 +1827,7 @@ export default function App() {
       {/* Main Content - Dark Background */}
       <main className="main-content">
         {showBulletStrategyMockup ? (
-          <BulletStrategyMockup />
+          <BulletStrategyMockup theme={theme} />
         ) : !showResults ? (
           <>
             <div className="text-center max-w-[900px] mb-[60px] flex flex-col items-center max-[768px]:mb-7">
@@ -1590,17 +1875,24 @@ export default function App() {
                     <div className="flex flex-col gap-2.5 relative">
                       <label htmlFor="investment_amount" className="text-xs font-semibold text-[#6B7280] capitalize">Cash Amount</label>
                       <div className="relative flex items-center">
-                        <span className="absolute left-4 text-[#111827] font-semibold pointer-events-none flex items-center">$</span>
+                        {formData.investment_amount && (
+                          <span className="absolute left-4 text-[#1E293B] text-base font-normal pointer-events-none flex items-center">$</span>
+                        )}
                         <input
-                          type="number"
+                          ref={cashInputRef}
+                          type="text"
+                          inputMode="numeric"
                           id="investment_amount"
                           name="investment_amount"
-                          value={formData.investment_amount}
-                          onChange={handleChange}
+                          value={formData.investment_amount ? Number(formData.investment_amount).toLocaleString('en-US') : ''}
+                          onChange={(e) => {
+                            cashCursorRef.current = e.target.value.length - e.target.selectionStart;
+                            const digits = e.target.value.replace(/[^0-9]/g, '');
+                            handleChange({ target: { name: 'investment_amount', value: digits } });
+                          }}
                           onBlur={handleFieldBlur}
-                          className={`w-full pl-8 pr-4 py-4 text-base font-medium rounded-[8px] border outline-none bg-white text-[#111827] transition-all placeholder:text-[#9CA3AF] placeholder:font-normal appearance-none focus:shadow-[0_0_0_2px_rgba(29,141,238,0.3)] ${investmentAmountError ? 'border-[#FF5252] shadow-[0_0_0_2px_rgba(255,82,82,0.2)]' : 'border-[#E5E7EB]'}`}
+                          className={`w-full ${formData.investment_amount ? 'pl-8' : 'pl-4'} pr-4 py-4 text-base leading-6 font-normal box-border rounded-[8px] border outline-none bg-white text-[#1E293B] transition-all placeholder:text-[#9CA3AF] placeholder:font-normal appearance-none focus:shadow-[0_0_0_2px_rgba(29,141,238,0.3)] ${investmentAmountError ? 'border-[#FF5252] shadow-[0_0_0_2px_rgba(255,82,82,0.2)]' : 'border-[#E5E7EB]'}`}
                           placeholder="Enter amount ($5,000 minimum)"
-                          min="5000"
                           required
                         />
                       </div>
@@ -1608,7 +1900,7 @@ export default function App() {
                     </div>
                     <div className="flex flex-col gap-2.5 relative">
                       <label htmlFor="term_length_months" className="text-xs font-semibold text-[#6B7280] capitalize">Duration</label>
-                      <StrictSelect
+                      <Dropdown
                         name="term_length_months"
                         value={formData.term_length_months}
                         onChange={handleChange}
@@ -1616,7 +1908,6 @@ export default function App() {
                         options={TERM_LENGTH_OPTIONS}
                         placeholder="Select Duration"
                         hasError={Boolean(termLengthError)}
-                        hasSeparators={true}
                       />
                       {termLengthError && <p className="text-[0.75rem] font-medium text-[#FF5252]">{termLengthError}</p>}
                     </div>
@@ -1625,7 +1916,7 @@ export default function App() {
                   <div className="grid grid-cols-2 gap-6 max-[640px]:grid-cols-1 max-[640px]:gap-4">
                     <div className="flex flex-col gap-2.5 relative">
                       <label htmlFor="state_selection" className="text-xs font-semibold text-[#6B7280] capitalize">State</label>
-                      <StateAutocomplete
+                      <Dropdown
                         name="state_selection"
                         value={formData.state_selection}
                         onChange={handleChange}
@@ -1633,12 +1924,16 @@ export default function App() {
                         options={usStates}
                         placeholder="Select State"
                         hasError={Boolean(stateSelectionError)}
+                        searchable
+                        matchMode="contains"
+                        maxResults={10}
+                        noResultsText="No matching state found"
                       />
                       {stateSelectionError && <p className="text-[0.75rem] font-medium text-[#FF5252]">{stateSelectionError}</p>}
                     </div>
                     <div className="flex flex-col gap-2.5 relative">
                       <label htmlFor="city_county" className="text-xs font-semibold text-[#6B7280] capitalize">City / County</label>
-                      <SearchableSelect
+                      <Dropdown
                         name="city_county"
                         value={formData.city_county}
                         onChange={handleChange}
@@ -1651,6 +1946,11 @@ export default function App() {
                         placeholder="Select or type City/County"
                         hasError={Boolean(cityCountyError)}
                         disabled={!STATES_WITH_LOCAL_TAX.includes(formData.state_selection)}
+                        searchable
+                        matchMode="prefix"
+                        pinOther
+                        titleCase
+                        noResultsText="No matching city/county found"
                       />
                       {cityCountyError && <p className="text-[0.75rem] font-medium text-[#FF5252]">{cityCountyError}</p>}
                     </div>
@@ -1659,7 +1959,7 @@ export default function App() {
                   <div className="grid grid-cols-2 gap-6 max-[640px]:grid-cols-1 max-[640px]:gap-4">
                     <div className="flex flex-col gap-2.5 relative">
                       <label htmlFor="income_range" className="text-xs font-semibold text-[#6B7280] capitalize">Annual Income Range</label>
-                      <StrictSelect
+                      <Dropdown
                         name="income_range"
                         value={formData.income_range}
                         onChange={handleChange}
@@ -1672,7 +1972,7 @@ export default function App() {
                     </div>
                     <div className="flex flex-col gap-2.5 relative">
                       <label htmlFor="tax_filing_status" className="text-xs font-semibold text-[#6B7280] capitalize">Tax Filing Status</label>
-                      <StrictSelect
+                      <Dropdown
                         name="tax_filing_status"
                         value={formData.tax_filing_status}
                         onChange={handleChange}
@@ -1722,36 +2022,24 @@ export default function App() {
               <div className="mx-auto flex w-full max-w-[1226px] flex-wrap items-center gap-x-[30px] gap-y-3 lg:flex-nowrap">
                 {strategyTabs.map((tab) => {
                   const active = strategyView === tab.id;
+                  const textColorClass = active ? 'text-[#F59E0C]' : 'text-[#94A3B8]';
                   return (
                     <button
                       key={tab.id}
                       type="button"
-                      onClick={() => {
-                        setStrategyView(tab.id);
-                        if (tab.id === 'bullet' && canAutoRefreshRank(formData)) {
-                          const syncedControls = {
-                            term: toBulletTermLabel(formData.term_length_months),
-                            amount: String(formData.investment_amount || '').replace(/[^0-9]/g, '') || '20000',
-                          };
-                          setBulletControls({
-                            term: syncedControls.term,
-                            amount: syncedControls.amount,
-                          });
-                          fetchBulletSimulation(formData, { silent: false, controlsOverride: syncedControls });
-                        }
-                      }}
+                      onClick={() => handleTabChange(tab.id)}
                       className={`w-[273px] flex h-[67px] shrink-0 items-center gap-3 border-0 bg-transparent text-left transition-all duration-300 ease-out ${
                         active
                           ? 'rounded-[12px] border border-[#F59E0C] bg-[#0D1B2E] px-6 shadow-[inset_0_0_0_1px_rgba(245,158,11,0.28),0_0_0_1px_rgba(245,158,11,0.2)]'
-                          : 'px-0 hover:opacity-90'
+                          : 'cursor-pointer px-0 hover:rounded-[12px] hover:border hover:border-[#F59E0C]/25 hover:bg-[#0D1B2E] hover:px-4 hover:shadow-[0_0_22px_rgba(245,158,11,0.07),inset_0_0_0_1px_rgba(245,158,11,0.12)]'
                       }`}
                     >
-                      <span className="inline-flex h-5 w-5 items-center justify-center">
-                        <StrategyTabIcon id={tab.id} active={active} />
+                      <span className={`inline-flex h-5 w-5 items-center justify-center ${textColorClass}`}>
+                        <StrategyTabIcon id={tab.id} />
                       </span>
                       <span className="relative h-[42px] w-[204px]">
-                        <span className={`absolute left-0 top-0 text-[18px] font-semibold leading-[20px] ${active ? 'text-[#F59E0C]' : 'text-[#94A3B8]'}`}>{tab.title}</span>
-                        <span className={`absolute left-0 top-6 w-[200px] text-[14px] font-normal leading-[20px] ${active ? 'text-[#F59E0C]' : 'text-[#94A3B8]'}`}>{tab.subtitle}</span>
+                        <span className={`absolute left-0 top-0 text-[18px] font-semibold leading-[20px] ${textColorClass}`}>{tab.title}</span>
+                        <span className={`absolute left-0 top-6 w-[200px] text-[14px] font-normal leading-[20px] ${textColorClass}`}>{tab.subtitle}</span>
                       </span>
                     </button>
                   );
@@ -1761,6 +2049,7 @@ export default function App() {
             {strategyView === 'bullet' ? (
               <>
                 <BulletStrategyMockup
+                  theme={theme}
                   embedded
                   hideTitle
                   initialTerm={bulletControls.term}
@@ -1771,6 +2060,7 @@ export default function App() {
                   simulationError={bulletError}
                   onExportPdf={() => window.print()}
                   onControlsChange={(controls) => {
+                    setBulletControlsDirty(true);
                     setBulletControls((prev) => {
                       const next = {
                         term: controls?.term || prev.term,
@@ -1785,6 +2075,30 @@ export default function App() {
                 />
                 <AIAssistant rankResponse={rankResponse} />
               </>
+            ) : strategyView === 'ladder' ? (
+              <div className="flex flex-col items-center justify-center py-24 text-center">
+                <div className="mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-[#1E3A5F]">
+                  <svg className="h-8 w-8 text-[#0077FF]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+                <h2 className="mb-2 text-[22px] font-semibold text-white">CD Ladder — Coming Soon</h2>
+                <p className="max-w-[420px] text-[15px] leading-relaxed text-[#6B7280]">
+                  Stagger your CDs across multiple maturity dates to keep liquidity rolling while maximizing your after-tax yield. This strategy is currently in development.
+                </p>
+              </div>
+            ) : strategyView === 'barbell' ? (
+              <div className="flex flex-col items-center justify-center py-24 text-center">
+                <div className="mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-[#1E3A5F]">
+                  <svg className="h-8 w-8 text-[#0077FF]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+                <h2 className="mb-2 text-[22px] font-semibold text-white">CD Barbell — Coming Soon</h2>
+                <p className="max-w-[420px] text-[15px] leading-relaxed text-[#6B7280]">
+                  Split your investment between short and long-term CDs to balance liquidity and maximize your after-tax yield. This strategy is currently in development.
+                </p>
+              </div>
             ) : (
               <>
             <div className="mb-6 flex items-start justify-between max-[768px]:mb-4 max-[768px]:flex-col max-[768px]:items-stretch max-[768px]:gap-3">
@@ -1858,28 +2172,28 @@ export default function App() {
               </div>
             </div>
 
-              <div className="overflow-hidden rounded-2xl border border-[#1D8DEE] bg-[#081329] shadow-[0_10px_30px_rgba(0,0,0,0.5)] max-[768px]:overflow-visible max-[768px]:rounded-xl">
+              <div className={`overflow-hidden rounded-2xl max-[768px]:overflow-visible max-[768px]:rounded-xl ${theme === 'light' ? 'border border-[#CBD5E1] bg-white shadow-[0_12px_30px_rgba(15,23,42,0.08)]' : 'border border-[#1D8DEE] bg-[#081329] shadow-[0_10px_30px_rgba(0,0,0,0.5)]'}`}>
               {/* Mobile sort controls */}
-              <div className="flex items-center justify-between gap-2 border-b border-[#1E293B] bg-[#0A1429] px-[14px] py-3 md:hidden">
+              <div className={`flex items-center justify-between gap-2 border-b px-[14px] py-3 md:hidden ${theme === 'light' ? 'border-[#E2E8F0] bg-[#F8FAFC]' : 'border-[#1E293B] bg-[#0A1429]'}`}>
                 <div className="text-[0.72rem] font-bold uppercase tracking-[0.05em] text-[#94A3B8]">Sort</div>
                 <div className="flex flex-1 flex-wrap items-center justify-end gap-1.5">
                   <button
                     type="button"
-                    className="flex min-w-0 flex-1 items-center justify-center gap-1 rounded-md border border-[#1A3050] bg-[#0D1B2D] px-2 py-2 text-[0.72rem] font-bold uppercase tracking-[0.05em] text-[#E2E8F0]"
+                    className={`flex min-w-0 flex-1 items-center justify-center gap-1 rounded-md border px-2 py-2 text-[0.72rem] font-bold uppercase tracking-[0.05em] ${theme === 'light' ? 'border-[#CBD5E1] bg-white text-[#334155]' : 'border-[#1A3050] bg-[#0D1B2D] text-[#E2E8F0]'}`}
                     onClick={() => toggleSort('nominalRate')}
                   >
                     Nominal <SortIcon active={sortColumn === 'nominalRate'} direction={sortDirection} />
                   </button>
                   <button
                     type="button"
-                    className="flex min-w-0 flex-1 items-center justify-center gap-1 rounded-md border border-[#1A3050] bg-[#0D1B2D] px-2 py-2 text-[0.72rem] font-bold uppercase tracking-[0.05em] text-[#E2E8F0]"
+                    className={`flex min-w-0 flex-1 items-center justify-center gap-1 rounded-md border px-2 py-2 text-[0.72rem] font-bold uppercase tracking-[0.05em] ${theme === 'light' ? 'border-[#CBD5E1] bg-white text-[#334155]' : 'border-[#1A3050] bg-[#0D1B2D] text-[#E2E8F0]'}`}
                     onClick={() => toggleSort('afterTaxYield')}
                   >
                     After-Tax <SortIcon active={sortColumn === 'afterTaxYield'} direction={sortDirection} />
                   </button>
                   <button
                     type="button"
-                    className="flex min-w-0 flex-1 items-center justify-center gap-1 rounded-md border border-[#1A3050] bg-[#0D1B2D] px-2 py-2 text-[0.72rem] font-bold uppercase tracking-[0.05em] text-[#E2E8F0]"
+                    className={`flex min-w-0 flex-1 items-center justify-center gap-1 rounded-md border px-2 py-2 text-[0.72rem] font-bold uppercase tracking-[0.05em] ${theme === 'light' ? 'border-[#CBD5E1] bg-white text-[#334155]' : 'border-[#1A3050] bg-[#0D1B2D] text-[#E2E8F0]'}`}
                     onClick={() => toggleSort('minDeposit')}
                   >
                     Deposit <SortIcon active={sortColumn === 'minDeposit'} direction={sortDirection} />
@@ -1887,7 +2201,7 @@ export default function App() {
                 </div>
               </div>
 
-              <div className={`hidden border-b border-[#1E293B] bg-[#0A1429] md:grid md:gap-4 ${viewMode === 'combined' ? 'md:grid-cols-[minmax(220px,2.05fr)_minmax(145px,1.12fr)_minmax(118px,0.9fr)_minmax(150px,1.02fr)_minmax(130px,0.9fr)_220px]' : 'md:grid-cols-[minmax(220px,2.2fr)_minmax(118px,0.95fr)_minmax(150px,1.05fr)_minmax(130px,0.95fr)_220px]'}`}>
+              <div className={`hidden md:grid md:gap-4 ${theme === 'light' ? 'border-b border-[#E2E8F0] bg-[#F8FAFC]' : 'border-b border-[#1E293B] bg-[#0A1429]'} ${viewMode === 'combined' ? 'md:grid-cols-[minmax(220px,2.05fr)_minmax(145px,1.12fr)_minmax(118px,0.9fr)_minmax(150px,1.02fr)_minmax(130px,0.9fr)_220px]' : 'md:grid-cols-[minmax(220px,2.2fr)_minmax(118px,0.95fr)_minmax(150px,1.05fr)_minmax(130px,0.95fr)_220px]'}`}>
                 <div className="flex items-center justify-center py-4 text-center text-xs font-bold uppercase tracking-[0.05em] text-[#94A3B8]">PROVIDER / INSTITUTION</div>
                 {viewMode === 'combined' && <div className="flex items-center justify-center py-4 text-center text-xs font-bold uppercase tracking-[0.05em] text-[#94A3B8]">PRODUCT TYPE</div>}
                 <div className="flex items-center justify-center gap-2 py-4 text-center text-xs font-bold uppercase tracking-[0.05em] text-[#94A3B8] whitespace-nowrap">
@@ -1937,13 +2251,13 @@ export default function App() {
                   } else {
                     return (
                       <>
-                        <div className="border-y border-[#1E293B] bg-[#0A1429] px-6 py-4 text-[0.9rem] font-bold text-[#E2E8F0] max-[768px]:px-[14px] max-[768px]:py-3 max-[768px]:text-[0.82rem]">Bank CDs</div>
+                        <div className={`border-y px-6 py-4 text-[0.9rem] font-bold max-[768px]:px-[14px] max-[768px]:py-3 max-[768px]:text-[0.82rem] ${theme === 'light' ? 'border-[#E2E8F0] bg-[#F8FAFC] text-[#334155]' : 'border-[#1E293B] bg-[#0A1429] text-[#E2E8F0]'}`}>Bank CDs</div>
                         {sortResults(filtered.filter(r => r.productType === 'Bank CDs')).map(r => renderResultCard(r, false))}
 
-                        <div className="mt-8 border-y border-[#1E293B] bg-[#0A1429] px-6 py-4 text-[0.9rem] font-bold text-[#E2E8F0] max-[768px]:px-[14px] max-[768px]:py-3 max-[768px]:text-[0.82rem]">Brokerage CDs</div>
+                        <div className={`mt-8 border-y px-6 py-4 text-[0.9rem] font-bold max-[768px]:px-[14px] max-[768px]:py-3 max-[768px]:text-[0.82rem] ${theme === 'light' ? 'border-[#E2E8F0] bg-[#F8FAFC] text-[#334155]' : 'border-[#1E293B] bg-[#0A1429] text-[#E2E8F0]'}`}>Brokerage CDs</div>
                         {sortResults(filtered.filter(r => r.productType === 'Brokerage CDs')).map(r => renderResultCard(r, false))}
 
-                        <div className="mt-8 border-y border-[#1E293B] bg-[#0A1429] px-6 py-4 text-[0.9rem] font-bold text-[#E2E8F0] max-[768px]:px-[14px] max-[768px]:py-3 max-[768px]:text-[0.82rem]">US Treasury</div>
+                        <div className={`mt-8 border-y px-6 py-4 text-[0.9rem] font-bold max-[768px]:px-[14px] max-[768px]:py-3 max-[768px]:text-[0.82rem] ${theme === 'light' ? 'border-[#E2E8F0] bg-[#F8FAFC] text-[#334155]' : 'border-[#1E293B] bg-[#0A1429] text-[#E2E8F0]'}`}>US Treasury</div>
                         {sortResults(filtered.filter(r => r.productType === 'Treasuries')).map(r => renderResultCard(r, false))}
                       </>
                     );

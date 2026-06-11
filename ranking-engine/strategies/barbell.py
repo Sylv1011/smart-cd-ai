@@ -111,8 +111,9 @@ def _best_and_alternative(candidates: List[Dict[str, Any]]) -> Tuple[Optional[Di
     return best, alternative
 
 
-def _interest_simple(amount: float, apy_percent: float, term_months: int) -> float:
-    return amount * (apy_percent / 100.0) * (term_months / 12.0)
+def _interest_compound(amount: float, apy_percent: float, term_months: int) -> float:
+    t = term_months / 12.0
+    return amount * ((1.0 + apy_percent / 100.0) ** t - 1.0)
 
 
 def _build_allocation_result(
@@ -139,10 +140,10 @@ def _build_allocation_result(
     short_term = int(short_best.get("term_months", 0) or 0)
     long_term = int(long_best.get("term_months", 0) or 0)
 
-    short_nominal_interest = _interest_simple(short_amount, short_apy, short_term)
-    long_nominal_interest = _interest_simple(long_amount, long_apy, long_term)
-    short_after_tax_interest = _interest_simple(short_amount, short_after_tax_apy, short_term)
-    long_after_tax_interest = _interest_simple(long_amount, long_after_tax_apy, long_term)
+    short_nominal_interest = _interest_compound(short_amount, short_apy, short_term)
+    long_nominal_interest = _interest_compound(long_amount, long_apy, long_term)
+    short_after_tax_interest = _interest_compound(short_amount, short_after_tax_apy, short_term)
+    long_after_tax_interest = _interest_compound(long_amount, long_after_tax_apy, long_term)
 
     return {
         "short_term_percentage": int(short_pct),
@@ -175,6 +176,8 @@ def simulate_barbell(
     time_horizon: Optional[str] = None,
     target_maturity_months: Optional[int] = None,
     short_term_percentage: Optional[int] = None,
+    short_term_months: Optional[int] = None,
+    long_term_months: Optional[int] = None,
 ) -> Dict[str, Any]:
     _ = (liquidity_preference, rate_outlook)  # kept for backward-compatible request shape
     warnings: List[str] = []
@@ -194,6 +197,20 @@ def simulate_barbell(
 
     short_terms = [m for m in AVAILABLE_TERMS_MONTHS if m < 12]
     long_terms = [m for m in AVAILABLE_TERMS_MONTHS if m >= 12 and m <= target_months]
+
+    if short_term_months is not None:
+        selected_short = int(short_term_months)
+        if selected_short not in short_terms:
+            raise RankingEngineError("short_term_months must be one of: 3, 6, 9")
+        short_terms = [selected_short]
+
+    if long_term_months is not None:
+        selected_long = int(long_term_months)
+        if selected_long not in AVAILABLE_TERMS_MONTHS or selected_long < 12:
+            raise RankingEngineError("long_term_months must be one of: 12, 18, 24, 36, 48, 60")
+        if selected_long > target_months:
+            raise RankingEngineError("long_term_months cannot exceed target_maturity_months")
+        long_terms = [selected_long]
 
     if not short_terms:
         warnings.append("No short-term products found under 12 months.")
