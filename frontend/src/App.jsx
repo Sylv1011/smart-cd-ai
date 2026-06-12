@@ -8,6 +8,7 @@ import Dropdown from './components/Dropdown';
 import BankBadge from './components/BankBadge';
 import BulletStrategyMockup from './components/BulletStrategyMockup';
 import BarbellTab from './components/BarbellTab';
+import LadderTab from './components/LadderTab';
 
 const SparkleIcon = ({ className, style }) => (
   <svg className={className} style={style} width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -416,10 +417,15 @@ export default function App() {
   const [rankResponse, setRankResponse] = useState(null);
   const [bulletSimulation, setBulletSimulation] = useState(null);
   const [barbellSimulation, setBarbellSimulation] = useState(null);
+  const [ladderSimulation, setLadderSimulation] = useState(null);
   const [bulletLoading, setBulletLoading] = useState(false);
   const [barbellLoading, setBarbellLoading] = useState(false);
+  const [ladderLoading, setLadderLoading] = useState(false);
   const [bulletError, setBulletError] = useState(null);
   const [barbellError, setBarbellError] = useState(null);
+  const [ladderError, setLadderError] = useState(null);
+  const [ladderControls, setLadderControls] = useState({ liquidity: 'medium', horizon: '5', amount: '20000' });
+  const [ladderControlsDirty, setLadderControlsDirty] = useState(false);
   const [bulletAlternativesByTranche, setBulletAlternativesByTranche] = useState({});
   const [bulletControls, setBulletControls] = useState({ term: '12 months', amount: '20000' });
   const [bulletControlsDirty, setBulletControlsDirty] = useState(false);
@@ -454,6 +460,7 @@ export default function App() {
   const latestRequestIdRef = useRef(0);
   const latestBulletRequestIdRef = useRef(0);
   const latestBarbellRequestIdRef = useRef(0);
+  const latestLadderRequestIdRef = useRef(0);
   const didRestoreRef = useRef(false);
   const [selectedStateCode, setSelectedStateCode] = useState('');
   const [whyThisFitsOverrides, setWhyThisFitsOverrides] = useState({});
@@ -468,10 +475,14 @@ export default function App() {
     setResults([]);
     setBulletSimulation(null);
     setBarbellSimulation(null);
+    setLadderSimulation(null);
     setBulletLoading(false);
     setBarbellLoading(false);
+    setLadderLoading(false);
     setBulletError(null);
     setBarbellError(null);
+    setLadderError(null);
+    setLadderControlsDirty(false);
     setBulletAlternativesByTranche({});
     setBarbellTermOverrides({ shortTerm: null, longTerm: null });
     setExpandedCardId(null);
@@ -675,6 +686,7 @@ export default function App() {
   const cashInputRef = useRef(null);
   const cashCursorRef = useRef(null);
   const bulletRefreshTimeoutRef = useRef(null);
+  const ladderRefreshTimeoutRef = useRef(null);
 
   const getAllowedAreas = (stateSelection) => {
     const state = (stateSelection || '').trim();
@@ -822,6 +834,7 @@ export default function App() {
       if (navigateToResults) {
         setBulletControlsDirty(false);
         setBarbellControlsDirty(false);
+        setLadderControlsDirty(false);
         pushResultsHistoryState('best-rate');
         setShowResults(true);
         setStrategyView('best-rate');
@@ -1048,6 +1061,69 @@ export default function App() {
     }
   };
 
+  const fetchLadderSimulation = async (nextFormData, options = {}) => {
+    const requestId = ++latestLadderRequestIdRef.current;
+    const { controlsOverride = null } = options;
+    const effectiveControls = controlsOverride || ladderControls;
+    const controlsAmount = parseFloat(String(effectiveControls.amount || '').replace(/[^0-9.]/g, ''));
+    const formAmount = parseFloat(nextFormData.investment_amount);
+    const amt = Number.isFinite(controlsAmount) && controlsAmount > 0 ? controlsAmount : formAmount;
+
+    if (!Number.isFinite(amt) || amt < 5000) return;
+
+    const rankBase =
+      import.meta.env.VITE_RANKING_API_URL ||
+      import.meta.env.VITE_API_URL ||
+      'http://localhost:8001';
+
+    const payload = {
+      strategy_type: 'ladder',
+      investment_amount: amt,
+      state: selectedStateCode || stateNameToCode[nextFormData.state_selection] || nextFormData.state_selection,
+      income_range: nextFormData.income_range,
+      filing_status: normalizeFilingStatusForRanker(nextFormData.tax_filing_status),
+      local_area: nextFormData.city_county || null,
+      liquidity_preference: effectiveControls.liquidity || 'medium',
+      time_horizon: effectiveControls.horizon || '5',
+    };
+
+    setLadderLoading(true);
+    setLadderError(null);
+
+    try {
+      const response = await fetch(`${rankBase}/strategies/simulate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      if (requestId !== latestLadderRequestIdRef.current) return;
+
+      if (!response.ok) {
+        const errPayload = await response.json().catch(() => ({}));
+        const detail = errPayload?.detail;
+        const detailMessage = Array.isArray(detail)
+          ? detail.map((item) => item?.msg || item?.message || JSON.stringify(item)).join(' ')
+          : typeof detail === 'string'
+            ? detail
+            : null;
+        throw new Error(detailMessage || errPayload?.message || 'Failed to fetch ladder simulation.');
+      }
+
+      const simulationPayload = await response.json();
+      if (requestId !== latestLadderRequestIdRef.current) return;
+
+      setLadderSimulation(simulationPayload);
+    } catch (err) {
+      if (requestId !== latestLadderRequestIdRef.current) return;
+      setLadderError(err.message || 'Unable to fetch ladder simulation.');
+    } finally {
+      if (requestId === latestLadderRequestIdRef.current) {
+        setLadderLoading(false);
+      }
+    }
+  };
+
   const canAutoRefreshRank = (nextFormData) => {
     const amt = parseFloat(nextFormData.investment_amount);
     const state = (nextFormData.state_selection || '').trim();
@@ -1136,6 +1212,20 @@ export default function App() {
         });
       }
     }
+
+    if (tabId === 'ladder' && canAutoRefreshRank(formData)) {
+      const syncedControls = ladderControlsDirty
+        ? ladderControls
+        : {
+            ...ladderControls,
+            amount:
+              String(formData.investment_amount || '').replace(/[^0-9]/g, '') ||
+              ladderControls.amount ||
+              '20000',
+          };
+      setLadderControls(syncedControls);
+      fetchLadderSimulation(formData, { controlsOverride: syncedControls });
+    }
   };
 
   useEffect(() => {
@@ -1145,6 +1235,9 @@ export default function App() {
       }
       if (bulletRefreshTimeoutRef.current) {
         clearTimeout(bulletRefreshTimeoutRef.current);
+      }
+      if (ladderRefreshTimeoutRef.current) {
+        clearTimeout(ladderRefreshTimeoutRef.current);
       }
     };
   }, []);
@@ -1230,6 +1323,16 @@ export default function App() {
       if (!isSupportedBarbellSplit(barbellControls.split)) return;
       fetchBarbellSimulation(nextBarbellFormData, { controlsOverride: barbellControls });
     }
+
+    if (strategyView === 'ladder') {
+      if (!canAutoRefreshRank(formData)) return;
+      if (ladderRefreshTimeoutRef.current) {
+        clearTimeout(ladderRefreshTimeoutRef.current);
+      }
+      ladderRefreshTimeoutRef.current = setTimeout(() => {
+        fetchLadderSimulation(formData, { controlsOverride: ladderControls });
+      }, 500);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     strategyView,
@@ -1248,6 +1351,9 @@ export default function App() {
     barbellControls.split,
     barbellControls.shortTerm,
     barbellControls.longTerm,
+    ladderControls.liquidity,
+    ladderControls.horizon,
+    ladderControls.amount,
   ]);
 
   useEffect(() => {
@@ -2076,17 +2182,28 @@ export default function App() {
                 <AIAssistant rankResponse={rankResponse} />
               </>
             ) : strategyView === 'ladder' ? (
-              <div className="flex flex-col items-center justify-center py-24 text-center">
-                <div className="mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-[#1E3A5F]">
-                  <svg className="h-8 w-8 text-[#0077FF]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                </div>
-                <h2 className="mb-2 text-[22px] font-semibold text-white">CD Ladder — Coming Soon</h2>
-                <p className="max-w-[420px] text-[15px] leading-relaxed text-[#6B7280]">
-                  Stagger your CDs across multiple maturity dates to keep liquidity rolling while maximizing your after-tax yield. This strategy is currently in development.
-                </p>
-              </div>
+              <LadderTab
+                initialLiquidity={ladderControls.liquidity}
+                initialHorizon={ladderControls.horizon}
+                initialAmount={ladderControls.amount}
+                simulationData={ladderSimulation}
+                simulationLoading={ladderLoading}
+                simulationError={ladderError}
+                onExportPdf={() => window.print()}
+                onSelectStrategy={handleTabChange}
+                onControlsChange={(controls) => {
+                  const nextLiquidity = controls?.liquidity || ladderControls.liquidity;
+                  const nextHorizon = controls?.horizon || ladderControls.horizon;
+                  const nextAmount = controls?.amount || ladderControls.amount;
+                  if (
+                    nextLiquidity === ladderControls.liquidity &&
+                    nextHorizon === ladderControls.horizon &&
+                    nextAmount === ladderControls.amount
+                  ) return;
+                  setLadderControlsDirty(true);
+                  setLadderControls({ liquidity: nextLiquidity, horizon: nextHorizon, amount: nextAmount });
+                }}
+              />
             ) : strategyView === 'barbell' ? (
               <BarbellTab
                 embedded
