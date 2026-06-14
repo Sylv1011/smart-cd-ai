@@ -1,18 +1,23 @@
 import os
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, Field
+from fastapi.responses import StreamingResponse
+from pydantic import BaseModel, ConfigDict, Field
 
 import ai_service
-from ai_service import explain_why_this_fits, stream_chat_about_results
+from ai_service import (
+    AIServiceConfigError,
+    AIServiceResponseError,
+    explain_why_this_fits,
+    stream_chat_about_results,
+    summarize_bullet_rate_risk,
+)
 
 app = FastAPI(title="SmartCD AI Layer", version="1.0.0")
 
-# CORS: required for browser calls from Vercel/SmartCD domains (preflight OPTIONS).
-_cors_origins = [o.strip() for o in os.getenv("CORS_ALLOW_ORIGINS", "").split(",") if o.strip()]
+_cors_origins = [origin.strip() for origin in os.getenv("CORS_ALLOW_ORIGINS", "").split(",") if origin.strip()]
 if not _cors_origins:
     _cors_origins = [
         "http://localhost:5173",
@@ -58,9 +63,39 @@ class GenerateBrokeredCDsResponse(BaseModel):
     products: list[Dict[str, Any]] = Field(..., description="Generated brokered CD products")
 
 
+class BulletRateRiskScenarioInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    label: str = Field(..., min_length=1)
+    dollar_impact: float
+
+
+class BulletRateRiskSummaryInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    locked_pct: float
+    deferred_pct: float
+    worst_case_dollar_impact: float
+    break_even_drop: float
+    user_state: str = Field(..., min_length=1)
+    flat_total_return: float
+    scenarios: List[BulletRateRiskScenarioInput] = Field(..., min_length=1)
+
+
+class BulletRateRiskSummaryRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    ai_summary_input: BulletRateRiskSummaryInput
+
+
+class BulletRateRiskSummaryResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    headline: str = Field(..., min_length=1, max_length=120)
+    insight: str = Field(..., min_length=1, max_length=240)
+    cache_hit: bool = False
+
+
 @app.get("/health")
 def health() -> Dict[str, str]:
     return {"status": "ok"}
+
 
 @app.get("/")
 def root():
@@ -71,6 +106,7 @@ def root():
             "explain_why_this_fits": "/explain-why-this-fits",
             "generate_brokered_cds": "/generate-brokered-cds (generates 16 brokered CDs across 3, 6, 12, 24 month terms)",
             "chat_stream": "/chat/stream",
+            "bullet_rate_risk_summary": "/strategy/bullet/rate-risk/summary",
         },
     }
 
@@ -83,8 +119,8 @@ def explain_why_this_fits_endpoint(req: WhyThisFitsRequest) -> WhyThisFitsRespon
             headline=result.get("headline", ""),
             insight=result.get("insight", ""),
         )
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Why this fits failed: {str(e)}")
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Why this fits failed: {str(exc)}")
 
 
 @app.post("/generate-brokered-cds", response_model=GenerateBrokeredCDsResponse)
@@ -99,8 +135,9 @@ def generate_brokered_cds_endpoint(req: GenerateBrokeredCDsRequest) -> GenerateB
 
         result = generator()
         return GenerateBrokeredCDsResponse(products=result.get("products", []))
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Brokered CD generation failed: {str(e)}")
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Brokered CD generation failed: {str(exc)}")
+
 
 @app.post("/chat/stream")
 def stream_chat(req: ChatRequest):
@@ -110,5 +147,32 @@ def stream_chat(req: ChatRequest):
                 yield chunk
 
         return StreamingResponse(generator(), media_type="text/plain")
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Streaming chat failed: {str(e)}")
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Streaming chat failed: {str(exc)}")
+
+
+@app.post("/strategy/bullet/rate-risk/summary", response_model=BulletRateRiskSummaryResponse)
+def bullet_rate_risk_summary(req: BulletRateRiskSummaryRequest) -> BulletRateRiskSummaryResponse:
+    try:
+        result = summarize_bullet_rate_risk(req.ai_summary_input.model_dump())
+        return BulletRateRiskSummaryResponse(**result)
+    except AIServiceConfigError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail={"code": "ai_service_unavailable", "message": str(exc)},
+        )
+    except AIServiceResponseError as exc:
+        raise HTTPException(
+            status_code=502,
+            detail={"code": "invalid_ai_response", "message": str(exc)},
+        )
+    except TimeoutError as exc:
+        raise HTTPException(
+            status_code=504,
+            detail={"code": "ai_timeout", "message": str(exc)},
+        )
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500,
+            detail={"code": "bullet_rate_risk_summary_failed", "message": str(exc)},
+        )

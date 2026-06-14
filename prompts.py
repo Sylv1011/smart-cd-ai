@@ -117,3 +117,30 @@ Schema:
   ]
 }
 """
+
+BULLET_RATE_RISK_SUMMARY_TASK_PROMPT = """
+You will receive deterministic rate-risk summary inputs for a CD Bullet strategy.
+
+Return valid JSON only in this exact shape:
+{
+  "headline": "Short headline",
+  "insight": "Short insight."
+}
+
+Rules:
+- Return JSON only.
+- Do not return markdown.
+- Do not return any preamble or trailing text.
+- Do not add extra fields.
+- `headline` must be 8 words or fewer.
+- `insight` must be 35 words or fewer.
+- `insight` must be no more than 2 sentences.
+- Use simple, educational language.
+- Do not give personalized financial advice.
+- Do not recommend buying, selling, or timing the market.
+- Focus only on the provided locked percentage, deferred percentage, worst-case dollar impact,
+  break-even drop, flat total return, state, and scenario impacts.
+- If a downside number is negative, describe it as downside risk in dollars.
+- If useful, mention how much of the strategy is already locked versus exposed to future rate changes.
+- Keep the tone calm, neutral, and informative.
+"""

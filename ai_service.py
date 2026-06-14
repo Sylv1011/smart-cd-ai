@@ -1,3 +1,4 @@
+import hashlib
 import json
 import logging
 import os
@@ -8,17 +9,47 @@ from typing import Any, Dict, Iterator, Tuple
 from dotenv import load_dotenv
 from openai import OpenAI
 
-from prompts import SYSTEM_PROMPT, WHY_THIS_FITS_TASK_PROMPT, CHAT_TASK_PREFIX, BROKERED_CD_GENERATION_PROMPT
+from bullet_rate_risk_cache import BulletRateRiskSummaryCache
+from prompts import (
+    BROKERED_CD_GENERATION_PROMPT,
+    BULLET_RATE_RISK_SUMMARY_TASK_PROMPT,
+    CHAT_TASK_PREFIX,
+    SYSTEM_PROMPT,
+    WHY_THIS_FITS_TASK_PROMPT,
+)
 
 load_dotenv()
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 MODEL_NAME = os.getenv("MODEL_NAME", "gpt-5-mini")
+client = OpenAI(api_key=OPENAI_API_KEY) if OPENAI_API_KEY else None
+bullet_rate_risk_summary_cache = BulletRateRiskSummaryCache()
 
-if not OPENAI_API_KEY:
-    raise RuntimeError("OPENAI_API_KEY is not set. Add it to your .env file.")
 
-client = OpenAI(api_key=OPENAI_API_KEY)
+class AIServiceError(Exception):
+    pass
+
+
+class AIServiceConfigError(AIServiceError):
+    pass
+
+
+class AIServiceResponseError(AIServiceError):
+    pass
+
+
+def _get_client() -> OpenAI:
+    global client
+
+    if client is not None:
+        return client
+
+    if not OPENAI_API_KEY:
+        raise AIServiceConfigError("OPENAI_API_KEY is not set.")
+
+    client = OpenAI(api_key=OPENAI_API_KEY)
+    return client
+
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +57,9 @@ if not logging.getLogger().handlers:
     logging.basicConfig(level=logging.INFO)
 
 
-WHY_THIS_FITS_CACHE_TTL_SECONDS = int(os.getenv("WHY_THIS_FITS_CACHE_TTL_SECONDS", os.getenv("TOP3_CACHE_TTL_SECONDS", "86400")))
+WHY_THIS_FITS_CACHE_TTL_SECONDS = int(
+    os.getenv("WHY_THIS_FITS_CACHE_TTL_SECONDS", os.getenv("TOP3_CACHE_TTL_SECONDS", "86400"))
+)
 _WHY_THIS_FITS_CACHE: Dict[str, Tuple[float, Dict[str, Any]]] = {}
 
 
@@ -35,7 +68,7 @@ def _build_why_this_fits_cache_key(selected_product: Dict[str, Any]) -> str:
         "product_type": selected_product.get("product_type"),
         "term_months": selected_product.get("term_months"),
         "user_state": selected_product.get("user_state"),
-        "income_range": selected_product.get("income_range")
+        "income_range": selected_product.get("income_range"),
     }
     return json.dumps(normalized_product, sort_keys=True)
 
@@ -58,7 +91,6 @@ def _extract_json_object(text: str) -> Dict[str, Any]:
 def _extract_json_array_or_object(text: str) -> Any:
     text = (text or "").strip()
 
-    # remove fenced code blocks if present
     if text.startswith("```"):
         lines = text.splitlines()
         if lines and lines[0].startswith("```"):
@@ -67,27 +99,24 @@ def _extract_json_array_or_object(text: str) -> Any:
             lines = lines[:-1]
         text = "\n".join(lines).strip()
 
-    # try direct parse
     try:
         return json.loads(text)
     except Exception:
         pass
 
-    # try object slice
     try:
         start = text.find("{")
         end = text.rfind("}")
         if start != -1 and end != -1 and end > start:
-            return json.loads(text[start:end + 1])
+            return json.loads(text[start : end + 1])
     except Exception:
         pass
 
-    # try array slice
     try:
         start = text.find("[")
         end = text.rfind("]")
         if start != -1 and end != -1 and end > start:
-            return json.loads(text[start:end + 1])
+            return json.loads(text[start : end + 1])
     except Exception:
         pass
 
@@ -101,7 +130,7 @@ def _call_llm(payload: Dict[str, Any], system_prompt: str = SYSTEM_PROMPT) -> st
 
     logger.info("LLM request started | model=%s | payload_chars=%s", MODEL_NAME, approx_payload_chars)
 
-    response = client.responses.create(
+    response = _get_client().responses.create(
         model=MODEL_NAME,
         input=[
             {"role": "system", "content": system_prompt},
@@ -129,7 +158,7 @@ def _stream_llm_text(payload: Dict[str, Any]) -> Iterator[str]:
 
     logger.info("Streaming LLM request started | model=%s | payload_chars=%s", MODEL_NAME, approx_payload_chars)
 
-    stream = client.responses.create(
+    stream = _get_client().responses.create(
         model=MODEL_NAME,
         input=[
             {"role": "system", "content": SYSTEM_PROMPT},
@@ -161,6 +190,51 @@ def _stream_llm_text(payload: Dict[str, Any]) -> Iterator[str]:
         )
 
 
+def _canonicalize_for_cache(value: Any) -> Any:
+    if isinstance(value, dict):
+        return {key: _canonicalize_for_cache(value[key]) for key in sorted(value.keys())}
+    if isinstance(value, list):
+        return [_canonicalize_for_cache(item) for item in value]
+    if isinstance(value, float):
+        return round(value, 6)
+    if isinstance(value, str):
+        return value.strip()
+    return value
+
+
+def _make_bullet_rate_risk_summary_cache_key(ai_summary_input: Dict[str, Any]) -> str:
+    normalized_payload = _canonicalize_for_cache(ai_summary_input)
+    serialized = json.dumps(normalized_payload, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(serialized.encode("utf-8")).hexdigest()
+
+
+def _validate_bullet_rate_risk_summary_response(parsed: Dict[str, Any]) -> Dict[str, str]:
+    if not isinstance(parsed, dict):
+        raise AIServiceResponseError("AI summary response must be a JSON object.")
+
+    expected_keys = {"headline", "insight"}
+    actual_keys = set(parsed.keys())
+    if actual_keys != expected_keys:
+        raise AIServiceResponseError("AI summary response must contain only headline and insight.")
+
+    headline = str(parsed.get("headline", "")).strip()
+    insight = str(parsed.get("insight", "")).strip()
+
+    if not headline or not insight:
+        raise AIServiceResponseError("AI summary response is missing headline or insight.")
+
+    if len(headline.split()) > 8:
+        raise AIServiceResponseError("AI summary headline exceeds 8 words.")
+
+    if len(insight.split()) > 35:
+        raise AIServiceResponseError("AI summary insight exceeds 35 words.")
+
+    sentence_count = len([part for part in re.split(r"[.!?]+", insight) if part.strip()])
+    if sentence_count > 2:
+        raise AIServiceResponseError("AI summary insight exceeds 2 sentences.")
+
+    return {"headline": headline, "insight": insight}
+
 
 def explain_why_this_fits(selected_product: Dict[str, Any]) -> Dict[str, Any]:
     cache_key = _build_why_this_fits_cache_key(selected_product)
@@ -186,7 +260,7 @@ def explain_why_this_fits(selected_product: Dict[str, Any]) -> Dict[str, Any]:
     raw_text = _call_llm(payload)
     parsed = _extract_json_object(raw_text)
     logger.info("Why-this-fits pipeline completed | duration_sec=%.2f", time.perf_counter() - start_time)
-    logger.info("Raw text=%s",raw_text)
+    logger.info("Raw text=%s", raw_text)
     headline = parsed.get("headline")
     if not isinstance(headline, str):
         raise ValueError("Why-this-fits response is missing a valid 'why_this_fits' string")
@@ -213,10 +287,6 @@ def stream_chat_about_results(question: str, ranking_response: Dict[str, Any]) -
 
 
 def generate_brokered_cds_multi_term() -> Dict[str, Any]:
-    """
-    Generate brokered CDs across multiple terms with guaranteed distribution.
-    """
-
     terms = [3, 6, 12, 24, 60]
     per_term = 4
 
@@ -238,11 +308,9 @@ def generate_brokered_cds_multi_term() -> Dict[str, Any]:
         "Bank of America",
     ]
 
-    prompt = BROKERED_CD_GENERATION_PROMPT
-
     payload = {
         "task": "generate_brokered_cds",
-        "prompt": prompt,
+        "prompt": BROKERED_CD_GENERATION_PROMPT,
     }
 
     start_time = time.perf_counter()
@@ -250,25 +318,22 @@ def generate_brokered_cds_multi_term() -> Dict[str, Any]:
     parsed = _extract_json_array_or_object(raw)
 
     products = parsed if isinstance(parsed, list) else parsed.get("products", [])
-
     if not isinstance(products, list):
         raise ValueError("Invalid brokered CD response format")
 
-    # ---------------- VALIDATION + ENFORCEMENT ----------------
     grouped = {3: [], 6: [], 12: [], 24: [], 60: []}
 
-    for p in products:
+    for product in products:
         try:
-            term = int(p.get("term_months"))
-
+            term = int(product.get("term_months"))
             if term not in grouped:
                 continue
 
-            brokerage = p.get("brokerage_firm")
-            bank = p.get("issuing_bank")
-            fdic_insured = p.get("fdic_insured") is True
-            apy = float(p.get("apy", 0))
-            minimum_deposit = int(p.get("minimum_deposit", 0))
+            brokerage = product.get("brokerage_firm")
+            bank = product.get("issuing_bank")
+            fdic_insured = product.get("fdic_insured") is True
+            apy = float(product.get("apy", 0))
+            minimum_deposit = int(product.get("minimum_deposit", 0))
 
             if brokerage not in allowed_brokerages:
                 continue
@@ -286,37 +351,36 @@ def generate_brokered_cds_multi_term() -> Dict[str, Any]:
             if term in {24, 60} and not (3.0 <= apy <= 5.6):
                 continue
 
-            grouped[term].append(p)
-
-        except:
+            grouped[term].append(product)
+        except Exception:
             continue
 
-    #  HARD ENFORCEMENT (this is key)
     final_products = []
 
     for term in terms:
-        grouped[term].sort(key=lambda x: float(x.get("apy", 0)), reverse=True)
+        grouped[term].sort(key=lambda item: float(item.get("apy", 0)), reverse=True)
         valid = grouped[term][:per_term]
 
         if len(valid) < per_term:
             raise ValueError(f"Not enough valid products for term {term}")
 
-        for p in valid:
-            normalized = {
-                "product_type": "brokered_cd",
-                "institution_name": None,
-                "brokerage_firm": p["brokerage_firm"],
-                "issuing_bank": p["issuing_bank"],
-                "term_months": term,
-                "apy": round(float(p["apy"]), 2),
-                "minimum_deposit": int(p["minimum_deposit"]),
-                "fdic_insured": True,
-                "source_name": p["brokerage_firm"],
-                "source_url": None,
-                "destination_url": None,
-                "retrieved_at": time.strftime("%Y-%m-%d"),
-            }
-            final_products.append(normalized)
+        for product in valid:
+            final_products.append(
+                {
+                    "product_type": "brokered_cd",
+                    "institution_name": None,
+                    "brokerage_firm": product["brokerage_firm"],
+                    "issuing_bank": product["issuing_bank"],
+                    "term_months": term,
+                    "apy": round(float(product["apy"]), 2),
+                    "minimum_deposit": int(product["minimum_deposit"]),
+                    "fdic_insured": True,
+                    "source_name": product["brokerage_firm"],
+                    "source_url": None,
+                    "destination_url": None,
+                    "retrieved_at": time.strftime("%Y-%m-%d"),
+                }
+            )
 
     logger.info(
         "Brokered CD multi-term generation completed | total=%s | duration_sec=%.2f",
@@ -325,3 +389,43 @@ def generate_brokered_cds_multi_term() -> Dict[str, Any]:
     )
 
     return {"products": final_products}
+
+
+def summarize_bullet_rate_risk(ai_summary_input: Dict[str, Any]) -> Dict[str, Any]:
+    cache_key = _make_bullet_rate_risk_summary_cache_key(ai_summary_input)
+
+    try:
+        cached_value = bullet_rate_risk_summary_cache.get(cache_key)
+    except Exception:
+        cached_value = None
+
+    if cached_value is not None:
+        return {
+            "headline": cached_value["headline"],
+            "insight": cached_value["insight"],
+            "cache_hit": True,
+        }
+
+    payload = {
+        "task": BULLET_RATE_RISK_SUMMARY_TASK_PROMPT,
+        "ai_summary_input": ai_summary_input,
+    }
+
+    raw_text = _call_llm(payload)
+
+    try:
+        parsed = _extract_json_object(raw_text)
+        validated = _validate_bullet_rate_risk_summary_response(parsed)
+    except (ValueError, json.JSONDecodeError) as exc:
+        raise AIServiceResponseError("AI summary did not return valid JSON.") from exc
+
+    try:
+        bullet_rate_risk_summary_cache.set(cache_key, validated)
+    except Exception:
+        pass
+
+    return {
+        "headline": validated["headline"],
+        "insight": validated["insight"],
+        "cache_hit": False,
+    }
