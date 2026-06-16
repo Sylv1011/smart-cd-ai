@@ -461,7 +461,7 @@ const BarbellTab = ({
                         {warningCard && (
                           <aside className="rounded-[14px] border border-[rgba(216,134,255,0.85)] bg-[#17051D] px-6 py-8 text-white shadow-[inset_0_0_0_1px_rgba(216,134,255,0.14)]">
                             <div className="flex items-start gap-3">
-                              <div className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white text-[#17051D]">
+                              <div className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white text-[#17051D] special">
                                 <span className="text-[18px] font-bold">!</span>
                               </div>
                               <div>

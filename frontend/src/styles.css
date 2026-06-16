@@ -51,8 +51,18 @@ body {
   background-color: #FFFFFF !important;
 }
 
-.theme-light .bg-\[\#061124\] {
+.theme-light .bg-\[\#2A2411\]{
+  background-color: #FFFFFF !important; 
+}
+.theme-light .bg-\[\#061124\],
+.theme-light .bg-\[\#0D1117\],
+ .theme-light .bg-\[\#17051D\]
+{
   background-color: #F5F7FB !important;
+}
+
+.theme-light .special{
+  background-color: rgba(216,134,255,0.85);
 }
 
 .theme-light .bg-\[\#081329\],
