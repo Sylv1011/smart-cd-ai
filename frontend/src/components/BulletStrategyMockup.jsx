@@ -242,6 +242,236 @@ const Rate = ({ value, tone = 'text-white', projected = false, allocationText = 
 
 const DESKTOP_GRID = 'md:grid-cols-[330px_180px_150px_170px_130px_254px]';
 const SUMMARY_GRID = 'md:grid-cols-[1.1fr_2fr_0.9fr_0.9fr_1.1fr_1fr_1.3fr]';
+const RATE_RISK_SCENARIO_ORDER = {
+  'Rates stay flat': 0,
+  'Rates drop 0.5%': 1,
+  'Rates drop 1.0%': 2,
+  'Rates rise 0.5%': 3,
+};
+
+const formatSignedMoney = (value) => {
+  const amount = Number(value);
+  if (!Number.isFinite(amount) || amount === 0) return '$0';
+  const abs = formatMoney(Math.abs(amount), 0);
+  return `${amount > 0 ? '+' : '-'}${abs}`;
+};
+
+const BulletRateRiskPanel = ({
+  expanded,
+  onToggle,
+  data,
+  loading,
+  error,
+  stale,
+  onRetry,
+  summaryLoading,
+  summaryError,
+  summaryData,
+  onGenerateSummary,
+  isLightTheme = false,
+}) => {
+  const scenarios = useMemo(() => {
+    const items = Array.isArray(data?.scenarios) ? data.scenarios.slice() : [];
+    return items.sort((a, b) => {
+      const aRank = Object.prototype.hasOwnProperty.call(RATE_RISK_SCENARIO_ORDER, a?.label)
+        ? RATE_RISK_SCENARIO_ORDER[a.label]
+        : Number.MAX_SAFE_INTEGER;
+      const bRank = Object.prototype.hasOwnProperty.call(RATE_RISK_SCENARIO_ORDER, b?.label)
+        ? RATE_RISK_SCENARIO_ORDER[b.label]
+        : Number.MAX_SAFE_INTEGER;
+      return aRank - bRank;
+    });
+  }, [data]);
+
+  return (
+    <section className="mb-6">
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={expanded}
+        className={`flex w-full items-center justify-between gap-4 rounded-[12px] border px-4 py-4 text-left transition-colors ${
+          isLightTheme
+            ? 'border-[#BFDBFE] bg-[#EFF6FF] hover:bg-[#E6F0FF]'
+            : 'border-[#1E3A5F] bg-[#081329] hover:bg-[#0B1830]'
+        }`}
+      >
+        <div className="flex min-w-0 items-center gap-3">
+          <span className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${
+            isLightTheme ? 'bg-[#DBEAFE] text-[#1557F5]' : 'bg-[#10233C] text-[#8CC8FF]'
+          }`}>
+            <SparkleIcon className="h-4 w-4" />
+          </span>
+          <div className="min-w-0">
+            <div className={`text-[16px] font-semibold leading-[22px] ${isLightTheme ? 'text-[#0F172A]' : 'text-white'}`}>
+              See how rate changes could impact your future purchases
+            </div>
+            <div className={`mt-1 text-[13px] leading-[18px] ${isLightTheme ? 'text-[#64748B]' : 'text-[#7AAAC0]'}`}>
+              Review simulated rate scenarios before your projected tranches are purchased.
+            </div>
+          </div>
+        </div>
+        <ChevronDownIcon className={`h-5 w-5 shrink-0 transition-transform ${expanded ? 'rotate-180' : ''} ${isLightTheme ? 'text-[#64748B]' : 'text-[#8AA4C0]'}`} />
+      </button>
+
+      {expanded && (
+        <div className={`mt-3 rounded-[12px] border p-4 md:p-5 ${
+          isLightTheme ? 'border-[#BFDBFE] bg-[#F8FBFF]' : 'border-[#1E2939] bg-[#050D1F]'
+        }`}>
+          {stale && !loading && !data && (
+            <div className={`mb-4 rounded-[10px] border px-4 py-3 text-[13px] leading-[1.45] ${
+              isLightTheme ? 'border-[#C7D2FE] bg-[#EEF4FF] text-[#334155]' : 'border-[#1E3A5F] bg-[#0A1429] text-[#9FB4D3]'
+            }`}>
+              Inputs changed. Collapse and reopen this panel to load updated rate-risk scenarios.
+            </div>
+          )}
+
+          {loading && (
+            <div className={`rounded-[10px] border px-4 py-3 text-[13px] ${
+              isLightTheme ? 'border-[#BFDBFE] bg-white text-[#475569]' : 'border-[#1E3A5F] bg-[#081329] text-[#9FB4D3]'
+            }`}>
+              Loading rate-risk scenarios...
+            </div>
+          )}
+
+          {!loading && error && (
+            <div className={`rounded-[10px] border px-4 py-3 ${
+              isLightTheme ? 'border-[#FCA5A5] bg-[#FEF2F2]' : 'border-[#5B1C1C] bg-[#2A1111]'
+            }`}>
+              <div className={`text-[13px] leading-[1.45] ${isLightTheme ? 'text-[#B91C1C]' : 'text-[#FCA5A5]'}`}>{error}</div>
+              <button
+                type="button"
+                onClick={onRetry}
+                className={`mt-3 inline-flex items-center rounded-[8px] px-3 py-2 text-[13px] font-semibold ${
+                  isLightTheme ? 'bg-[#1557F5] text-white hover:bg-[#1D4ED8]' : 'bg-[#1A3050] text-white hover:bg-[#254873]'
+                }`}
+              >
+                Retry
+              </button>
+            </div>
+          )}
+
+          {!loading && !error && data && (
+            <>
+              <div className="mb-4 flex flex-wrap gap-2">
+                <div className={`rounded-full px-3 py-1 text-[12px] font-medium ${
+                  isLightTheme ? 'bg-[#DBEAFE] text-[#1E3A8A]' : 'bg-[#0A1429] text-[#8CC8FF]'
+                }`}>
+                  Locked today: {formatMoney(data?.locked_amount ?? 0, 0)} ({formatPct(data?.locked_pct ?? 0)}%)
+                </div>
+                <div className={`rounded-full px-3 py-1 text-[12px] font-medium ${
+                  isLightTheme ? 'bg-[#E0F2FE] text-[#075985]' : 'bg-[#0B1C33] text-[#7DD3FC]'
+                }`}>
+                  Future purchases at risk: {formatMoney(data?.deferred_amount ?? 0, 0)} ({formatPct(data?.deferred_pct ?? 0)}%)
+                </div>
+                <div className={`rounded-full px-3 py-1 text-[12px] font-medium ${
+                  isLightTheme ? 'bg-[#DCFCE7] text-[#166534]' : 'bg-[#07170F] text-[#86EFAC]'
+                }`}>
+                  Break-even rate drop: {formatPct(data?.break_even_drop ?? 0)}%
+                </div>
+              </div>
+
+              <div className="grid gap-4 lg:grid-cols-[minmax(0,1.45fr)_minmax(320px,0.9fr)]">
+                <div className={`overflow-hidden rounded-[12px] border ${
+                  isLightTheme
+                    ? 'border-[#D7E7D9] bg-[linear-gradient(180deg,#F8FFFA_0%,#ECFDF3_100%)]'
+                    : 'border-[#0E2818] bg-[linear-gradient(180deg,#071810_0%,#050E0A_100%)]'
+                }`}>
+                  <div className={`grid grid-cols-[minmax(0,1.2fr)_minmax(140px,1fr)_92px] gap-3 border-b px-4 py-3 text-[12px] font-bold uppercase tracking-[0.04em] ${
+                    isLightTheme ? 'border-[#D7E7D9] text-[#64748B]' : 'border-[#143220] text-[#7AAAC0]'
+                  }`}>
+                    <div>Scenario</div>
+                    <div>Est. Return (Projected Tranches)</div>
+                    <div>Vs. Flat</div>
+                  </div>
+                  <div>
+                    {scenarios.map((scenario) => {
+                      const impact = Number(scenario?.dollar_impact ?? 0);
+                      const impactTone = impact > 0 ? 'text-[#22C55E]' : impact < 0 ? 'text-[#EF4444]' : (isLightTheme ? 'text-[#64748B]' : 'text-[#99A1AF]');
+                      return (
+                        <div
+                          key={`${scenario?.label}-${scenario?.delta}`}
+                          className={`grid grid-cols-[minmax(0,1.2fr)_minmax(140px,1fr)_92px] gap-3 border-b px-4 py-3 text-[14px] last:border-b-0 ${
+                            isLightTheme ? 'border-[#D7E7D9]' : 'border-[#143220]'
+                          }`}
+                        >
+                          <div className={`font-medium ${isLightTheme ? 'text-[#0F172A]' : 'text-white'}`}>{scenario?.label}</div>
+                          <div className="font-bold text-[#22C55E]">{formatMoney(scenario?.total_return ?? 0, 0)}</div>
+                          <div className={`font-bold ${impactTone}`}>
+                            {scenario?.label === 'Rates stay flat' ? '-' : formatSignedMoney(impact)}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className={`rounded-[12px] border p-4 ${
+                  isLightTheme
+                    ? 'border-[#BFDBFE] bg-[linear-gradient(180deg,#FFFFFF_0%,#EFF6FF_100%)]'
+                    : 'border-[#1557F5] bg-[linear-gradient(180deg,#07170F_0%,#06120D_100%)]'
+                }`}>
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <div className={`text-[16px] font-bold leading-[22px] ${isLightTheme ? 'text-[#0F172A]' : 'text-white'}`}>What if rates change</div>
+                      <div className={`mt-1 text-[13px] leading-[18px] ${isLightTheme ? 'text-[#64748B]' : 'text-[#7AAAC0]'}`}>
+                        Generate an AI summary of how these simulated rate moves affect your future Bullet purchases.
+                      </div>
+                    </div>
+                    {!summaryData && (
+                      <button
+                        type="button"
+                        onClick={onGenerateSummary}
+                        disabled={summaryLoading}
+                        className={`inline-flex shrink-0 items-center gap-2 rounded-[8px] border px-3 py-2 text-[13px] font-bold ${
+                          summaryLoading
+                            ? 'cursor-not-allowed opacity-70'
+                            : ''
+                        } ${
+                          isLightTheme
+                            ? 'border-[#6A9ABE] text-[#1557F5] hover:bg-[#EAF2FF]'
+                            : 'border-[#6A9ABE] text-[#6A9ABE] hover:bg-[#0f2a1f]'
+                        }`}
+                      >
+                        <SparkleIcon className="h-3.5 w-3.5" />
+                        <span>{summaryLoading ? 'Generating summary...' : 'Generate Summary'}</span>
+                      </button>
+                    )}
+                  </div>
+
+                  {!summaryData && summaryError && (
+                    <div className={`mt-4 rounded-[10px] border px-3 py-3 text-[13px] leading-[1.45] ${
+                      isLightTheme ? 'border-[#FCA5A5] bg-[#FEF2F2] text-[#B91C1C]' : 'border-[#5B1C1C] bg-[#2A1111] text-[#FCA5A5]'
+                    }`}>
+                      {summaryError}
+                    </div>
+                  )}
+
+                  {summaryData ? (
+                    <div className="mt-4">
+                      <div className={`text-[18px] font-semibold leading-[26px] ${isLightTheme ? 'text-[#0F172A]' : 'text-white'}`}>
+                        {summaryData.headline}
+                      </div>
+                      <p className={`mt-3 text-[14px] leading-[22px] ${isLightTheme ? 'text-[#475569]' : 'text-[#99A1AF]'}`}>
+                        {summaryData.insight}
+                      </p>
+                      <p className={`mt-4 text-[12px] leading-[18px] ${isLightTheme ? 'text-[#64748B]' : 'text-[#7AAAC0]'}`}>
+                        AI-generated insights are based on simulated rate scenarios and current market data. This information is educational and should not be considered financial advice.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className={`mt-4 text-[13px] leading-[20px] ${isLightTheme ? 'text-[#64748B]' : 'text-[#8AA4C0]'}`}>
+                      The summary is generated only when you ask for it and uses the current Bullet rate-risk scenario data.
+                    </div>
+                  )}
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+    </section>
+  );
+};
 
 const Row = ({
   row,
@@ -454,6 +684,8 @@ export default function BulletStrategyMockup({
   simulationLoading = false,
   simulationError = null,
   onExportPdf = null,
+  userState = '',
+  userIncomeRange = '',
 }) {
   const isLightTheme = theme === 'light';
   const [term, setTerm] = useState(initialTerm);
@@ -466,7 +698,17 @@ export default function BulletStrategyMockup({
   const [taxOpenById, setTaxOpenById] = useState({});
   const [summaryStateById, setSummaryStateById] = useState({});
   const [showReminderModal, setShowReminderModal] = useState(false);
+  const [rateRiskExpanded, setRateRiskExpanded] = useState(false);
+  const [rateRiskLoading, setRateRiskLoading] = useState(false);
+  const [rateRiskError, setRateRiskError] = useState('');
+  const [rateRiskData, setRateRiskData] = useState(null);
+  const [rateRiskLoadedKey, setRateRiskLoadedKey] = useState('');
+  const [rateRiskStale, setRateRiskStale] = useState(false);
+  const [rateRiskSummaryLoading, setRateRiskSummaryLoading] = useState(false);
+  const [rateRiskSummaryError, setRateRiskSummaryError] = useState('');
+  const [rateRiskSummaryData, setRateRiskSummaryData] = useState(null);
   const timersRef = useRef({});
+  const rateRiskKeyRef = useRef('');
 
   useEffect(() => {
     setTerm(initialTerm || '12 months');
@@ -637,6 +879,188 @@ export default function BulletStrategyMockup({
       summary: summaryRows,
     };
   }, [simulationData, alternativesByTranche]);
+
+  const rateRiskPayload = useMemo(() => {
+    const tranches = Array.isArray(simulationData?.tranches) ? simulationData.tranches : [];
+    if (!tranches.length) return null;
+
+    const normalizedTranches = tranches
+      .map((tranche, index) => {
+        const product = tranche?.product || {};
+        const slot = Number(tranche?.tranche ?? index + 1);
+        const buyInMonths = Number(tranche?.purchase_offset_months ?? 0);
+        const cdTermMonths = Number(product?.term_months ?? tranche?.target_maturity_months ?? 0);
+        const afterTaxApy = Number(product?.after_tax_apy ?? 0);
+        const allocation = Number(tranche?.allocation_amount ?? product?.investment_amount ?? 0);
+        const productId = String(
+          product?.record_hash ||
+          product?.id ||
+          product?.destination_url ||
+          `${slot}-${mapProvider(product)}-${cdTermMonths}-${afterTaxApy}`
+        ).trim();
+
+        if (!slot || cdTermMonths <= 0 || allocation <= 0 || afterTaxApy < 0 || !productId) {
+          return null;
+        }
+
+        return {
+          slot,
+          buy_in_months: buyInMonths,
+          cd_term_months: cdTermMonths,
+          product_id: productId,
+          after_tax_apy: afterTaxApy,
+          allocation,
+        };
+      })
+      .filter(Boolean);
+
+    if (!normalizedTranches.length) return null;
+
+    const allocationSum = normalizedTranches.reduce((sum, tranche) => sum + Number(tranche.allocation || 0), 0);
+    const normalizedState = String(userState || '').trim();
+    const normalizedIncomeRange = String(userIncomeRange || '').trim();
+
+    if (allocationSum <= 0 || !normalizedState || !normalizedIncomeRange) {
+      return null;
+    }
+
+    return {
+      investment_amount: Number(allocationSum.toFixed(2)),
+      tranches: normalizedTranches,
+      user_state: normalizedState,
+      user_income_range: normalizedIncomeRange,
+    };
+  }, [simulationData, userIncomeRange, userState]);
+
+  const rateRiskRequestKey = useMemo(
+    () => JSON.stringify(rateRiskPayload || null),
+    [rateRiskPayload],
+  );
+
+  useEffect(() => {
+    const previousKey = rateRiskKeyRef.current;
+    if (!previousKey) {
+      rateRiskKeyRef.current = rateRiskRequestKey;
+      return;
+    }
+    if (previousKey === rateRiskRequestKey) return;
+
+    rateRiskKeyRef.current = rateRiskRequestKey;
+    setRateRiskLoading(false);
+    setRateRiskError('');
+    setRateRiskData(null);
+    setRateRiskLoadedKey('');
+    setRateRiskSummaryLoading(false);
+    setRateRiskSummaryError('');
+    setRateRiskSummaryData(null);
+    setRateRiskStale(Boolean(rateRiskData || rateRiskSummaryData || rateRiskLoadedKey));
+  }, [rateRiskData, rateRiskLoadedKey, rateRiskRequestKey, rateRiskSummaryData]);
+
+  const fetchRateRisk = async () => {
+    if (rateRiskLoading) return;
+    if (simulationLoading) {
+      setRateRiskError('Rate-risk scenarios will be available once the latest Bullet strategy finishes loading.');
+      return;
+    }
+    if (!rateRiskPayload) {
+      setRateRiskError('Complete your Bullet strategy inputs to view rate-risk scenarios.');
+      return;
+    }
+
+    const apiBase =
+      import.meta.env.VITE_API_URL ||
+      import.meta.env.VITE_RANKING_API_URL ||
+      'http://localhost:8000';
+
+    setRateRiskLoading(true);
+    setRateRiskError('');
+
+    try {
+      const response = await fetch(`${apiBase}/strategy/bullet/rate-risk`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(rateRiskPayload),
+      });
+
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        throw new Error(payload?.detail || 'Failed to load rate-risk scenarios.');
+      }
+
+      const payload = await response.json();
+      setRateRiskData(payload);
+      setRateRiskLoadedKey(rateRiskRequestKey);
+      setRateRiskStale(false);
+      setRateRiskSummaryError('');
+      setRateRiskSummaryData(null);
+    } catch (error) {
+      setRateRiskError(error?.message || 'Failed to load rate-risk scenarios.');
+    } finally {
+      setRateRiskLoading(false);
+    }
+  };
+
+  const handleToggleRateRisk = () => {
+    setRateRiskExpanded((prev) => {
+      const next = !prev;
+      if (next && rateRiskLoadedKey !== rateRiskRequestKey) {
+        fetchRateRisk();
+      }
+      return next;
+    });
+  };
+
+  const generateRateRiskSummary = async () => {
+    if (rateRiskSummaryLoading) return;
+    if (!rateRiskData?.ai_summary_input) {
+      setRateRiskSummaryError('Rate-risk summary input is not available yet. Please reload the scenarios and try again.');
+      return;
+    }
+    if (rateRiskSummaryData) return;
+
+    const aiBase = import.meta.env.VITE_AI_LAYER_URL;
+    if (!aiBase) {
+      console.warn('VITE_AI_LAYER_URL is not configured. Bullet rate-risk summaries require the AI layer service.');
+      setRateRiskSummaryError('AI summary is not configured. Set VITE_AI_LAYER_URL and try again.');
+      return;
+    }
+
+    setRateRiskSummaryLoading(true);
+    setRateRiskSummaryError('');
+
+    try {
+      const response = await fetch(`${aiBase}/strategy/bullet/rate-risk/summary`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ai_summary_input: rateRiskData.ai_summary_input,
+        }),
+      });
+
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        const message =
+          typeof payload?.detail === 'string'
+            ? payload.detail
+            : payload?.detail?.message || 'Unable to generate the rate-risk summary right now.';
+        throw new Error(message);
+      }
+
+      const payload = await response.json().catch(() => ({}));
+      const headline = String(payload?.headline ?? '').trim();
+      const insight = String(payload?.insight ?? '').trim();
+      if (!headline || !insight) {
+        throw new Error('Rate-risk summary response was incomplete.');
+      }
+
+      setRateRiskSummaryData({ headline, insight });
+    } catch (error) {
+      setRateRiskSummaryData(null);
+      setRateRiskSummaryError(error?.message || 'Unable to generate the rate-risk summary right now.');
+    } finally {
+      setRateRiskSummaryLoading(false);
+    }
+  };
 
   const simulationWarnings = useMemo(
     () => (Array.isArray(simulationData?.warnings) ? simulationData.warnings.filter(Boolean) : []),
@@ -910,6 +1334,21 @@ export default function BulletStrategyMockup({
           </div>
         )}
       </section>
+
+      <BulletRateRiskPanel
+        expanded={rateRiskExpanded}
+        onToggle={handleToggleRateRisk}
+        data={rateRiskData}
+        loading={rateRiskLoading}
+        error={rateRiskError}
+        stale={rateRiskStale}
+        onRetry={fetchRateRisk}
+        summaryLoading={rateRiskSummaryLoading}
+        summaryError={rateRiskSummaryError}
+        summaryData={rateRiskSummaryData}
+        onGenerateSummary={generateRateRiskSummary}
+        isLightTheme={isLightTheme}
+      />
 
       <section className="mb-3">
         <div className="mb-4 flex items-center justify-between gap-4 max-[520px]:items-start max-[520px]:flex-col">

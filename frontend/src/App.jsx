@@ -1933,7 +1933,11 @@ export default function App() {
       {/* Main Content - Dark Background */}
       <main className="main-content">
         {showBulletStrategyMockup ? (
-          <BulletStrategyMockup theme={theme} />
+          <BulletStrategyMockup
+            theme={theme}
+            userState={formData.state_selection}
+            userIncomeRange={formData.income_range}
+          />
         ) : !showResults ? (
           <>
             <div className="text-center max-w-[900px] mb-[60px] flex flex-col items-center max-[768px]:mb-7">
@@ -2165,6 +2169,8 @@ export default function App() {
                   simulationLoading={bulletLoading}
                   simulationError={bulletError}
                   onExportPdf={() => window.print()}
+                  userState={formData.state_selection}
+                  userIncomeRange={formData.income_range}
                   onControlsChange={(controls) => {
                     setBulletControlsDirty(true);
                     setBulletControls((prev) => {
