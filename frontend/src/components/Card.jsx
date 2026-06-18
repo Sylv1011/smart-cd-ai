@@ -282,14 +282,14 @@ const Card = ({info, primary, taxOpen=false, future=false ,optionsExpanded=true,
                             </button>
                           </>
                         ) : (
-                          <>
-                            <div className="absolute left-[16px] top-1/2 -translate-y-1/2 whitespace-nowrap text-[14px] font-bold leading-none text-white">Why this Fits</div>
-                            <div className="absolute left-[244px] top-1/2 -translate-y-1/2 text-[12px] font-bold leading-none text-[#3A6090]">Match Score</div>
-                            <div className="absolute left-[352px] top-1/2 h-[6px] w-[180px] -translate-y-1/2 rounded-full bg-[#0D2A1F]">
+                          <div className="grid w-full min-w-0 grid-cols-[minmax(110px,1fr)_auto_minmax(90px,180px)_minmax(52px,auto)] items-center gap-4 px-4">
+                            <div className="whitespace-nowrap text-[14px] font-bold leading-none text-white">Why this Fits</div>
+                            <div className="whitespace-nowrap text-[12px] font-bold leading-none text-[#3A6090]">Match Score</div>
+                            <div className="h-[6px] min-w-0 rounded-full bg-[#0D2A1F]">
                               <div className="h-[6px] rounded-full bg-[#22C55E]" style={{ width: `${Math.max(0, Math.min(100, cleanInfo.matchPercentage))}%` }} />
                             </div>
-                            <div className="absolute right-[18px] top-1/2 -translate-y-1/2 text-[18px] font-bold leading-none text-[#22C55E]">{cleanInfo.matchPercentage}%</div>
-                          </>
+                            <div className="whitespace-nowrap text-right text-[18px] font-bold leading-none text-[#22C55E]">{cleanInfo.matchPercentage}%</div>
+                          </div>
                         )}
                       </div>
       

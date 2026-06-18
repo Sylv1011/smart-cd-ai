@@ -112,8 +112,8 @@ const StatCard = ({ title, sub, value, subtitle, valueColor, last = false }) => 
 const SUMMARY_GRID =
   'grid grid-cols-[0.4fr_2fr_1fr_1fr_1.5fr_1fr_1.3fr] gap-x-4 items-center';
 
-const SummaryRow = ({ rungNum, name, term, nominal, tax, allocation, date }) => {
-  const badge = { provider: name };
+const SummaryRow = ({ rungNum, name, productType, term, nominal, tax, allocation, date }) => {
+  const badge = { provider: name, productType };
   return (
     <div className={`${SUMMARY_GRID} py-3 border-t border-[rgba(16,185,129,0.20)] text-sm`}>
       <div className="text-[#6EE7B7] font-medium">#{rungNum}</div>
@@ -468,6 +468,7 @@ const LadderTab = ({
                         key={rung.rung}
                         rungNum={rung.rung}
                         name={getProviderName(product)}
+                        productType={product?.product_type === 'treasury' ? 'Treasuries' : undefined}
                         term={rung.target_term_months}
                         nominal={product?.apy_nominal != null ? Number(product.apy_nominal).toFixed(2) : 'N/A'}
                         tax={product?.after_tax_apy != null ? Number(product.after_tax_apy).toFixed(2) : 'N/A'}
