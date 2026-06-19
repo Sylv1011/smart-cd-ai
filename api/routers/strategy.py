@@ -186,6 +186,9 @@ def invalidate_convergence_cache(product_ids: List[str]) -> dict:
     return {"invalidated": True, "product_ids": product_ids}
 
 
+# NOTE:
+# - /strategy/bullet/rate-risk computes deterministic numeric scenario data only.
+# - The plain-English AI explanation now lives in the separate ai-layer service.
 @router.post("/bullet/rate-risk", response_model=BulletRateRiskResponse)
 def bullet_rate_risk(
     request: BulletRateRiskRequest,
