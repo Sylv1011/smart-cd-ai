@@ -709,6 +709,7 @@ export default function BulletStrategyMockup({
   const [rateRiskSummaryData, setRateRiskSummaryData] = useState(null);
   const timersRef = useRef({});
   const rateRiskKeyRef = useRef('');
+  const rateRiskRequestInFlightRef = useRef(false);
 
   useEffect(() => {
     setTerm(initialTerm || '12 months');
@@ -957,7 +958,7 @@ export default function BulletStrategyMockup({
   }, [rateRiskData, rateRiskLoadedKey, rateRiskRequestKey, rateRiskSummaryData]);
 
   const fetchRateRisk = async () => {
-    if (rateRiskLoading) return;
+    if (rateRiskLoading || rateRiskRequestInFlightRef.current) return;
     if (simulationLoading) {
       setRateRiskError('Rate-risk scenarios will be available once the latest Bullet strategy finishes loading.');
       return;
@@ -967,11 +968,13 @@ export default function BulletStrategyMockup({
       return;
     }
 
+    const requestKeyAtFetch = rateRiskRequestKey;
     const apiBase =
       import.meta.env.VITE_API_URL ||
       import.meta.env.VITE_RANKING_API_URL ||
       'http://localhost:8000';
 
+    rateRiskRequestInFlightRef.current = true;
     setRateRiskLoading(true);
     setRateRiskError('');
 
@@ -988,26 +991,32 @@ export default function BulletStrategyMockup({
       }
 
       const payload = await response.json();
+      if (rateRiskKeyRef.current !== requestKeyAtFetch) {
+        return;
+      }
       setRateRiskData(payload);
-      setRateRiskLoadedKey(rateRiskRequestKey);
+      setRateRiskLoadedKey(requestKeyAtFetch);
       setRateRiskStale(false);
       setRateRiskSummaryError('');
       setRateRiskSummaryData(null);
     } catch (error) {
+      if (rateRiskKeyRef.current !== requestKeyAtFetch) {
+        return;
+      }
       setRateRiskError(error?.message || 'Failed to load rate-risk scenarios.');
     } finally {
+      rateRiskRequestInFlightRef.current = false;
       setRateRiskLoading(false);
     }
   };
 
   const handleToggleRateRisk = () => {
-    setRateRiskExpanded((prev) => {
-      const next = !prev;
-      if (next && rateRiskLoadedKey !== rateRiskRequestKey) {
-        fetchRateRisk();
-      }
-      return next;
-    });
+    const next = !rateRiskExpanded;
+    setRateRiskExpanded(next);
+
+    if (next && rateRiskLoadedKey !== rateRiskRequestKey) {
+      fetchRateRisk();
+    }
   };
 
   const generateRateRiskSummary = async () => {
