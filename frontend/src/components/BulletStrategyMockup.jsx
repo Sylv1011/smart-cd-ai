@@ -971,7 +971,6 @@ export default function BulletStrategyMockup({
     const requestKeyAtFetch = rateRiskRequestKey;
     const apiBase =
       import.meta.env.VITE_API_URL ||
-      import.meta.env.VITE_RANKING_API_URL ||
       'http://localhost:8000';
 
     rateRiskRequestInFlightRef.current = true;
