@@ -289,32 +289,25 @@ const BulletRateRiskPanel = ({
         type="button"
         onClick={onToggle}
         aria-expanded={expanded}
-        className={`flex w-full items-center justify-between gap-4 rounded-[12px] border px-4 py-4 text-left transition-colors ${
+        className={`flex w-full items-center justify-between gap-4 rounded-[12px] border px-5 py-[17px] text-left transition-colors ${
           isLightTheme
             ? 'border-[#BFDBFE] bg-[#EFF6FF] hover:bg-[#E6F0FF]'
             : 'border-[#1E3A5F] bg-[#081329] hover:bg-[#0B1830]'
         }`}
       >
-        <div className="flex min-w-0 items-center gap-3">
-          <span className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${
-            isLightTheme ? 'bg-[#DBEAFE] text-[#1557F5]' : 'bg-[#10233C] text-[#8CC8FF]'
-          }`}>
-            <SparkleIcon className="h-4 w-4" />
+        <div className="flex min-w-0 items-center gap-3.5">
+          <span className={`${isLightTheme ? 'text-[#1557F5]' : 'text-[#1D8DEE]'}`}>
+            <SparkleIcon className="h-[18px] w-[18px]" />
           </span>
-          <div className="min-w-0">
-            <div className={`text-[16px] font-semibold leading-[22px] ${isLightTheme ? 'text-[#0F172A]' : 'text-white'}`}>
-              See how rate changes could impact your future purchases
-            </div>
-            <div className={`mt-1 text-[13px] leading-[18px] ${isLightTheme ? 'text-[#64748B]' : 'text-[#7AAAC0]'}`}>
-              Review simulated rate scenarios before your projected tranches are purchased.
-            </div>
+          <div className={`min-w-0 text-[16px] font-semibold leading-[22px] ${isLightTheme ? 'text-[#0F172A]' : 'text-white'}`}>
+            See how rate changes could impact your future purchases
           </div>
         </div>
         <ChevronDownIcon className={`h-5 w-5 shrink-0 transition-transform ${expanded ? 'rotate-180' : ''} ${isLightTheme ? 'text-[#64748B]' : 'text-[#8AA4C0]'}`} />
       </button>
 
       {expanded && (
-        <div className={`mt-3 rounded-[12px] border p-4 md:p-5 ${
+        <div className={`mt-3 rounded-[12px] border px-[34px] py-[34px] ${
           isLightTheme ? 'border-[#BFDBFE] bg-[#F8FBFF]' : 'border-[#1E2939] bg-[#050D1F]'
         }`}>
           {stale && !loading && !data && (
@@ -372,11 +365,11 @@ const BulletRateRiskPanel = ({
                       return (
                         <div
                           key={`${scenario?.label}-${scenario?.delta}`}
-                          className={`grid grid-cols-[minmax(0,1.2fr)_minmax(140px,1fr)_92px] gap-3 border-b px-4 py-3 text-[14px] last:border-b-0 ${
+                          className={`grid grid-cols-[minmax(0,1.2fr)_minmax(140px,1fr)_92px] gap-3 border-b px-8 py-[21px] text-[14px] last:border-b-0 ${
                             isLightTheme ? 'border-[#D7E7D9]' : 'border-[#143220]'
                           }`}
                         >
-                          <div className={`font-medium ${isLightTheme ? 'text-[#0F172A]' : 'text-white'}`}>{scenario?.label}</div>
+                          <div className={`font-medium ${isLightTheme ? 'text-[#0F172A]' : 'text-[#7AAAC0]'}`}>{scenario?.label}</div>
                           <div className="font-bold text-[#22C55E]">{formatMoney(scenario?.total_return ?? 0, 0)}</div>
                           <div className={`font-bold ${impactTone}`}>
                             {scenario?.label === 'Rates stay flat' ? '-' : formatSignedMoney(impact)}
@@ -387,18 +380,13 @@ const BulletRateRiskPanel = ({
                   </div>
                 </div>
 
-                <div className={`rounded-[12px] border p-4 ${
+                <div className={`flex h-full flex-col rounded-[12px] border px-8 py-[20px] ${
                   isLightTheme
                     ? 'border-[#BFDBFE] bg-[linear-gradient(180deg,#FFFFFF_0%,#EFF6FF_100%)]'
                     : 'border-[#1557F5] bg-[linear-gradient(180deg,#07170F_0%,#06120D_100%)]'
                 }`}>
-                  <div className="flex items-start justify-between gap-4">
-                    <div>
-                      <div className={`text-[16px] font-bold leading-[22px] ${isLightTheme ? 'text-[#0F172A]' : 'text-white'}`}>What if rates change</div>
-                      <div className={`mt-1 text-[13px] leading-[18px] ${isLightTheme ? 'text-[#64748B]' : 'text-[#7AAAC0]'}`}>
-                        Generate an AI summary of how these simulated rate moves affect your future Bullet purchases.
-                      </div>
-                    </div>
+                  <div className={`flex items-start justify-between gap-4 border-b pb-[18px] ${isLightTheme ? 'border-[#BFDBFE]' : 'border-[#143220]'}`}>
+                    <div className={`text-[16px] font-bold leading-[22px] ${isLightTheme ? 'text-[#0F172A]' : 'text-white'}`}>What if rates change</div>
                     {!summaryData && (
                       <button
                         type="button"
@@ -411,7 +399,7 @@ const BulletRateRiskPanel = ({
                         } ${
                           isLightTheme
                             ? 'border-[#6A9ABE] text-[#1557F5] hover:bg-[#EAF2FF]'
-                            : 'border-[#6A9ABE] text-[#6A9ABE] hover:bg-[#0f2a1f]'
+                            : 'border-[#6A9ABE] bg-[#07170F] text-[#6A9ABE] hover:bg-[#0f2a1f]'
                         }`}
                       >
                         <SparkleIcon className="h-3.5 w-3.5" />
@@ -429,21 +417,22 @@ const BulletRateRiskPanel = ({
                   )}
 
                   {summaryData ? (
-                    <div className="mt-4">
-                      <div className={`text-[18px] font-semibold leading-[26px] ${isLightTheme ? 'text-[#0F172A]' : 'text-white'}`}>
+                    <div className="mt-[28px] flex flex-1 flex-col">
+                      <div className={`text-[20px] font-semibold leading-[32px] ${isLightTheme ? 'text-[#0F172A]' : 'text-white'}`}>
                         {summaryData.headline}
                       </div>
-                      <p className={`mt-3 text-[14px] leading-[22px] ${isLightTheme ? 'text-[#475569]' : 'text-[#99A1AF]'}`}>
+                      <p className={`mt-4 text-[14px] leading-[38px] ${isLightTheme ? 'text-[#475569]' : 'text-[#99A1AF]'}`}>
                         {summaryData.insight}
                       </p>
-                      <p className={`mt-4 text-[12px] leading-[18px] ${isLightTheme ? 'text-[#64748B]' : 'text-[#7AAAC0]'}`}>
-                        AI-generated insights are based on simulated rate scenarios and current market data. This information is educational and should not be considered financial advice.
-                      </p>
+                      <div className={`mt-auto flex items-start gap-3 pt-5 text-[12px] leading-[18px] ${isLightTheme ? 'text-[#64748B]' : 'text-[#7AAAC0]'}`}>
+                        <InfoIcon className="mt-[2px] h-5 w-5 shrink-0" />
+                        <p>
+                          AI-generated insights are based on simulated rate scenarios and current market data. This information is educational and should not be considered financial advice.
+                        </p>
+                      </div>
                     </div>
                   ) : (
-                    <div className={`mt-4 text-[13px] leading-[20px] ${isLightTheme ? 'text-[#64748B]' : 'text-[#8AA4C0]'}`}>
-                      The summary is generated only when you ask for it and uses the current Bullet rate-risk scenario data.
-                    </div>
+                    <div className="flex-1" />
                   )}
                 </div>
               </div>
@@ -952,8 +941,9 @@ export default function BulletStrategyMockup({
 
     const requestKeyAtFetch = rateRiskRequestKey;
     const apiBase =
+      import.meta.env.VITE_RANKING_API_URL ||
       import.meta.env.VITE_API_URL ||
-      'http://localhost:8000';
+      'http://localhost:8001';
 
     rateRiskRequestInFlightRef.current = true;
     setRateRiskLoading(true);
