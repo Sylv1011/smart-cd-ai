@@ -352,32 +352,14 @@ const BulletRateRiskPanel = ({
 
           {!loading && !error && data && (
             <>
-              <div className="mb-4 flex flex-wrap gap-2">
-                <div className={`rounded-full px-3 py-1 text-[12px] font-medium ${
-                  isLightTheme ? 'bg-[#DBEAFE] text-[#1E3A8A]' : 'bg-[#0A1429] text-[#8CC8FF]'
-                }`}>
-                  Locked today: {formatMoney(data?.locked_amount ?? 0, 0)} ({formatPct(data?.locked_pct ?? 0)}%)
-                </div>
-                <div className={`rounded-full px-3 py-1 text-[12px] font-medium ${
-                  isLightTheme ? 'bg-[#E0F2FE] text-[#075985]' : 'bg-[#0B1C33] text-[#7DD3FC]'
-                }`}>
-                  Future purchases at risk: {formatMoney(data?.deferred_amount ?? 0, 0)} ({formatPct(data?.deferred_pct ?? 0)}%)
-                </div>
-                <div className={`rounded-full px-3 py-1 text-[12px] font-medium ${
-                  isLightTheme ? 'bg-[#DCFCE7] text-[#166534]' : 'bg-[#07170F] text-[#86EFAC]'
-                }`}>
-                  Break-even rate drop: {formatPct(data?.break_even_drop ?? 0)}%
-                </div>
-              </div>
-
-              <div className="grid gap-4 lg:grid-cols-[minmax(0,1.45fr)_minmax(320px,0.9fr)]">
-                <div className={`overflow-hidden rounded-[12px] border ${
+              <div className="grid items-stretch gap-[46px] lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+                <div className={`h-full overflow-hidden rounded-[12px] border ${
                   isLightTheme
                     ? 'border-[#D7E7D9] bg-[linear-gradient(180deg,#F8FFFA_0%,#ECFDF3_100%)]'
                     : 'border-[#0E2818] bg-[linear-gradient(180deg,#071810_0%,#050E0A_100%)]'
                 }`}>
-                  <div className={`grid grid-cols-[minmax(0,1.2fr)_minmax(140px,1fr)_92px] gap-3 border-b px-4 py-3 text-[12px] font-bold uppercase tracking-[0.04em] ${
-                    isLightTheme ? 'border-[#D7E7D9] text-[#64748B]' : 'border-[#143220] text-[#7AAAC0]'
+                  <div className={`grid grid-cols-[minmax(0,1.2fr)_minmax(140px,1fr)_92px] gap-3 border-b px-8 py-[17px] text-[12px] font-bold tracking-[0em] ${
+                    isLightTheme ? 'border-[#D7E7D9] text-[#334155]' : 'border-[#143220] text-white'
                   }`}>
                     <div>Scenario</div>
                     <div>Est. Return (Projected Tranches)</div>
