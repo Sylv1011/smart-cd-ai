@@ -98,7 +98,7 @@ const adaptSingleOfferToUiResult = (o) => {
 
 
 
-const Card = ({info, primary, taxOpen=false, future=false ,optionsExpanded=true, setOptionsExpanded}) => {
+const Card = ({info, primary, taxOpen=false, future=false ,optionsExpanded=true, setOptionsExpanded, hideOptions=false}) => {
   
   const [taxOpenState, setTaxOpenState] = useState(false);
   const [isWhyExpanded, setIsWhyExpanded] = useState(false);
@@ -362,10 +362,10 @@ const Card = ({info, primary, taxOpen=false, future=false ,optionsExpanded=true,
                 </div>
               )}
       
-      {primary && (
+      {primary && !hideOptions && (
         <button
           type="button"
-          onClick={() => {setOptionsExpanded((v) => !v)}}
+          onClick={() => {setOptionsExpanded?.((v) => !v)}}
           className={`inline-flex appearance-none items-center gap-1  bg-transparent pl-1 text-[14px] font-normal leading-[20px] text-white shadow-none outline-none transition-colors hover:text-[#c7d7ee] }`}
         >
           Other great options
