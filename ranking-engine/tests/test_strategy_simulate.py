@@ -43,13 +43,13 @@ class StrategySimulateTests(unittest.TestCase):
         self.assertEqual(res.status_code, 422)
         self.assertEqual(res.json()["detail"], "Invalid state provided")
 
-    def test_ladder_requires_liquidity_preference(self):
+    def test_ladder_works_without_liquidity_preference(self):
         payload = self._base_payload()
         payload["strategy_type"] = "ladder"
         payload["time_horizon"] = "3"
-        # liquidity_preference not set — ladder requires it
+        # liquidity_preference is optional now — the optimizer is yield-based
         res = self.client.post("/strategies/simulate", json=payload)
-        self.assertEqual(res.status_code, 422)
+        self.assertEqual(res.status_code, 200)
 
     def test_bullet_requires_time_horizon(self):
         payload = self._base_payload()

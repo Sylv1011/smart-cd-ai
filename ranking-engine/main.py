@@ -207,6 +207,7 @@ class StrategySimulateRequest(BaseModel):
     long_term_months: Optional[int] = Field(default=None, ge=12, le=60)
     liquidity_preference: Optional[Literal["low", "medium", "high"]] = None
     rate_outlook: Optional[Literal["rising", "stable", "falling"]] = None
+    product_type_filter: Optional[str] = None
 
 
 @app.middleware("http")
@@ -360,8 +361,6 @@ def simulate_strategy(req: StrategySimulateRequest) -> Dict[str, Any]:
             )
 
         if strategy_type == "ladder":
-            if req.liquidity_preference is None:
-                raise HTTPException(status_code=422, detail="liquidity_preference is required for ladder")
             return simulate_ladder(
                 data_client=data_client,
                 investment_amount=req.investment_amount,
@@ -372,6 +371,7 @@ def simulate_strategy(req: StrategySimulateRequest) -> Dict[str, Any]:
                 liquidity_preference=req.liquidity_preference,
                 rate_outlook=req.rate_outlook,
                 time_horizon=req.time_horizon,
+                product_type_filter=req.product_type_filter,
             )
 
         if strategy_type == "bullet":

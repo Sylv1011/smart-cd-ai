@@ -10,6 +10,32 @@ import BulletStrategyMockup from './components/BulletStrategyMockup';
 import BarbellTab from './components/BarbellTab';
 import LadderTab from './components/LadderTab';
 
+// Per-strategy accent colors for the results tab bar.
+// Full static class strings (not interpolated) so Tailwind's JIT generates them.
+// NOTE: exact shades are an educated guess pending Figma confirmation.
+const STRATEGY_TAB_COLORS = {
+  'best-rate': {
+    text: 'text-[#3B82F6]',
+    active: 'border-[#3B82F6] shadow-[inset_0_0_0_1px_rgba(59,130,246,0.28),0_0_0_1px_rgba(59,130,246,0.2)]',
+    hover: 'hover:border-[#3B82F6]/25 hover:shadow-[0_0_22px_rgba(59,130,246,0.07),inset_0_0_0_1px_rgba(59,130,246,0.12)]',
+  },
+  ladder: {
+    text: 'text-[#10B981]',
+    active: 'border-[#10B981] shadow-[inset_0_0_0_1px_rgba(16,185,129,0.28),0_0_0_1px_rgba(16,185,129,0.2)]',
+    hover: 'hover:border-[#10B981]/25 hover:shadow-[0_0_22px_rgba(16,185,129,0.07),inset_0_0_0_1px_rgba(16,185,129,0.12)]',
+  },
+  barbell: {
+    text: 'text-[#A855F7]',
+    active: 'border-[#A855F7] shadow-[inset_0_0_0_1px_rgba(168,85,247,0.28),0_0_0_1px_rgba(168,85,247,0.2)]',
+    hover: 'hover:border-[#A855F7]/25 hover:shadow-[0_0_22px_rgba(168,85,247,0.07),inset_0_0_0_1px_rgba(168,85,247,0.12)]',
+  },
+  bullet: {
+    text: 'text-[#F59E0C]',
+    active: 'border-[#F59E0C] shadow-[inset_0_0_0_1px_rgba(245,158,11,0.28),0_0_0_1px_rgba(245,158,11,0.2)]',
+    hover: 'hover:border-[#F59E0C]/25 hover:shadow-[0_0_22px_rgba(245,158,11,0.07),inset_0_0_0_1px_rgba(245,158,11,0.12)]',
+  },
+};
+
 const SparkleIcon = ({ className, style }) => (
   <svg className={className} style={style} width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
     <path d="M8 0L9.44444 6.55556L16 8L9.44444 9.44444L8 16L6.55556 9.44444L0 8L6.55556 6.55556L8 0Z" fill="currentColor" />
@@ -424,7 +450,7 @@ export default function App() {
   const [bulletError, setBulletError] = useState(null);
   const [barbellError, setBarbellError] = useState(null);
   const [ladderError, setLadderError] = useState(null);
-  const [ladderControls, setLadderControls] = useState({ liquidity: 'medium', horizon: '5', amount: '20000' });
+  const [ladderControls, setLadderControls] = useState({ horizon: '5', filterType: 'All Products', amount: '20000' });
   const [ladderControlsDirty, setLadderControlsDirty] = useState(false);
   const [bulletAlternativesByTranche, setBulletAlternativesByTranche] = useState({});
   const [bulletControls, setBulletControls] = useState({ term: '12 months', amount: '20000' });
@@ -1083,8 +1109,8 @@ export default function App() {
       income_range: nextFormData.income_range,
       filing_status: normalizeFilingStatusForRanker(nextFormData.tax_filing_status),
       local_area: nextFormData.city_county || null,
-      liquidity_preference: effectiveControls.liquidity || 'medium',
       time_horizon: effectiveControls.horizon || '5',
+      product_type_filter: effectiveControls.filterType || 'All Products',
     };
 
     setLadderLoading(true);
@@ -1351,7 +1377,7 @@ export default function App() {
     barbellControls.split,
     barbellControls.shortTerm,
     barbellControls.longTerm,
-    ladderControls.liquidity,
+    ladderControls.filterType,
     ladderControls.horizon,
     ladderControls.amount,
   ]);
@@ -2122,9 +2148,15 @@ export default function App() {
           </>
         ) : (
           <div className="mx-auto w-full max-w-[1288px]">
-            {strategyView === 'bullet' && (
+            {(strategyView === 'ladder' || strategyView === 'barbell' || strategyView === 'bullet') && (
               <div className="mb-4">
-                <h1 className="text-[20px] font-bold leading-[28px] text-white">Bullet Strategy</h1>
+                <h1 className={`text-[20px] font-bold leading-[28px] ${theme === 'light' ? 'text-[#0F172A]' : 'text-white'}`}>
+                  {strategyView === 'ladder'
+                    ? 'Ladder Strategy'
+                    : strategyView === 'barbell'
+                    ? 'Barbell Strategy'
+                    : 'Bullet Strategy'}
+                </h1>
                 <p className="text-[14px] leading-[20px] text-[#4A6A8A]">Compare all CDs with the best after-tax yields for your situation</p>
               </div>
             )}
@@ -2132,7 +2164,8 @@ export default function App() {
               <div className="mx-auto flex w-full max-w-[1226px] flex-wrap items-center gap-x-[30px] gap-y-3 lg:flex-nowrap">
                 {strategyTabs.map((tab) => {
                   const active = strategyView === tab.id;
-                  const textColorClass = active ? 'text-[#F59E0C]' : 'text-[#94A3B8]';
+                  const colors = STRATEGY_TAB_COLORS[tab.id] || STRATEGY_TAB_COLORS.bullet;
+                  const textColorClass = active ? colors.text : 'text-[#94A3B8]';
                   return (
                     <button
                       key={tab.id}
@@ -2140,8 +2173,8 @@ export default function App() {
                       onClick={() => handleTabChange(tab.id)}
                       className={`w-[273px] flex h-[67px] shrink-0 items-center gap-3 border-0 bg-transparent text-left transition-all duration-300 ease-out ${
                         active
-                          ? 'rounded-[12px] border border-[#F59E0C] bg-[#0D1B2E] px-6 shadow-[inset_0_0_0_1px_rgba(245,158,11,0.28),0_0_0_1px_rgba(245,158,11,0.2)]'
-                          : 'cursor-pointer px-0 hover:rounded-[12px] hover:border hover:border-[#F59E0C]/25 hover:bg-[#0D1B2E] hover:px-4 hover:shadow-[0_0_22px_rgba(245,158,11,0.07),inset_0_0_0_1px_rgba(245,158,11,0.12)]'
+                          ? `rounded-[12px] border bg-[#0D1B2E] px-6 ${colors.active}`
+                          : `cursor-pointer px-0 hover:rounded-[12px] hover:border hover:bg-[#0D1B2E] hover:px-4 ${colors.hover}`
                       }`}
                     >
                       <span className={`inline-flex h-5 w-5 items-center justify-center ${textColorClass}`}>
@@ -2189,7 +2222,7 @@ export default function App() {
               </>
             ) : strategyView === 'ladder' ? (
               <LadderTab
-                initialLiquidity={ladderControls.liquidity}
+                initialFilterType={ladderControls.filterType}
                 initialHorizon={ladderControls.horizon}
                 initialAmount={ladderControls.amount}
                 simulationData={ladderSimulation}
@@ -2198,16 +2231,16 @@ export default function App() {
                 onExportPdf={() => window.print()}
                 onSelectStrategy={handleTabChange}
                 onControlsChange={(controls) => {
-                  const nextLiquidity = controls?.liquidity || ladderControls.liquidity;
+                  const nextFilterType = controls?.filterType || ladderControls.filterType;
                   const nextHorizon = controls?.horizon || ladderControls.horizon;
                   const nextAmount = controls?.amount || ladderControls.amount;
                   if (
-                    nextLiquidity === ladderControls.liquidity &&
+                    nextFilterType === ladderControls.filterType &&
                     nextHorizon === ladderControls.horizon &&
                     nextAmount === ladderControls.amount
                   ) return;
                   setLadderControlsDirty(true);
-                  setLadderControls({ liquidity: nextLiquidity, horizon: nextHorizon, amount: nextAmount });
+                  setLadderControls({ filterType: nextFilterType, horizon: nextHorizon, amount: nextAmount });
                 }}
               />
             ) : strategyView === 'barbell' ? (

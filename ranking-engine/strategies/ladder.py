@@ -87,6 +87,68 @@ def _calculate_weights(n_rungs: int, liquidity: str, rate_outlook: Optional[str]
     return normalized
 
 
+def _equal_weights(n_rungs: int) -> List[float]:
+    """Uniform 1/n allocation — the equal-split baseline."""
+    if n_rungs <= 0:
+        return []
+    base = 1.0 / n_rungs
+    weights = [base] * n_rungs
+    weights[-1] = 1.0 - sum(weights[:-1])  # exact sum of 1.0
+    return weights
+
+
+def _yield_weights(after_tax_apys: List[float]) -> List[float]:
+    """
+    Yield-optimized allocation: weight each rung in proportion to its
+    after-tax APY, so higher-yielding rungs receive more capital. This is the
+    "optimized" allocation shown alongside the equal-split baseline.
+
+    Falls back to equal weights when every yield is zero/missing.
+    """
+    n = len(after_tax_apys)
+    if n == 0:
+        return []
+    if n == 1:
+        return [1.0]
+    clamped = [max(0.0, float(a or 0.0)) for a in after_tax_apys]
+    total = sum(clamped)
+    if total <= 0:
+        return _equal_weights(n)
+    weights = [a / total for a in clamped]
+    weights[-1] = 1.0 - sum(weights[:-1])  # exact sum of 1.0
+    return weights
+
+
+def _detect_inverted_curve(rung_terms: List[int], after_tax_apys: List[float]) -> bool:
+    """
+    An inverted yield curve is when shorter maturities out-yield longer ones.
+    Compare the shortest and longest rungs by term; inverted if the shorter
+    rung's after-tax APY is meaningfully higher than the longer rung's.
+    """
+    if len(rung_terms) < 2:
+        return False
+    pairs = sorted(zip(rung_terms, after_tax_apys), key=lambda p: p[0])
+    shortest_apy = pairs[0][1] or 0.0
+    longest_apy = pairs[-1][1] or 0.0
+    return shortest_apy > longest_apy + 1e-9
+
+
+def _build_allocation_reason(inverted: bool, n_rungs: int) -> str:
+    """Deterministic, rule-based explanation of why the allocation isn't equal."""
+    if inverted:
+        return (
+            "An inverted yield curve means shorter-term CDs are currently offering "
+            "higher rates than longer-term ones. The optimizer shifts more allocation "
+            "to the shorter rungs to capture the premium short-term rate, while keeping "
+            "enough in longer rungs for future reinvestment."
+        )
+    return (
+        "The optimizer weights each rung by its after-tax yield, tilting allocation "
+        "toward the higher-yielding maturities while keeping every rung funded for "
+        "staggered liquidity."
+    )
+
+
 def _interest_compound(amount: float, apy_percent: float, term_months: float) -> float:
     """
     P × ((1 + APY)^t − 1) where t is term in years.
@@ -172,6 +234,27 @@ def _compute_blended_apy(rungs: List[Dict], total_amount: float) -> float:
     )
 
 
+_FILTER_TO_CATEGORY = {
+    "bank cds": "bank_cds",
+    "bank_cd": "bank_cds",
+    "brokerage cds": "brokered_cds",
+    "brokered_cd": "brokered_cds",
+    "treasuries": "treasuries",
+    "treasury": "treasuries",
+}
+
+
+def _resolve_candidates(result: Dict[str, Any], product_type_filter: Optional[str]) -> List[Dict]:
+    """Pick the ranked product list for a rung based on the product-type filter."""
+    key = (product_type_filter or "").strip().lower()
+    if not key or key in ("all", "all products"):
+        return result.get("overall_top") or []
+    category = _FILTER_TO_CATEGORY.get(key)
+    if category:
+        return result.get(category) or []
+    return result.get("overall_top") or []
+
+
 def simulate_ladder(
     *,
     data_client: Any,
@@ -180,16 +263,20 @@ def simulate_ladder(
     income_range: str,
     filing_status: str,
     local_area: Optional[str],
-    liquidity_preference: str,
+    liquidity_preference: Optional[str] = None,
     rate_outlook: Optional[str] = None,
     time_horizon: Optional[str] = None,
+    product_type_filter: Optional[str] = None,
 ) -> Dict[str, Any]:
     warnings: List[str] = []
 
-    # 1. Validate inputs
-    liq = (liquidity_preference or "").strip().lower()
-    if liq not in LIQUIDITY_ALLOWED:
-        raise RankingEngineError("liquidity_preference must be one of: low, medium, high")
+    # 1. Validate inputs. liquidity_preference is accepted for backward
+    #    compatibility but no longer drives allocation (the optimizer is
+    #    yield-based); reject only clearly invalid values when provided.
+    if liquidity_preference is not None:
+        liq = str(liquidity_preference).strip().lower()
+        if liq and liq not in LIQUIDITY_ALLOWED:
+            raise RankingEngineError("liquidity_preference must be one of: low, medium, high")
     outlook = (rate_outlook or "stable").strip().lower()
     if outlook not in RATE_OUTLOOK_ALLOWED:
         raise RankingEngineError("rate_outlook must be one of: rising, stable, falling")
@@ -206,7 +293,7 @@ def simulate_ladder(
     terms = _select_terms(investment_amount, horizon_int)
     logger.info("Ladder rungs: %s", terms)
 
-    # 4. Fetch the best offer per rung via the ranking engine
+    # 4. Fetch the best offer (plus alternatives) per rung via the ranking engine
     found: List[Dict] = []
     for term in terms:
         inp = RankingInput(
@@ -220,52 +307,89 @@ def simulate_ladder(
         result = rank_offers(
             data_client=data_client,
             inp=inp,
-            top_n_bank_cds=2,
-            top_n_brokered_cds=2,
-            top_n_treasuries=1,
-            top_n_overall=2,
+            top_n_bank_cds=3,
+            top_n_brokered_cds=3,
+            top_n_treasuries=3,
+            top_n_overall=3,
             include_all_ranked=False,
         )
-        top = result.get("overall_top") or []
-        if not top:
+        candidates = _resolve_candidates(result, product_type_filter)
+        if not candidates:
             warnings.append(f"No eligible product found for {term}-month rung — rung skipped.")
             continue
-        found.append({"term": term, "product": top[0]})
+        found.append({
+            "term": term,
+            "product": candidates[0],
+            "alternatives": candidates[1:3],
+        })
 
     if not found:
         raise RankingEngineError("No eligible CD products found for any ladder rung.")
 
-    # 5. Recalculate weights for the rungs that were actually found, then allocate
-    weights = _calculate_weights(len(found), liq, outlook)
     rungs_with_products = [
         {"rung": i + 1, "target_term_months": r["term"], "product": r["product"]}
         for i, r in enumerate(found)
     ]
-    allocated_rungs = _allocate_rungs(rungs_with_products, investment_amount, weights)
 
-    # 6. Enrich each rung with compound interest figures
-    for rung in allocated_rungs:
+    # 5. Two allocations: yield-optimized (default) and the equal-split baseline.
+    apys = [r["product"].get("after_tax_apy", 0.0) or 0.0 for r in rungs_with_products]
+    optimized_rungs = _allocate_rungs(
+        [dict(r) for r in rungs_with_products], investment_amount, _yield_weights(apys)
+    )
+    equal_rungs = _allocate_rungs(
+        [dict(r) for r in rungs_with_products], investment_amount, _equal_weights(len(rungs_with_products))
+    )
+
+    def _totals(alloc_rungs: List[Dict]) -> tuple:
+        nominal = 0.0
+        after_tax = 0.0
+        for r in alloc_rungs:
+            amt = r["allocation_amount"]
+            term = r["target_term_months"]
+            p = r["product"]
+            nominal += _interest_compound(amt, p.get("apy_nominal", 0.0) or 0.0, term)
+            after_tax += _interest_compound(amt, p.get("after_tax_apy", 0.0) or 0.0, term)
+        return round(nominal, 2), round(after_tax, 2)
+
+    opt_nominal, opt_after_tax = _totals(optimized_rungs)
+    _, eq_after_tax = _totals(equal_rungs)
+    opt_blended = _compute_blended_apy(optimized_rungs, investment_amount)
+    eq_blended = _compute_blended_apy(equal_rungs, investment_amount)
+
+    # 6. Enrich each primary product with compound interest under the optimized allocation
+    for rung in optimized_rungs:
         product = rung["product"]
         amount = rung["allocation_amount"]
         term = rung["target_term_months"]
-        nominal_apy = product.get("apy_nominal", 0.0) or 0.0
-        after_tax_apy = product.get("after_tax_apy", 0.0) or 0.0
-
         product["investment_amount"] = amount
-        product["nominal_interest_usd"] = round(_interest_compound(amount, nominal_apy, term), 2)
-        product["after_tax_interest_usd"] = round(_interest_compound(amount, after_tax_apy, term), 2)
+        product["nominal_interest_usd"] = round(_interest_compound(amount, product.get("apy_nominal", 0.0) or 0.0, term), 2)
+        product["after_tax_interest_usd"] = round(_interest_compound(amount, product.get("after_tax_apy", 0.0) or 0.0, term), 2)
 
-    # 7. Portfolio-level metrics
-    blended_apy = _compute_blended_apy(allocated_rungs, investment_amount)
-    total_nominal = sum(r["product"]["nominal_interest_usd"] for r in allocated_rungs)
-    total_after_tax = sum(r["product"]["after_tax_interest_usd"] for r in allocated_rungs)
+    # 7. Allocation insight: inverted-curve detection, optimization gain, reason
+    inverted_curve = _detect_inverted_curve(
+        [r["target_term_months"] for r in optimized_rungs],
+        [r["product"].get("after_tax_apy", 0.0) or 0.0 for r in optimized_rungs],
+    )
+    gain_usd = round(opt_after_tax - eq_after_tax, 2)
+    gain_apy = round(opt_blended - eq_blended, 4)
+    allocation_reason = _build_allocation_reason(inverted_curve, len(optimized_rungs))
 
-    # 8. Rate scenario simulation
+    provider_names = {
+        (r["product"].get("issuing_bank")
+         or r["product"].get("institution_name")
+         or r["product"].get("brokerage_firm")
+         or "")
+        for r in optimized_rungs
+    }
+    provider_names.discard("")
+    provider_count = len(provider_names) or len(optimized_rungs)
+
+    # 8. Rate scenario simulation (optimized allocation)
     # Shorter rungs (first half) mature sooner and are re-investable at new rates.
     # Longer rungs lock in today's rate regardless of what the market does.
-    short_cutoff = len(allocated_rungs) // 2
-    short_rungs = allocated_rungs[:short_cutoff]
-    long_rungs = allocated_rungs[short_cutoff:]
+    short_cutoff = len(optimized_rungs) // 2
+    short_rungs = optimized_rungs[:short_cutoff]
+    long_rungs = optimized_rungs[short_cutoff:]
 
     def _scenario_interest(rate_delta: float) -> float:
         total = 0.0
@@ -280,20 +404,39 @@ def simulate_ladder(
         "strategy": "ladder",
         "horizon_years": years,
         "total_investment": investment_amount,
-        "blended_after_tax_apy": round(blended_apy, 6),
+        "blended_after_tax_apy": round(opt_blended, 6),
+        "inverted_curve": inverted_curve,
+        "allocation_reason": allocation_reason,
+        "provider_count": provider_count,
+        "optimization": {
+            "gain_usd": gain_usd,
+            "gain_apy": gain_apy,
+            "optimized": {
+                "blended_after_tax_apy": round(opt_blended, 6),
+                "after_tax_interest_usd": opt_after_tax,
+            },
+            "equal_split": {
+                "blended_after_tax_apy": round(eq_blended, 6),
+                "after_tax_interest_usd": eq_after_tax,
+            },
+        },
         "rungs": [
             {
                 "rung": r["rung"],
                 "target_term_months": r["target_term_months"],
                 "allocation_amount": r["allocation_amount"],
                 "allocation_pct": r["allocation_pct"],
+                "equal_allocation_amount": equal_rungs[i]["allocation_amount"],
+                "equal_allocation_pct": equal_rungs[i]["allocation_pct"],
+                "delta_pct": round(r["allocation_pct"] - equal_rungs[i]["allocation_pct"], 2),
                 "product": r["product"],
+                "alternatives": found[i]["alternatives"],
             }
-            for r in allocated_rungs
+            for i, r in enumerate(optimized_rungs)
         ],
         "portfolio": {
-            "nominal_interest_usd": round(total_nominal, 2),
-            "after_tax_interest_usd": round(total_after_tax, 2),
+            "nominal_interest_usd": opt_nominal,
+            "after_tax_interest_usd": opt_after_tax,
         },
         "simulation": {
             "scenarios": [
