@@ -9,6 +9,8 @@ import BankBadge from './components/BankBadge';
 import BulletStrategyMockup from './components/BulletStrategyMockup';
 import BarbellTab from './components/BarbellTab';
 import LadderTab from './components/LadderTab';
+import Footer from './components/Footer';
+import CD_header from './components/CD_header';
 
 // Per-strategy accent colors for the results tab bar.
 // Full static class strings (not interpolated) so Tailwind's JIT generates them.
@@ -1904,58 +1906,10 @@ export default function App() {
         </div>
       )}
 
-      {/* Header - Dark Background */}
-      <header
-        className={`${
-          showBulletStrategyMockup
-            ? 'h-[80px] w-full overflow-hidden bg-[radial-gradient(ellipse_50%_50%_at_50%_50%,rgba(30,41,65,0.40)_0%,rgba(36,60,107,0.40)_100%)]'
-            : 'flex items-center bg-[#101b30] px-4 py-3 max-[768px]:px-3 max-[768px]:py-2.5'
-        }`}
-      >
-        {showBulletStrategyMockup ? (
-          <div className="mx-auto flex h-[67px] w-full max-w-[1397px] items-center justify-between px-[31px] pt-[6px]">
-            <button type="button" className="inline-flex items-center border-0 bg-transparent p-0 cursor-pointer" onClick={navigateToHome}>
-              <img src="/new-logo.png" alt="SmartCD.ai" className="h-[46px] w-auto" />
-            </button>
+      {/* Header*/}
+      <CD_header theme={theme} onLogoClick={navigateToHome} setTheme={setTheme}/>
 
-            <div className="flex items-center">
-              <button
-                type="button"
-                aria-label={theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode'}
-                aria-pressed={theme === 'light'}
-                onClick={() => setTheme((prev) => (prev === 'light' ? 'dark' : 'light'))}
-                className="inline-flex h-[35px] w-[35px] items-center justify-center rounded-full border border-white bg-transparent text-white transition-colors focus:outline-none focus:ring-2 focus:ring-[#92C5F9] focus:ring-offset-2 focus:ring-offset-[#101b30]"
-              >
-                {theme === 'light' ? <MoonIcon className="h-4 w-4" /> : <SunIcon className="h-4 w-4" />}
-              </button>
-            </div>
-          </div>
-        ) : (
-          <>
-            <div className="flex items-center gap-3 cursor-pointer" onClick={navigateToHome}>
-              <img
-                src="/new-logo.png"
-                alt="SmartCD.ai Logo"
-                className="h-11 w-auto max-[768px]:h-9"
-              />
-            </div>
-            <button
-              type="button"
-              aria-label={theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode'}
-              aria-pressed={theme === 'light'}
-              onClick={() => setTheme((prev) => (prev === 'light' ? 'dark' : 'light'))}
-              className={`ml-auto inline-flex items-center justify-center rounded-full border transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 ${
-                theme === 'light'
-                  ? 'h-10 w-10 border-[#CBD5E1] bg-[#EFF6FF] text-[#1E2941] focus:ring-[#1557F5] focus:ring-offset-white'
-                  : 'h-10 w-10 border-[rgba(255,255,255,0.22)] bg-[rgba(255,255,255,0.08)] text-white focus:ring-[#92C5F9] focus:ring-offset-[#101b30]'
-              }`}
-            >
-              {theme === 'light' ? <MoonIcon className="h-5 w-5" /> : <SunIcon className="h-5 w-5" />}
-            </button>
-          </>
-        )}
-      </header>
-
+      
       {/* Main Content - Dark Background */}
       <main className="main-content">
         {showBulletStrategyMockup ? (
@@ -2459,26 +2413,7 @@ export default function App() {
       </main>
 
       {/* Footer */}
-      {showBulletStrategyMockup || isBulletResultsView ? (
-        <footer className="mt-auto w-full overflow-hidden bg-[radial-gradient(ellipse_50%_50%_at_50%_50%,#1E2941_0%,#243C6B_0%)] pb-[max(18px,env(safe-area-inset-bottom))]">
-          <div className="mx-auto h-full w-full max-w-[1440px] px-4">
-            <div className="pt-[11px] text-center text-[12px] font-bold leading-none text-[#FBFBFB]">© 2026 SmartCD.AI</div>
-            <div className="mx-auto mt-[8px] max-w-[1320px] text-center text-[12px] font-normal leading-[14px] text-[#9E9E9E]">
-              SmartCD.AI is an AI-powered aggregator of publicly available information. Annual Percentage Yields (APY) are subject to change without notice. Minimum deposit requirements and regional availability may apply. This tool provides information for educational purposes only and does not constitute investment, financial, tax, or legal advice. Always verify rates directly with the financial institution before making investment decisions.
-            </div>
-          </div>
-        </footer>
-      ) : (
-        <footer className={`mt-auto flex w-full flex-col items-center justify-center gap-2 ${showResults ? 'bg-[#1E2941] px-5 py-10 max-[768px]:px-[14px] max-[768px]:py-[22px]' : 'border-t border-[#E5E7EB] bg-[#1E2941] px-16 pt-8 pb-6 max-[768px]:px-[14px] max-[768px]:pt-[22px] max-[768px]:pb-[22px]'}`}>
-          <div className="text-[0.8rem] font-medium text-[rgba(255,255,255,0.52)]">Last updated: March 2026</div>
-          <div className="mb-2 text-[0.85rem] font-semibold text-[rgba(255,255,255,0.85)]">
-            © 2026 SmartCD.ai - All Rights Reserved
-          </div>
-          <div className="max-w-[1000px] text-center text-[0.75rem] font-medium leading-[1.5] text-[rgba(255,255,255,0.55)]">
-            SmartCD.AI is an AI-powered aggregator of publicly available information. Annual Percentage Yields (APY) are subject to change without notice. Minimum deposit requirements and regional availability may apply. This tool provides information for educational purposes only and does not constitute investment, financial, tax, or legal advice. Always verify rates directly with the financial institution before making investment decisions.
-          </div>
-        </footer>
-      )}
+      <Footer/>
     </div>
   );
 }
