@@ -112,7 +112,7 @@ const StatCard = ({ title, sub, value, subtitle, valueColor, last=false}) => (
       {value}
     </div>
 
-    <div className=" text-[12px] text-[#FFFFFF]">
+    <div className=" text-[12px] text-white">
       {subtitle}
     </div>
   </div>

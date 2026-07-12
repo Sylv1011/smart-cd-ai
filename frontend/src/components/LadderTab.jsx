@@ -3,14 +3,8 @@ import { ChevronDownIcon, DocumentIcon } from './Icons/index';
 import Card from './Card';
 import BankBadge from './BankBadge';
 
-const LIQUIDITY_OPTIONS = ['low', 'medium', 'high'];
 const HORIZON_OPTIONS = ['1', '2', '3', '4', '5'];
-
-const LIQUIDITY_LABELS = {
-  low: 'Low — maximize long-term yield',
-  medium: 'Medium — balanced',
-  high: 'High — maximize near-term access',
-};
+const FILTER_OPTIONS = ['All Products', 'Bank CDs', 'Brokerage CDs', 'Treasuries'];
 
 const HORIZON_LABELS = {
   '1': '1 Year',
@@ -23,6 +17,9 @@ const HORIZON_LABELS = {
 const formatDateLong = (d) =>
   d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
 
+const formatDateShort = (d) =>
+  d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+
 const addMonths = (date, months) => {
   const out = new Date(date);
   out.setMonth(out.getMonth() + months);
@@ -34,6 +31,14 @@ const getProviderName = (product) =>
   product?.institution_name ||
   product?.brokerage_firm ||
   'N/A';
+
+const productTypeLabel = (product) => {
+  const t = product?.product_type;
+  if (t === 'treasury') return 'Treasuries';
+  if (t === 'brokered_cd') return 'Brokerage CDs';
+  if (t === 'bank_cd') return 'Bank CDs';
+  return product?.product_type || '';
+};
 
 const DropdownField = ({ label, value, options, labelMap, onSelect, narrow = false }) => {
   const [open, setOpen] = useState(false);
@@ -105,14 +110,109 @@ const StatCard = ({ title, sub, value, subtitle, valueColor, last = false }) => 
       {sub}
     </div>
     <div className={`text-[16px] font-bold ${valueColor}`}>{value}</div>
-    <div className="text-[12px] text-[#FFFFFF]">{subtitle}</div>
+    <div className="text-[12px] text-white">{subtitle}</div>
+  </div>
+);
+
+// Equal Split / Optimized allocation toggle
+const AllocationToggle = ({ mode, onChange }) => (
+  <div className="inline-flex overflow-hidden rounded-[8px] border border-[#1E3A2E]">
+    {[
+      { id: 'equal', label: 'Equal Split Allocation' },
+      { id: 'optimized', label: 'Optimized Allocation' },
+    ].map((opt) => {
+      const active = mode === opt.id;
+      return (
+        <button
+          key={opt.id}
+          type="button"
+          onClick={() => onChange(opt.id)}
+          className={`px-4 py-2 text-[13px] font-medium transition-colors ${
+            active ? 'bg-[#0D9488] text-white' : 'bg-[#0D1B2E] text-[#94A3B8] hover:text-white'
+          }`}
+        >
+          {opt.label}
+        </button>
+      );
+    })}
+  </div>
+);
+
+const LadderTimeline = ({ rungs, mode }) => {
+  const today = new Date();
+  const points = [
+    { label: 'Today', date: formatDateShort(today), node: 'today' },
+    ...rungs.map((r) => ({
+      label: `${r.target_term_months} months`,
+      date: formatDateShort(addMonths(today, Number(r.target_term_months || 0))),
+      pct: mode === 'equal' ? Number(r.equal_allocation_pct || 0) : Number(r.allocation_pct || 0),
+      amount: mode === 'equal' ? Number(r.equal_allocation_amount || 0) : Number(r.allocation_amount || 0),
+      node: 'rung',
+    })),
+  ];
+  const inset = 50 / points.length; // percent — aligns line ends with first/last node centers
+
+  return (
+    <div className="overflow-x-auto">
+      <div className="relative min-w-[600px] pt-1">
+        <div
+          className="absolute top-[54px] h-[2px] bg-[rgba(16,185,129,0.45)]"
+          style={{ left: `${inset}%`, right: `${inset}%` }}
+        />
+        <div className="flex items-start justify-between">
+          {points.map((p, i) => (
+            <div key={i} className="flex flex-1 flex-col items-center px-1 text-center">
+              <div className="h-[40px] leading-tight">
+                <div className="text-[13px] font-semibold text-white">{p.label}</div>
+                <div className="text-[11px] text-[#94A3B8]">({p.date})</div>
+              </div>
+              <div
+                className={`relative z-10 my-2 h-[14px] w-[14px] rounded-full border-2 border-[#0B1623] ${
+                  p.node === 'today' ? 'bg-[#6B7280]' : 'bg-[#10B981]'
+                }`}
+              />
+              {p.node === 'rung' ? (
+                <div className="mt-1 rounded-[8px] border border-[#1E2939] px-3 py-2">
+                  <div className="text-[13px] font-bold text-[#34D399]">
+                    {p.pct.toFixed(0)}% • ${p.amount.toLocaleString()}
+                  </div>
+                  <div className="text-[11px] text-[#94A3B8]">Allocation</div>
+                </div>
+              ) : (
+                <div className="mt-1 h-[52px]" aria-hidden />
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Compact alternative product row shown under "Other great options"
+const AltRow = ({ product }) => (
+  <div className="grid grid-cols-[2fr_1fr_1fr_1fr_1fr] items-center gap-3 border-t border-[#1E2939] px-3 py-3 text-sm">
+    <div className="flex items-center gap-2">
+      <BankBadge result={{ provider: getProviderName(product), productType: productTypeLabel(product) }} />
+      <span className="text-xs text-white">{getProviderName(product)}</span>
+    </div>
+    <div className="text-[#94A3B8]">{productTypeLabel(product)}</div>
+    <div className="font-bold text-white">
+      {product?.apy_nominal != null ? Number(product.apy_nominal).toFixed(2) : 'N/A'}%
+    </div>
+    <div className="font-bold text-[#10B981]">
+      {product?.after_tax_apy != null ? Number(product.after_tax_apy).toFixed(2) : 'N/A'}%
+    </div>
+    <div className="text-[#94A3B8]">
+      ${Number(product?.minimum_deposit || 0).toLocaleString()} min
+    </div>
   </div>
 );
 
 const SUMMARY_GRID =
-  'grid grid-cols-[0.4fr_2fr_1fr_1fr_1.5fr_1fr_1.3fr] gap-x-4 items-center';
+  'grid grid-cols-[0.4fr_2fr_1fr_1fr_1.5fr_1.4fr_1.3fr] gap-x-4 items-center';
 
-const SummaryRow = ({ rungNum, name, productType, term, nominal, tax, allocation, date }) => {
+const SummaryRow = ({ rungNum, name, productType, term, nominal, tax, pct, deltaPct, amount, date }) => {
   const badge = { provider: name, productType };
   return (
     <div className={`${SUMMARY_GRID} py-3 border-t border-[rgba(16,185,129,0.20)] text-sm`}>
@@ -124,14 +224,22 @@ const SummaryRow = ({ rungNum, name, productType, term, nominal, tax, allocation
       <div>{term} mo</div>
       <div>{nominal}%</div>
       <div className="text-[#10B981]">{tax}%</div>
-      <div>${Number(allocation || 0).toLocaleString()}</div>
+      <div>
+        <span className="font-medium text-white">{Number(pct || 0).toFixed(0)}%</span>
+        <span className="ml-1 text-[11px] text-[#64748B]">${Number(amount || 0).toLocaleString()}</span>
+        {deltaPct != null && Math.abs(deltaPct) >= 0.5 && (
+          <span className={`ml-1 text-[11px] ${deltaPct >= 0 ? 'text-[#34D399]' : 'text-[#F87171]'}`}>
+            {deltaPct >= 0 ? '+' : ''}{Number(deltaPct).toFixed(0)}% vs equal
+          </span>
+        )}
+      </div>
       <div className="text-[#94A3B8] text-[11px]">{date}</div>
     </div>
   );
 };
 
 const LadderTab = ({
-  initialLiquidity = 'medium',
+  initialFilterType = 'All Products',
   initialHorizon = '5',
   initialAmount = '20000',
   simulationLoading,
@@ -141,28 +249,33 @@ const LadderTab = ({
   onControlsChange,
   onSelectStrategy,
 }) => {
-  const [liquidity, setLiquidity] = useState(initialLiquidity);
+  const [filterType, setFilterType] = useState(initialFilterType);
   const [horizon, setHorizon] = useState(initialHorizon);
   const [amount, setAmount] = useState(initialAmount);
   const [expandedRungs, setExpandedRungs] = useState({});
+  const [altsOpen, setAltsOpen] = useState({});
+  const [allocationMode, setAllocationMode] = useState('optimized');
 
-  useEffect(() => { setLiquidity(initialLiquidity); }, [initialLiquidity]);
+  useEffect(() => { setFilterType(initialFilterType); }, [initialFilterType]);
   useEffect(() => { setHorizon(initialHorizon); }, [initialHorizon]);
   useEffect(() => { setAmount(initialAmount); }, [initialAmount]);
 
   useEffect(() => {
     onControlsChange?.({
-      liquidity,
+      filterType,
       horizon,
       amount: String(amount || '').replace(/[^0-9]/g, ''),
     });
-  }, [liquidity, horizon, amount]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [filterType, horizon, amount]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const toggleRung = (rungNum) =>
     setExpandedRungs((prev) => ({ ...prev, [rungNum]: !prev[rungNum] }));
+  const toggleAlts = (rungNum) =>
+    setAltsOpen((prev) => ({ ...prev, [rungNum]: !prev[rungNum] }));
 
   const rungs = Array.isArray(simulationData?.rungs) ? simulationData.rungs : [];
   const portfolio = simulationData?.portfolio || {};
+  const optimization = simulationData?.optimization || {};
   const scenarios = Array.isArray(simulationData?.simulation?.scenarios)
     ? simulationData.simulation.scenarios
     : [];
@@ -171,6 +284,22 @@ const LadderTab = ({
   const ratesRise = scenarios.find((s) => s.name === 'rates_rise');
   const ratesFall = scenarios.find((s) => s.name === 'rates_fall');
 
+  const firstRung = rungs[0];
+  const lastRung = rungs[rungs.length - 1];
+
+  const isEqual = allocationMode === 'equal';
+  const rungPct = (rung) => (isEqual ? rung.equal_allocation_pct : rung.allocation_pct);
+  const rungAmount = (rung) => (isEqual ? rung.equal_allocation_amount : rung.allocation_amount);
+
+  const optimized = optimization.optimized || {};
+  const equalSplit = optimization.equal_split || {};
+  const displayBlendedApy = isEqual
+    ? equalSplit.blended_after_tax_apy
+    : (optimized.blended_after_tax_apy ?? simulationData?.blended_after_tax_apy);
+  const displayReturn = isEqual
+    ? equalSplit.after_tax_interest_usd
+    : (optimized.after_tax_interest_usd ?? portfolio.after_tax_interest_usd);
+
   const hasData = rungs.length > 0;
   const shouldShowResults =
     simulationLoading || simulationError || hasData ||
@@ -178,7 +307,11 @@ const LadderTab = ({
 
   useEffect(() => {
     setExpandedRungs({});
+    setAltsOpen({});
   }, [simulationData]);
+
+  const fmtMoney = (v) => `$${Number(v || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
+  const fmtPct = (v) => (v != null ? `${Number(v).toFixed(2)}%` : 'N/A');
 
   return (
     <div>
@@ -199,20 +332,19 @@ const LadderTab = ({
         <div className="mt-5 w-full rounded-[12px] border border-[rgba(16,185,129,0.50)] p-4 shadow-[inset_0_0_0_1px_rgba(16,185,129,0.22)]">
           <div className="flex w-full flex-wrap items-start gap-x-10 gap-y-4">
             <DropdownField
-              label="Liquidity Preference"
-              value={liquidity}
-              options={LIQUIDITY_OPTIONS}
-              labelMap={LIQUIDITY_LABELS}
-              onSelect={setLiquidity}
-            />
-
-            <DropdownField
-              label="Time Horizon"
+              label="Target Maturity Date"
               value={horizon}
               options={HORIZON_OPTIONS}
               labelMap={HORIZON_LABELS}
               onSelect={setHorizon}
               narrow
+            />
+
+            <DropdownField
+              label="Filter By Type"
+              value={filterType}
+              options={FILTER_OPTIONS}
+              onSelect={setFilterType}
             />
 
             <div className="flex flex-col gap-[16px] w-full max-w-[220px]">
@@ -231,8 +363,8 @@ const LadderTab = ({
 
           <div className="mt-4 text-[11px] leading-[1.4] text-[#64748B]">
             <span className="italic">
-              Liquidity preference shifts allocation weight toward shorter or longer rungs.
-              Higher liquidity = more weight on the shorter end.
+              The optimizer weights each rung by its after-tax yield. Toggle to Equal Split to
+              compare against an even allocation across every rung.
             </span>
           </div>
         </div>
@@ -242,8 +374,6 @@ const LadderTab = ({
       {shouldShowResults && (
         <div>
           <section className="flex flex-col gap-[38px] max-w-[1286px] mb-8">
-            <div className="text-[20px] text-[#FFFFFF]">Your Ladder Strategy</div>
-
             {simulationLoading && (
               <div className="mb-4 rounded-[10px] border border-[#23446A] bg-[#0D1B2D] px-4 py-3 text-[13px] text-[#9FB4D3]">
                 Loading latest strategy simulation...
@@ -258,57 +388,116 @@ const LadderTab = ({
 
             {!hasData && !simulationLoading && !simulationError && simulationData && (
               <div className="mb-4 rounded-[10px] border border-[#23446A] bg-[#0D1B2D] px-4 py-3 text-[13px] text-[#9FB4D3]">
-                No products were found for the selected parameters. Try adjusting your time horizon or investment amount.
+                No products were found for the selected parameters. Try adjusting your target maturity or investment amount.
               </div>
             )}
 
             {hasData && (
               <>
-                {/* Stats row */}
-                <div
-                  className="flex flex-wrap items-center rounded-[12px]"
-                  style={{ border: '1px solid #2A4D78' }}
-                >
-                  <StatCard
-                    title="Blended After"
-                    sub="Tax APY"
-                    value={
-                      simulationData.blended_after_tax_apy != null
-                        ? `${Number(simulationData.blended_after_tax_apy).toFixed(2)}%`
-                        : 'N/A'
-                    }
-                    subtitle="(Estimated)"
-                    valueColor="text-[#10B981]"
-                  />
-                  <StatCard
-                    title="Total After-Tax"
-                    sub="Interest"
-                    value={
-                      portfolio.after_tax_interest_usd != null
-                        ? `$${Number(portfolio.after_tax_interest_usd).toLocaleString()}`
-                        : 'N/A'
-                    }
-                    subtitle="After Taxes"
-                    valueColor="text-[#34D399]"
-                  />
-                  <StatCard
-                    title="Rungs"
-                    sub="(Maturities)"
-                    value={rungs.length}
-                    subtitle={`${HORIZON_LABELS[horizon] || horizon} horizon`}
-                    valueColor="text-[#6EE7B7]"
-                  />
-                  <StatCard
-                    title="Total"
-                    sub="Invested"
-                    value={`$${Number(simulationData.total_investment || 0).toLocaleString()}`}
-                    subtitle="Across all rungs"
-                    valueColor="text-[#10B981]"
-                    last
-                  />
+                {/* CD Ladder — Optimized: header (toggle + curve badge), timeline, portfolio stats */}
+                <div className="flex flex-col gap-6 rounded-[12px] border border-[rgba(16,185,129,0.40)] bg-[#0B1623] p-5">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <span className="text-[16px] font-semibold tracking-[0.04em] text-white">
+                        CD Ladder — {isEqual ? 'Equal Split' : 'Optimized'}
+                      </span>
+                      {simulationData.inverted_curve && (
+                        <span className="rounded-full border border-[#F59E0C] px-3 py-1 text-[12px] font-semibold text-[#F59E0C]">
+                          Inverted Curve Detected
+                        </span>
+                      )}
+                    </div>
+                    <AllocationToggle mode={allocationMode} onChange={setAllocationMode} />
+                  </div>
+
+                  <LadderTimeline rungs={rungs} mode={allocationMode} />
+
+                  <div
+                    className="flex flex-wrap items-center rounded-[12px]"
+                    style={{ border: '1px solid #2A4D78' }}
+                  >
+                    <StatCard
+                      title="Blended After"
+                      sub="Tax APY"
+                      value={displayBlendedApy != null ? `${Number(displayBlendedApy).toFixed(2)}%` : 'N/A'}
+                      subtitle="(Estimated)"
+                      valueColor="text-[#10B981]"
+                    />
+                    <StatCard
+                      title="Estimated"
+                      sub="Total Return"
+                      value={displayReturn != null ? fmtMoney(displayReturn) : 'N/A'}
+                      subtitle="After Taxes"
+                      valueColor="text-[#34D399]"
+                    />
+                    <StatCard
+                      title="Earliest"
+                      sub="Liquidity Date"
+                      value={
+                        firstRung
+                          ? formatDateLong(addMonths(new Date(), Number(firstRung.target_term_months || 0)))
+                          : 'N/A'
+                      }
+                      subtitle={firstRung ? `${firstRung.target_term_months} Months Maturity` : ''}
+                      valueColor="text-[#6EE7B7]"
+                    />
+                    <StatCard
+                      title="Full Maturity"
+                      sub="Date"
+                      value={
+                        lastRung
+                          ? formatDateLong(addMonths(new Date(), Number(lastRung.target_term_months || 0)))
+                          : 'N/A'
+                      }
+                      subtitle={lastRung ? `${lastRung.target_term_months} Months Maturity` : ''}
+                      valueColor="text-[#10B981]"
+                      last
+                    />
+                  </div>
                 </div>
 
-                {/* Rung sections */}
+                {/* Why is your allocation not equal? + comparison */}
+                {optimization.optimized && (
+                  <div className="rounded-[12px] border border-[#1E2939] bg-[#0B1623] p-5">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div className="text-[16px] font-semibold text-white">
+                        Why is your allocation not equal?
+                      </div>
+                      {optimization.gain_usd != null && (
+                        <span className="rounded-full bg-[rgba(16,185,129,0.15)] px-3 py-1 text-[13px] font-semibold text-[#34D399]">
+                          {optimization.gain_usd >= 0 ? '+' : ''}{fmtMoney(optimization.gain_usd)} gain
+                        </span>
+                      )}
+                    </div>
+                    {simulationData.allocation_reason && (
+                      <p className="mt-3 max-w-[920px] text-[13px] leading-[1.6] text-[#94A3B8]">
+                        {simulationData.allocation_reason}
+                      </p>
+                    )}
+                    <div className="mt-5 grid grid-cols-2 overflow-hidden rounded-[12px] border border-[#1E2939]">
+                      <div className="border-r border-[#1E2939] p-5 text-center">
+                        <div className="text-[13px] uppercase tracking-wide text-[#64748B]">Equal Split</div>
+                        <div className="mt-3 text-[24px] font-bold text-[#94A3B8]">{fmtPct(equalSplit.blended_after_tax_apy)}</div>
+                        <div className="mt-1 text-[13px] text-[#64748B]">{fmtMoney(equalSplit.after_tax_interest_usd)} return</div>
+                      </div>
+                      <div className="p-5 text-center">
+                        <div className="text-[13px] uppercase tracking-wide text-[#34D399]">Optimized</div>
+                        <div className="mt-3 text-[24px] font-bold text-[#34D399]">{fmtPct(optimized.blended_after_tax_apy)}</div>
+                        <div className="mt-1 text-[13px] text-[#34D399]">{fmtMoney(optimized.after_tax_interest_usd)} return</div>
+                        {optimization.gain_usd != null && (
+                          <div className="mt-1 text-[13px] font-semibold text-[#34D399]">
+                            +{fmtMoney(optimization.gain_usd)}
+                            {optimization.gain_apy != null && ` • +${Number(optimization.gain_apy).toFixed(2)} APY`}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Your Ladder Strategy: rung list */}
+                <div className="text-[20px] text-[#FFFFFF]">Your Ladder Strategy</div>
+
                 <div className="overflow-hidden rounded-[12px] border border-[#1E2939] pb-4">
                   {rungs.map((rung) => {
                     const product = rung.product;
@@ -316,6 +505,8 @@ const LadderTab = ({
                       addMonths(new Date(), Number(rung.target_term_months || 0))
                     );
                     const isExpanded = expandedRungs[rung.rung] !== false;
+                    const alternatives = Array.isArray(rung.alternatives) ? rung.alternatives : [];
+                    const showAlts = altsOpen[rung.rung] === true;
 
                     return (
                       <div key={rung.rung} className="border-b border-[#1E2939] last:border-b-0">
@@ -340,19 +531,41 @@ const LadderTab = ({
 
                           <div className="text-right text-[14px] text-[#99A1AF]">
                             {rung.target_term_months} months •{' '}
-                            {Number(rung.allocation_pct || 0).toFixed(1)}% •{' '}
-                            ${Number(rung.allocation_amount || 0).toLocaleString()}
+                            {Number(rungPct(rung) || 0).toFixed(1)}% •{' '}
+                            ${Number(rungAmount(rung) || 0).toLocaleString()}
                           </div>
                         </div>
 
                         <div
                           className={`mx-4 overflow-hidden transition-all duration-300 ${
-                            isExpanded ? 'max-h-[1000px] opacity-100' : 'max-h-0 opacity-0'
+                            isExpanded ? 'max-h-[2000px] opacity-100' : 'max-h-0 opacity-0'
                           }`}
                         >
                           {product && (
                             <div className="rounded-lg border border-[#1E2939] mb-4">
-                              <Card info={product} primary />
+                              <Card info={product} primary hideOptions />
+                            </div>
+                          )}
+
+                          {alternatives.length > 0 && (
+                            <div className="mb-4">
+                              <button
+                                type="button"
+                                onClick={() => toggleAlts(rung.rung)}
+                                className="flex items-center gap-1 text-[13px] font-medium text-[#6EE7B7]"
+                              >
+                                Other great options ({alternatives.length})
+                                <ChevronDownIcon
+                                  className={`h-[13px] w-[13px] transition-transform ${showAlts ? 'rotate-180' : ''}`}
+                                />
+                              </button>
+                              {showAlts && (
+                                <div className="mt-2 rounded-lg border border-[#1E2939]">
+                                  {alternatives.map((alt, i) => (
+                                    <AltRow key={i} product={alt} />
+                                  ))}
+                                </div>
+                              )}
                             </div>
                           )}
                         </div>
@@ -429,20 +642,48 @@ const LadderTab = ({
 
           {/* Summary table */}
           {hasData && (
-            <section className="flex flex-col gap-[30px] max-w-[1286px]">
-              <div className="text-[20px] text-white flex justify-between px-2">
-                <div>Ladder Strategy Summary</div>
+            <section className="flex flex-col gap-[20px] max-w-[1286px]">
+              <div className="flex items-center justify-between px-2">
+                <div className="flex items-center gap-3">
+                  <span className="text-[20px] text-white">Ladder Strategy Summary</span>
+                  <span className="rounded-full bg-[#0D9488] px-3 py-1 text-[12px] font-semibold text-white">
+                    Optimized Allocation
+                  </span>
+                </div>
                 <button
                   type="button"
                   onClick={onExportPdf || (() => {})}
-                  className="flex h-12 w-[140px] items-center gap-[5px] rounded-[10px] border border-[#10B981] bg-[#0D1117] p-3"
+                  className="flex h-12 w-[150px] items-center justify-center gap-[8px] rounded-[10px] bg-[#0D9488] p-3 text-white transition-colors hover:bg-[#0F766E]"
                 >
                   <DocumentIcon className="h-6 w-6 shrink-0 text-white" />
-                  <span className="h-6 w-[86px] text-center text-[16px] font-medium leading-6 text-white">
-                    Export PDF
-                  </span>
+                  <span className="text-[16px] font-medium leading-6 text-white">Export PDF</span>
                 </button>
               </div>
+
+              {optimization.optimized && (
+                <p className="px-2 text-[13px] leading-[1.6] text-[#94A3B8]">
+                  The ladder strategy is spread across{' '}
+                  <span className="font-semibold text-white">
+                    {simulationData.provider_count ?? rungs.length}{' '}
+                    {(simulationData.provider_count ?? rungs.length) === 1 ? 'provider' : 'providers'}
+                  </span>{' '}
+                  and {rungs.length} {rungs.length === 1 ? 'rung' : 'rungs'},
+                  delivering a blended after-tax APY of{' '}
+                  <span className="font-semibold text-white">{fmtPct(optimized.blended_after_tax_apy)}</span>{' '}
+                  and an estimated after-tax return of{' '}
+                  <span className="font-semibold text-white">{fmtMoney(optimized.after_tax_interest_usd)}</span>.
+                  {optimization.gain_usd != null && (
+                    <>
+                      {' '}Optimization adds approximately{' '}
+                      <span className="font-semibold text-white">{fmtMoney(optimization.gain_usd)}</span>{' '}
+                      in additional earnings while maintaining a full maturity date of{' '}
+                      <span className="font-semibold text-white">
+                        {lastRung ? formatDateLong(addMonths(new Date(), Number(lastRung.target_term_months || 0))) : 'N/A'}
+                      </span>.
+                    </>
+                  )}
+                </p>
+              )}
 
               <div className="rounded-[12px] border border-[rgba(16,185,129,1)] bg-[#0D1B2D] py-2 text-[16px] text-[#D1D5DC]">
                 <div
@@ -453,7 +694,7 @@ const LadderTab = ({
                   <div>TERM</div>
                   <div>NOMINAL</div>
                   <div>AFTER TAX YIELD</div>
-                  <div>ALLOCATION</div>
+                  <div>OPTIMIZED ALLOCATION</div>
                   <div>MATURITY DATE</div>
                 </div>
 
@@ -468,11 +709,13 @@ const LadderTab = ({
                         key={rung.rung}
                         rungNum={rung.rung}
                         name={getProviderName(product)}
-                        productType={product?.product_type === 'treasury' ? 'Treasuries' : undefined}
+                        productType={productTypeLabel(product)}
                         term={rung.target_term_months}
                         nominal={product?.apy_nominal != null ? Number(product.apy_nominal).toFixed(2) : 'N/A'}
                         tax={product?.after_tax_apy != null ? Number(product.after_tax_apy).toFixed(2) : 'N/A'}
-                        allocation={rung.allocation_amount}
+                        pct={rung.allocation_pct}
+                        deltaPct={rung.delta_pct}
+                        amount={rung.allocation_amount}
                         date={maturityDate}
                       />
                     );

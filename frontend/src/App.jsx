@@ -9,6 +9,34 @@ import BankBadge from './components/BankBadge';
 import BulletStrategyMockup from './components/BulletStrategyMockup';
 import BarbellTab from './components/BarbellTab';
 import LadderTab from './components/LadderTab';
+import Footer from './components/Footer';
+import CD_header from './components/CD_header';
+
+// Per-strategy accent colors for the results tab bar.
+// Full static class strings (not interpolated) so Tailwind's JIT generates them.
+// NOTE: exact shades are an educated guess pending Figma confirmation.
+const STRATEGY_TAB_COLORS = {
+  'best-rate': {
+    text: 'text-[#3B82F6]',
+    active: 'border-[#3B82F6] shadow-[inset_0_0_0_1px_rgba(59,130,246,0.28),0_0_0_1px_rgba(59,130,246,0.2)]',
+    hover: 'hover:border-[#3B82F6]/25 hover:shadow-[0_0_22px_rgba(59,130,246,0.07),inset_0_0_0_1px_rgba(59,130,246,0.12)]',
+  },
+  ladder: {
+    text: 'text-[#10B981]',
+    active: 'border-[#10B981] shadow-[inset_0_0_0_1px_rgba(16,185,129,0.28),0_0_0_1px_rgba(16,185,129,0.2)]',
+    hover: 'hover:border-[#10B981]/25 hover:shadow-[0_0_22px_rgba(16,185,129,0.07),inset_0_0_0_1px_rgba(16,185,129,0.12)]',
+  },
+  barbell: {
+    text: 'text-[#A855F7]',
+    active: 'border-[#A855F7] shadow-[inset_0_0_0_1px_rgba(168,85,247,0.28),0_0_0_1px_rgba(168,85,247,0.2)]',
+    hover: 'hover:border-[#A855F7]/25 hover:shadow-[0_0_22px_rgba(168,85,247,0.07),inset_0_0_0_1px_rgba(168,85,247,0.12)]',
+  },
+  bullet: {
+    text: 'text-[#F59E0C]',
+    active: 'border-[#F59E0C] shadow-[inset_0_0_0_1px_rgba(245,158,11,0.28),0_0_0_1px_rgba(245,158,11,0.2)]',
+    hover: 'hover:border-[#F59E0C]/25 hover:shadow-[0_0_22px_rgba(245,158,11,0.07),inset_0_0_0_1px_rgba(245,158,11,0.12)]',
+  },
+};
 
 const SparkleIcon = ({ className, style }) => (
   <svg className={className} style={style} width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -424,7 +452,7 @@ export default function App() {
   const [bulletError, setBulletError] = useState(null);
   const [barbellError, setBarbellError] = useState(null);
   const [ladderError, setLadderError] = useState(null);
-  const [ladderControls, setLadderControls] = useState({ liquidity: 'medium', horizon: '5', amount: '20000' });
+  const [ladderControls, setLadderControls] = useState({ horizon: '5', filterType: 'All Products', amount: '20000' });
   const [ladderControlsDirty, setLadderControlsDirty] = useState(false);
   const [bulletAlternativesByTranche, setBulletAlternativesByTranche] = useState({});
   const [bulletControls, setBulletControls] = useState({ term: '12 months', amount: '20000' });
@@ -1083,8 +1111,8 @@ export default function App() {
       income_range: nextFormData.income_range,
       filing_status: normalizeFilingStatusForRanker(nextFormData.tax_filing_status),
       local_area: nextFormData.city_county || null,
-      liquidity_preference: effectiveControls.liquidity || 'medium',
       time_horizon: effectiveControls.horizon || '5',
+      product_type_filter: effectiveControls.filterType || 'All Products',
     };
 
     setLadderLoading(true);
@@ -1351,7 +1379,7 @@ export default function App() {
     barbellControls.split,
     barbellControls.shortTerm,
     barbellControls.longTerm,
-    ladderControls.liquidity,
+    ladderControls.filterType,
     ladderControls.horizon,
     ladderControls.amount,
   ]);
@@ -1878,62 +1906,18 @@ export default function App() {
         </div>
       )}
 
-      {/* Header - Dark Background */}
-      <header
-        className={`${
-          showBulletStrategyMockup
-            ? 'h-[80px] w-full overflow-hidden bg-[radial-gradient(ellipse_50%_50%_at_50%_50%,rgba(30,41,65,0.40)_0%,rgba(36,60,107,0.40)_100%)]'
-            : 'flex items-center bg-[#101b30] px-4 py-3 max-[768px]:px-3 max-[768px]:py-2.5'
-        }`}
-      >
-        {showBulletStrategyMockup ? (
-          <div className="mx-auto flex h-[67px] w-full max-w-[1397px] items-center justify-between px-[31px] pt-[6px]">
-            <button type="button" className="inline-flex items-center border-0 bg-transparent p-0 cursor-pointer" onClick={navigateToHome}>
-              <img src="/new-logo.png" alt="SmartCD.ai" className="h-[46px] w-auto" />
-            </button>
+      {/* Header*/}
+      <CD_header theme={theme} onLogoClick={navigateToHome} setTheme={setTheme}/>
 
-            <div className="flex items-center">
-              <button
-                type="button"
-                aria-label={theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode'}
-                aria-pressed={theme === 'light'}
-                onClick={() => setTheme((prev) => (prev === 'light' ? 'dark' : 'light'))}
-                className="inline-flex h-[35px] w-[35px] items-center justify-center rounded-full border border-white bg-transparent text-white transition-colors focus:outline-none focus:ring-2 focus:ring-[#92C5F9] focus:ring-offset-2 focus:ring-offset-[#101b30]"
-              >
-                {theme === 'light' ? <MoonIcon className="h-4 w-4" /> : <SunIcon className="h-4 w-4" />}
-              </button>
-            </div>
-          </div>
-        ) : (
-          <>
-            <div className="flex items-center gap-3 cursor-pointer" onClick={navigateToHome}>
-              <img
-                src="/new-logo.png"
-                alt="SmartCD.ai Logo"
-                className="h-11 w-auto max-[768px]:h-9"
-              />
-            </div>
-            <button
-              type="button"
-              aria-label={theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode'}
-              aria-pressed={theme === 'light'}
-              onClick={() => setTheme((prev) => (prev === 'light' ? 'dark' : 'light'))}
-              className={`ml-auto inline-flex items-center justify-center rounded-full border transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 ${
-                theme === 'light'
-                  ? 'h-10 w-10 border-[#CBD5E1] bg-[#EFF6FF] text-[#1E2941] focus:ring-[#1557F5] focus:ring-offset-white'
-                  : 'h-10 w-10 border-[rgba(255,255,255,0.22)] bg-[rgba(255,255,255,0.08)] text-white focus:ring-[#92C5F9] focus:ring-offset-[#101b30]'
-              }`}
-            >
-              {theme === 'light' ? <MoonIcon className="h-5 w-5" /> : <SunIcon className="h-5 w-5" />}
-            </button>
-          </>
-        )}
-      </header>
-
+      
       {/* Main Content - Dark Background */}
       <main className="main-content">
         {showBulletStrategyMockup ? (
-          <BulletStrategyMockup theme={theme} />
+          <BulletStrategyMockup
+            theme={theme}
+            userState={formData.state_selection}
+            userIncomeRange={formData.income_range}
+          />
         ) : !showResults ? (
           <>
             <div className="text-center max-w-[900px] mb-[60px] flex flex-col items-center max-[768px]:mb-7">
@@ -2118,9 +2102,15 @@ export default function App() {
           </>
         ) : (
           <div className="mx-auto w-full max-w-[1288px]">
-            {strategyView === 'bullet' && (
+            {(strategyView === 'ladder' || strategyView === 'barbell' || strategyView === 'bullet') && (
               <div className="mb-4">
-                <h1 className="text-[20px] font-bold leading-[28px] text-white">Bullet Strategy</h1>
+                <h1 className={`text-[20px] font-bold leading-[28px] ${theme === 'light' ? 'text-[#0F172A]' : 'text-white'}`}>
+                  {strategyView === 'ladder'
+                    ? 'Ladder Strategy'
+                    : strategyView === 'barbell'
+                    ? 'Barbell Strategy'
+                    : 'Bullet Strategy'}
+                </h1>
                 <p className="text-[14px] leading-[20px] text-[#4A6A8A]">Compare all CDs with the best after-tax yields for your situation</p>
               </div>
             )}
@@ -2128,7 +2118,8 @@ export default function App() {
               <div className="mx-auto flex w-full max-w-[1226px] flex-wrap items-center gap-x-[30px] gap-y-3 lg:flex-nowrap">
                 {strategyTabs.map((tab) => {
                   const active = strategyView === tab.id;
-                  const textColorClass = active ? 'text-[#F59E0C]' : 'text-[#94A3B8]';
+                  const colors = STRATEGY_TAB_COLORS[tab.id] || STRATEGY_TAB_COLORS.bullet;
+                  const textColorClass = active ? colors.text : 'text-[#94A3B8]';
                   return (
                     <button
                       key={tab.id}
@@ -2136,8 +2127,8 @@ export default function App() {
                       onClick={() => handleTabChange(tab.id)}
                       className={`w-[273px] flex h-[67px] shrink-0 items-center gap-3 border-0 bg-transparent text-left transition-all duration-300 ease-out ${
                         active
-                          ? 'rounded-[12px] border border-[#F59E0C] bg-[#0D1B2E] px-6 shadow-[inset_0_0_0_1px_rgba(245,158,11,0.28),0_0_0_1px_rgba(245,158,11,0.2)]'
-                          : 'cursor-pointer px-0 hover:rounded-[12px] hover:border hover:border-[#F59E0C]/25 hover:bg-[#0D1B2E] hover:px-4 hover:shadow-[0_0_22px_rgba(245,158,11,0.07),inset_0_0_0_1px_rgba(245,158,11,0.12)]'
+                          ? `rounded-[12px] border bg-[#0D1B2E] px-6 ${colors.active}`
+                          : `cursor-pointer px-0 hover:rounded-[12px] hover:border hover:bg-[#0D1B2E] hover:px-4 ${colors.hover}`
                       }`}
                     >
                       <span className={`inline-flex h-5 w-5 items-center justify-center ${textColorClass}`}>
@@ -2165,6 +2156,8 @@ export default function App() {
                   simulationLoading={bulletLoading}
                   simulationError={bulletError}
                   onExportPdf={() => window.print()}
+                  userState={formData.state_selection}
+                  userIncomeRange={formData.income_range}
                   onControlsChange={(controls) => {
                     setBulletControlsDirty(true);
                     setBulletControls((prev) => {
@@ -2183,7 +2176,7 @@ export default function App() {
               </>
             ) : strategyView === 'ladder' ? (
               <LadderTab
-                initialLiquidity={ladderControls.liquidity}
+                initialFilterType={ladderControls.filterType}
                 initialHorizon={ladderControls.horizon}
                 initialAmount={ladderControls.amount}
                 simulationData={ladderSimulation}
@@ -2192,16 +2185,16 @@ export default function App() {
                 onExportPdf={() => window.print()}
                 onSelectStrategy={handleTabChange}
                 onControlsChange={(controls) => {
-                  const nextLiquidity = controls?.liquidity || ladderControls.liquidity;
+                  const nextFilterType = controls?.filterType || ladderControls.filterType;
                   const nextHorizon = controls?.horizon || ladderControls.horizon;
                   const nextAmount = controls?.amount || ladderControls.amount;
                   if (
-                    nextLiquidity === ladderControls.liquidity &&
+                    nextFilterType === ladderControls.filterType &&
                     nextHorizon === ladderControls.horizon &&
                     nextAmount === ladderControls.amount
                   ) return;
                   setLadderControlsDirty(true);
-                  setLadderControls({ liquidity: nextLiquidity, horizon: nextHorizon, amount: nextAmount });
+                  setLadderControls({ filterType: nextFilterType, horizon: nextHorizon, amount: nextAmount });
                 }}
               />
             ) : strategyView === 'barbell' ? (
@@ -2420,26 +2413,7 @@ export default function App() {
       </main>
 
       {/* Footer */}
-      {showBulletStrategyMockup || isBulletResultsView ? (
-        <footer className="mt-auto w-full overflow-hidden bg-[radial-gradient(ellipse_50%_50%_at_50%_50%,#1E2941_0%,#243C6B_0%)] pb-[max(18px,env(safe-area-inset-bottom))]">
-          <div className="mx-auto h-full w-full max-w-[1440px] px-4">
-            <div className="pt-[11px] text-center text-[12px] font-bold leading-none text-[#FBFBFB]">© 2026 SmartCD.AI</div>
-            <div className="mx-auto mt-[8px] max-w-[1320px] text-center text-[12px] font-normal leading-[14px] text-[#9E9E9E]">
-              SmartCD.AI is an AI-powered aggregator of publicly available information. Annual Percentage Yields (APY) are subject to change without notice. Minimum deposit requirements and regional availability may apply. This tool provides information for educational purposes only and does not constitute investment, financial, tax, or legal advice. Always verify rates directly with the financial institution before making investment decisions.
-            </div>
-          </div>
-        </footer>
-      ) : (
-        <footer className={`mt-auto flex w-full flex-col items-center justify-center gap-2 ${showResults ? 'bg-[#1E2941] px-5 py-10 max-[768px]:px-[14px] max-[768px]:py-[22px]' : 'border-t border-[#E5E7EB] bg-[#1E2941] px-16 pt-8 pb-6 max-[768px]:px-[14px] max-[768px]:pt-[22px] max-[768px]:pb-[22px]'}`}>
-          <div className="text-[0.8rem] font-medium text-[rgba(255,255,255,0.52)]">Last updated: March 2026</div>
-          <div className="mb-2 text-[0.85rem] font-semibold text-[rgba(255,255,255,0.85)]">
-            © 2026 SmartCD.ai - All Rights Reserved
-          </div>
-          <div className="max-w-[1000px] text-center text-[0.75rem] font-medium leading-[1.5] text-[rgba(255,255,255,0.55)]">
-            SmartCD.AI is an AI-powered aggregator of publicly available information. Annual Percentage Yields (APY) are subject to change without notice. Minimum deposit requirements and regional availability may apply. This tool provides information for educational purposes only and does not constitute investment, financial, tax, or legal advice. Always verify rates directly with the financial institution before making investment decisions.
-          </div>
-        </footer>
-      )}
+      <Footer/>
     </div>
   );
 }
