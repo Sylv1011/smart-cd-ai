@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 
 const nameToSlug = (name) =>
   String(name || '')
@@ -41,6 +41,11 @@ const SLUG_ALIASES = {
   'us-bank':                    'u-s-bank',
   'us-bancorp':                 'u-s-bank',
   'u-s-bancorp':                'u-s-bank',
+
+  // U.S. Treasury
+  'us-treasury':                'us-treasury',
+  'u-s-treasury':               'us-treasury',
+  'united-states-treasury':     'us-treasury',
 
   // BNY Mellon
   'bank-of-new-york-mellon':              'bny-mellon',
@@ -227,6 +232,11 @@ export const getBankLogoUrl = (result) => {
 const BankBadge = ({ result }) => {
   const logoUrl = getBankLogoUrl(result);
   const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    setFailed(false);
+  }, [logoUrl]);
+
   const showLogo = Boolean(logoUrl) && !failed;
   return (
     <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-[5px] bg-white max-[480px]:h-8 max-[480px]:w-8">

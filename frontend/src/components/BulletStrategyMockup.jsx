@@ -191,7 +191,7 @@ const DropdownField = ({ label, value, options, onSelect, narrow = false }) => {
         <ChevronDownIcon className={`h-4 w-4 text-[#94A3B8]/70 transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
       {open && (
-        <div className="absolute left-0 top-[72px] z-20 w-full overflow-hidden rounded-[8px] border border-[#1A3050] bg-[#0D1B2D] shadow-[0_10px_20px_rgba(0,0,0,0.35)]">
+        <div className="absolute left-0 top-full z-20 mt-1 w-full overflow-hidden rounded-[8px] border border-[#1A3050] bg-[#0D1B2D] shadow-[0_10px_20px_rgba(0,0,0,0.35)]">
           <div className="divide-y divide-[#1A3050]">
           {options.map((opt) => (
             <button
@@ -584,14 +584,14 @@ const Row = ({
                   </button>
                 </>
               ) : (
-                <>
-                  <div className={`absolute left-[16px] top-1/2 -translate-y-1/2 whitespace-nowrap text-[14px] font-bold leading-none ${isLightTheme ? 'text-[#0F172A]' : 'text-white'}`}>Why this Fits</div>
-                  <div className={`absolute left-[244px] top-1/2 -translate-y-1/2 text-[12px] font-bold leading-none ${isLightTheme ? 'text-[#64748B]' : 'text-[#3A6090]'}`}>Match Score</div>
-                  <div className={`absolute left-[352px] top-1/2 h-[6px] w-[180px] -translate-y-1/2 rounded-full ${isLightTheme ? 'bg-[#DBEAFE]' : 'bg-[#0D2A1F]'}`}>
+                <div className="grid w-full min-w-0 grid-cols-[minmax(110px,1fr)_auto_minmax(90px,180px)_minmax(52px,auto)] items-center gap-4 px-4">
+                  <div className={`whitespace-nowrap text-[14px] font-bold leading-none ${isLightTheme ? 'text-[#0F172A]' : 'text-white'}`}>Why this Fits</div>
+                  <div className={`whitespace-nowrap text-[12px] font-bold leading-none ${isLightTheme ? 'text-[#64748B]' : 'text-[#3A6090]'}`}>Match Score</div>
+                  <div className={`h-[6px] min-w-0 rounded-full ${isLightTheme ? 'bg-[#DBEAFE]' : 'bg-[#0D2A1F]'}`}>
                     <div className="h-[6px] w-[99%] rounded-full bg-[#22C55E]" />
                   </div>
-                  <div className="absolute right-[18px] top-1/2 -translate-y-1/2 text-[18px] font-bold leading-none text-[#22C55E]">99%</div>
-                </>
+                  <div className="whitespace-nowrap text-right text-[18px] font-bold leading-none text-[#22C55E]">99%</div>
+                </div>
               )}
             </div>
 
@@ -660,7 +660,7 @@ export default function BulletStrategyMockup({
 }) {
   const isLightTheme = theme === 'light';
   const [term, setTerm] = useState(initialTerm);
-  const [filterType, setFilterType] = useState('All Products (3)');
+  const [filterType, setFilterType] = useState('All Products (0)');
   const [amount, setAmount] = useState(initialAmount);
   const [nowCollapsed, setNowCollapsed] = useState(false);
   const [futureCollapsed, setFutureCollapsed] = useState(false);
@@ -1114,15 +1114,16 @@ export default function BulletStrategyMockup({
     return nowVisible || futureVisible;
   }, [derived, matchFilter]);
 
-  useEffect(() => {
-    setFilterType((prev) => {
-      const s = String(prev).toLowerCase();
-      if (!s.includes('bank') && !s.includes('brokerage') && !s.includes('treas')) {
-        return `All Products (${1 + (derived.purchaseNowOthers?.length || 0)})`;
-      }
-      return prev;
-    });
-  }, [derived.purchaseNowOthers?.length]);
+  const allBulletProducts = useMemo(() => [
+    derived.purchaseNowPrimary,
+    ...(Array.isArray(derived.purchaseNowOthers) ? derived.purchaseNowOthers : []),
+    ...derived.futureGroups.flatMap((group) => [
+      group.primary,
+      ...(Array.isArray(group.others) ? group.others : []),
+    ]),
+  ].filter(Boolean), [derived]);
+  const allProductsLabel = `All Products (${allBulletProducts.length})`;
+  const selectedFilterType = filterType.startsWith('All Products') ? allProductsLabel : filterType;
 
   return (
     <div className={`mx-auto w-full max-w-[1288px] ${isLightTheme ? 'text-[#0F172A]' : 'text-white'}`}>
@@ -1154,9 +1155,9 @@ export default function BulletStrategyMockup({
 
             <DropdownField
               label="FILTER BY TYPE"
-              value={filterType}
+              value={selectedFilterType}
               options={[
-                `All Products (${1 + (derived.purchaseNowOthers?.length || 0)})`,
+                allProductsLabel,
                 'Bank CDs',
                 'Brokerage CDs',
                 'Treasuries',
