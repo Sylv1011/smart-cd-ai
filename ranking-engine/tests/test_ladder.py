@@ -233,11 +233,12 @@ def test_ladder_allocation_sums_to_investment():
     assert abs(total - 10000) < 0.10
 
 
-def test_ladder_requires_liquidity_preference():
+def test_ladder_works_without_liquidity_preference():
+    # The optimizer is now yield-based; liquidity_preference is optional.
     payload = _ladder_payload()
     del payload["liquidity_preference"]
     resp = client.post("/strategies/simulate", json=payload)
-    assert resp.status_code == 422
+    assert resp.status_code == 200
 
 
 def test_ladder_rejects_invalid_liquidity():
@@ -257,20 +258,47 @@ def test_ladder_short_horizon_adds_warning():
     assert any("short" in w.lower() for w in warnings)
 
 
-def test_ladder_high_liquidity_tilts_to_shorter_rungs():
-    resp = client.post("/strategies/simulate", json=_ladder_payload(
-        liquidity_preference="high", time_horizon="5"
-    ))
-    rungs = resp.json()["rungs"]
-    assert rungs[0]["allocation_amount"] > rungs[-1]["allocation_amount"]
+def test_ladder_accepts_product_type_filter():
+    resp = client.post("/strategies/simulate", json=_ladder_payload(product_type_filter="Treasuries"))
+    assert resp.status_code == 200
 
 
-def test_ladder_low_liquidity_tilts_to_longer_rungs():
-    resp = client.post("/strategies/simulate", json=_ladder_payload(
-        liquidity_preference="low", time_horizon="5"
-    ))
-    rungs = resp.json()["rungs"]
-    assert rungs[-1]["allocation_amount"] > rungs[0]["allocation_amount"]
+# ---------------------------------------------------------------------------
+# Optimized vs equal-split allocation
+# ---------------------------------------------------------------------------
+
+def test_ladder_returns_optimization_block():
+    body = client.post("/strategies/simulate", json=_ladder_payload()).json()
+    opt = body["optimization"]
+    for field in ("gain_usd", "gain_apy", "optimized", "equal_split"):
+        assert field in opt, f"Missing optimization field: {field}"
+    assert "blended_after_tax_apy" in opt["optimized"]
+    assert "after_tax_interest_usd" in opt["equal_split"]
+
+
+def test_ladder_optimized_blended_apy_at_least_equal():
+    # Weighting toward higher-yield rungs raises the blended APY vs equal split.
+    opt = client.post("/strategies/simulate", json=_ladder_payload()).json()["optimization"]
+    assert opt["optimized"]["blended_after_tax_apy"] >= opt["equal_split"]["blended_after_tax_apy"] - 1e-6
+
+
+def test_ladder_rungs_carry_equal_and_delta_fields():
+    rungs = client.post("/strategies/simulate", json=_ladder_payload()).json()["rungs"]
+    for r in rungs:
+        for field in ("equal_allocation_pct", "equal_allocation_amount", "delta_pct", "alternatives"):
+            assert field in r, f"Missing rung field: {field}"
+
+
+def test_ladder_equal_allocation_sums_to_investment():
+    rungs = client.post("/strategies/simulate", json=_ladder_payload()).json()["rungs"]
+    total = sum(r["equal_allocation_amount"] for r in rungs)
+    assert abs(total - 10000) < 0.10
+
+
+def test_ladder_has_inverted_curve_flag_and_reason():
+    body = client.post("/strategies/simulate", json=_ladder_payload()).json()
+    assert isinstance(body["inverted_curve"], bool)
+    assert isinstance(body["allocation_reason"], str) and body["allocation_reason"]
 
 
 def test_ladder_simulation_has_both_scenarios():

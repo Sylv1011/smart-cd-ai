@@ -1,6 +1,6 @@
 const Footer = (showResults) => {
     return(
-    <footer className="mt-auto flex w-full flex-col items-center justify-center bg-[radial-gradient(50%_50%_at_50%_50%,#1E2941_0%,#243C6B_100%)] py-3 max-[768px]:px-[14px] max-[768px]:py-[22px]">
+    <footer className="mt-auto flex w-full flex-col items-center justify-center bg-[#1E2941] py-3 max-[768px]:px-[14px] max-[768px]:py-[22px]">
           <div className="text-[0.8rem] font-medium text-[rgba(255,255,255,0.52)]">Last updated: March 2026</div>
           <div className="mb-2 text-[0.85rem] font-semibold text-[rgba(255,255,255,0.85)]">
             © 2026 SmartCD.ai - All Rights Reserved

@@ -52,45 +52,47 @@ const DropdownField = ({
   }, [disabled, hasOptions]);
 
   return (
-    <div className={`w-full flex flex-col align-center gap-[16px] ${narrow ? 'max-w-[220px]' : label === 'Target Maturity Date' ? 'max-w-[302px]' : 'max-w-[278px]'}`}>
+    <div className={`w-full flex flex-col align-center ${narrow ? 'max-w-[220px]' : label === 'Target Maturity Date' ? 'max-w-[302px]' : 'max-w-[278px]'}`}>
       <div className={`mb-[14px] text-[11px] uppercase tracking-[0.55px] text-[#94A3B8] ${label === 'AMOUNT' ? 'font-bold' : 'font-semibold'}`}>{label}</div>
-      <button
-        type="button"
-        disabled={disabled || !hasOptions}
-        onClick={() => setOpen((v) => !v)}
-        className={`flex h-9 w-full items-center justify-between rounded-[8px] border border-[#1557F5] bg-[#0D1B2D] px-3 text-left shadow-[0_0_0_1px_rgba(21,87,245,0.35)] transition-colors ${
-          disabled || !hasOptions
-            ? 'cursor-not-allowed opacity-60'
-            : 'hover:border-[#2A4D78]'
-        }`}
-      >
-        <span className={`${label === 'Target Maturity Date' ? 'text-[12px]' : 'text-[14px]'} font-medium leading-[20px] text-white`}>{value}</span>
-        <ChevronDownIcon className={`h-4 w-4 text-[#94A3B8]/70 transition-transform ${open ? 'rotate-180' : ''}`} />
-      </button>
-      {!hasOptions && (
-        <div className="text-[12px] leading-[1.4] text-[#94A3B8]">
-          {emptyMessage}
-        </div>
-      )}
-      {open && (
-        <div className="mt-2 w-full overflow-hidden rounded-[8px] border border-[#1A3050] bg-[#0D1B2D] shadow-[0_10px_20px_rgba(0,0,0,0.35)]">
-          <div className="divide-y divide-[#1A3050]">
-          {options.map((opt) => (
-            <button
-              key={opt}
-              type="button"
-              onClick={() => {
-                onSelect(opt);
-                setOpen(false);
-              }}
-              className={`block w-full appearance-none border-0 bg-[#0D1B2D] px-3 py-2 text-left text-[13px] text-[#E2E8F0] shadow-none outline-none transition-colors hover:bg-[#173257] focus:bg-[#173257] ${
-                opt === value ? 'bg-[#173257]' : ''
-              }`}
-            >
-              {opt}
-            </button>
-          ))}
+      <div className="relative">
+        <button
+          type="button"
+          disabled={disabled || !hasOptions}
+          onClick={() => setOpen((v) => !v)}
+          className={`flex h-9 w-full items-center justify-between rounded-[8px] border border-[#1557F5] bg-[#0D1B2D] px-3 text-left shadow-[0_0_0_1px_rgba(21,87,245,0.35)] transition-colors ${
+            disabled || !hasOptions
+              ? 'cursor-not-allowed opacity-60'
+              : 'hover:border-[#2A4D78]'
+          }`}
+        >
+          <span className={`${label === 'Target Maturity Date' ? 'text-[12px]' : 'text-[14px]'} font-medium leading-[20px] text-white`}>{value}</span>
+          <ChevronDownIcon className={`h-4 w-4 text-[#94A3B8]/70 transition-transform ${open ? 'rotate-180' : ''}`} />
+        </button>
+        {open && (
+          <div className="absolute left-0 top-full z-40 mt-1 w-full overflow-hidden rounded-[8px] border border-[#1A3050] bg-[#0D1B2D] shadow-[0_10px_20px_rgba(0,0,0,0.35)]">
+            <div className="divide-y divide-[#1A3050]">
+            {options.map((opt) => (
+              <button
+                key={opt}
+                type="button"
+                onClick={() => {
+                  onSelect(opt);
+                  setOpen(false);
+                }}
+                className={`block w-full appearance-none border-0 bg-[#0D1B2D] px-3 py-2 text-left text-[13px] text-[#E2E8F0] shadow-none outline-none transition-colors hover:bg-[#173257] focus:bg-[#173257] ${
+                  opt === value ? 'bg-[#173257]' : ''
+                }`}
+              >
+                {opt}
+              </button>
+            ))}
+            </div>
           </div>
+        )}
+      </div>
+      {!hasOptions && (
+        <div className="mt-2 text-[12px] leading-[1.4] text-[#94A3B8]">
+          {emptyMessage}
         </div>
       )}
     </div>
@@ -110,7 +112,7 @@ const StatCard = ({ title, sub, value, subtitle, valueColor, last=false}) => (
       {value}
     </div>
 
-    <div className=" text-[12px] text-[#FFFFFF]">
+    <div className=" text-[12px] text-white">
       {subtitle}
     </div>
   </div>
@@ -171,7 +173,7 @@ const BarbellTab = ({
 }) => {
     
     const [term, setTerm] = useState(initialTerm);
-    const [filterType, setFilterType] = useState('All Products (3)');
+    const [filterType, setFilterType] = useState('All Products (0)');
     const [amount, setAmount] = useState(initialAmount);
     const [shortTerm, setShortTerm] = useState(initialShortTerm);
     const [longTerm, setLongTerm] = useState(initialLongTerm);
@@ -220,12 +222,6 @@ const BarbellTab = ({
     }, [simulationData]);
 
     useEffect(() => {
-      setFilterType((current) =>
-        current.startsWith('All Products') ? `All Products (${visibleProducts.length})` : current
-      );
-    }, [simulationData]); // eslint-disable-line react-hooks/exhaustive-deps
-
-    useEffect(() => {
       onControlsChange?.({
         term,
         amount: String(amount || '').replace(/[^0-9]/g, ''),
@@ -271,8 +267,10 @@ const BarbellTab = ({
         effectiveSimulationData?.message
       );
     const visibleProducts = [shortTermBest, shortTermAlt, longTermBest, longTermAlt].filter(Boolean);
+    const allProductsLabel = `All Products (${visibleProducts.length})`;
+    const selectedFilterType = filterType.startsWith('All Products') ? allProductsLabel : filterType;
     const filterOptions = [
-      `All Products (${visibleProducts.length})`,
+      allProductsLabel,
       'Bank CDs',
       'Brokerage CDs',
       'Treasuries',
@@ -330,7 +328,7 @@ const BarbellTab = ({
 
                         <DropdownField
                         label="FILTER BY TYPE"
-                        value={filterType}
+                        value={selectedFilterType}
                         options={filterOptions}
                         onSelect={setFilterType}
                         />
@@ -461,7 +459,7 @@ const BarbellTab = ({
                         {warningCard && (
                           <aside className="rounded-[14px] border border-[rgba(216,134,255,0.85)] bg-[#17051D] px-6 py-8 text-white shadow-[inset_0_0_0_1px_rgba(216,134,255,0.14)]">
                             <div className="flex items-start gap-3">
-                              <div className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white text-[#17051D]">
+                              <div className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white text-[#17051D] special">
                                 <span className="text-[18px] font-bold">!</span>
                               </div>
                               <div>
