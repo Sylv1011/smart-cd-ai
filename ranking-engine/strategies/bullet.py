@@ -95,12 +95,15 @@ def _target_maturity_windows(horizon_years: float) -> list[dict]:
     allow_duplicate_terms = horizon_months < 12
 
     for i, (raw, offset) in enumerate(zip(maturities, purchase_offsets)):
-        snapped = _snap_to_available_term(raw, exclude=set() if allow_duplicate_terms else used_terms)
+        # A tranche bought at `offset` matures at offset + term, so its term
+        # must not exceed horizon - offset or it matures past the target.
+        latest_term = min(raw, horizon_months - offset)
+        snapped = _snap_to_available_term(latest_term, exclude=set() if allow_duplicate_terms else used_terms)
         if snapped is None:
             # No unique term available for this tranche — drop it
             logger.warning(
                 "Tranche %d dropped: no unique available term at or below %dmo "
-                "(already used: %s)", i + 1, raw, used_terms
+                "(already used: %s)", i + 1, latest_term, used_terms
             )
             continue
         if not allow_duplicate_terms:
@@ -252,6 +255,11 @@ def simulate_bullet(*,
         raise RankingEngineError(
             "No valid maturity windows found for this horizon. "
             "Try a longer duration (at least 3 months)."
+        )
+    if len(windows) == 1:
+        warnings.append(
+            "Only a single CD purchase fits this target date: staggered "
+            "bullet tranches need a horizon of at least 6 months."
         )
     
     

@@ -789,7 +789,8 @@ export default function BulletStrategyMockup({
       const purchaseOffset = Number(t?.purchase_offset_months ?? 0) || 0;
       const offer = t?.product || {};
       const altOffers = Array.isArray(alternativesByTranche?.[String(t?.tranche)]) ? alternativesByTranche[String(t.tranche)] : [];
-      const maturityDate = formatDateLong(addMonths(start, Number(t?.target_maturity_months ?? 0) || 0));
+      // target_maturity_months is the CD's term; actual maturity is offset + term
+      const maturityDate = formatDateLong(addMonths(start, purchaseOffset + (Number(t?.target_maturity_months ?? 0) || 0)));
       const slot = purchaseOffset === 0
         ? 'Buy now'
         : `Buy in ${purchaseOffset} months (${formatDateLong(addMonths(start, purchaseOffset))})`;
