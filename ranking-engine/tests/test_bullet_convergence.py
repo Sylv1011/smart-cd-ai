@@ -6,8 +6,9 @@ from main import app
 from strategies.bullet import _target_maturity_windows
 
 
-# Horizon values the frontend actually sends for each Duration option
-# (App.jsx: Math.round((termMonths / 12) * 10) / 10, JS half-up rounding).
+# Horizon values the frontend actually sends, one per Duration <option> in
+# App.jsx (3/6/9/12/18/24/30 Month, 3/4/5 Year), converted the same way the
+# frontend does: Math.round((termMonths / 12) * 10) / 10, JS half-up rounding.
 _FRONTEND_HORIZON_YEARS = {
     3: 0.3,
     6: 0.5,
@@ -15,6 +16,7 @@ _FRONTEND_HORIZON_YEARS = {
     12: 1.0,
     18: 1.5,
     24: 2.0,
+    30: 2.5,
     36: 3.0,
     48: 4.0,
     60: 5.0,
