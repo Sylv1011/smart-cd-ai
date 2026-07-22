@@ -196,6 +196,7 @@ class DataClient:
                 "product_type,institution_name,brokerage_firm,issuing_bank,term_months,apy,minimum_deposit,fdic_insured,source_name,source_url,destination_url,retrieved_at"
             )
             .eq("term_months", term_months)
+            .eq("status", "active")
             .execute()
         )
 
